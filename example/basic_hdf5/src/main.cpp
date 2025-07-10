@@ -35,24 +35,7 @@ std::vector<Sample> collect_samples(uint64_t sample_ms, uint16_t sample_ct) {
     return samples;
 }
 
-int main() {
-    SamplerParams params{};
-
-    params.file_path = "./system_info.h5";
-
-    std::cout << "Group name: ";
-    std::getline(std::cin, params.group_name);
-
-    std::cout << "Sample count: ";
-    if (!(std::cin >> params.sample_ct)){
-        throw std::runtime_error("given sample count was not integer");
-    }
-
-    std::cout << "Sample interval (ms): ";
-    if (!(std::cin >> params.sample_ms)){
-        throw std::runtime_error("given sample interval was not integer");
-    }
-
+int hdf5_cpp(const SamplerParams& params) {
     try {
         unsigned int flags = std::filesystem::exists(params.file_path) ? H5F_ACC_RDWR : H5F_ACC_TRUNC;
 
@@ -91,5 +74,27 @@ int main() {
         return 1;
     } catch (...) {
         std::cout << "unknown error" << std::endl;
+        return 1;
     }
+}
+
+int main() {
+    SamplerParams params{};
+
+    params.file_path = "./system_info.h5";
+
+    std::cout << "Group name: ";
+    std::getline(std::cin, params.group_name);
+
+    std::cout << "Sample count: ";
+    if (!(std::cin >> params.sample_ct)){
+        throw std::runtime_error("given sample count was not integer");
+    }
+
+    std::cout << "Sample interval (ms): ";
+    if (!(std::cin >> params.sample_ms)){
+        throw std::runtime_error("given sample interval was not integer");
+    }
+
+    return hdf5_cpp(params);
 }
