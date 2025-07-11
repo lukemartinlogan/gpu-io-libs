@@ -76,6 +76,9 @@ int main(int argc, char** argv) {
     // 1. initialize MPI env
     MPI_Init(&argc, &argv);
 
+    // credit: https://github.com/astro-claire/arepo-clusters/tree/main
+    // ΛCDM star clusters at cosmic dawn: stellar densities, environment, and equilibrium
+    // Williams et al (2025)
     std::filesystem::path file_name = "./data/starcluster_data.hdf5";
 
     int mpi_rank, mpi_size;
