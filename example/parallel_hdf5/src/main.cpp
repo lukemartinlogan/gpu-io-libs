@@ -62,4 +62,15 @@ int main(int argc, char** argv) {
     // mpio transfer prop list is only needed for data transfer,
     // not opening handle of dataset -> H5P_DEFAULT
     hid_t dataset = H5Dopen(file_id, "/redshift_12", H5P_DEFAULT);
+
+    // 4. check size of dataspace
+    hid_t dataspace = H5Dget_space(dataset);
+
+    if (H5Sget_simple_extent_ndims(dataspace) != 1) {
+        throw std::runtime_error("dataset should be one dimensional");
+    }
+
+    hsize_t cluster_ct;
+    H5Sget_simple_extent_dims(dataspace, &cluster_ct, nullptr);
+    H5Sclose(dataspace);
 }
