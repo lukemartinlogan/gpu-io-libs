@@ -2,6 +2,7 @@
 #include <mpi.h>
 #include <string>
 #include <filesystem>
+#include <vector>
 
 struct ClusterData {
     // Stellar mass (in solar masses)
@@ -77,14 +78,14 @@ int main(int argc, char** argv) {
 
     std::filesystem::path file_name = "./data/starcluster_data.hdf5";
 
-    int rank, size;
+    int mpi_rank, mpi_size;
 
     // MPI_COMM_WORLD -> communicator that lets all processes communicate
 
     // unique id of this process
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     // total number of processes
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 
     // 2. property list -> configuration on how HDF5 should work
     // this creates a property list relating to file access
@@ -105,7 +106,7 @@ int main(int argc, char** argv) {
     // not opening handle of dataset -> H5P_DEFAULT
     hid_t dataset = H5Dopen(file_id, "/redshift_12", H5P_DEFAULT);
 
-    // 4. check size of dataspace
+    // 4. check size of dataspace & divide tasks
     hid_t dataspace = H5Dget_space(dataset);
 
     if (H5Sget_simple_extent_ndims(dataspace) != 1) {
@@ -114,5 +115,46 @@ int main(int argc, char** argv) {
 
     hsize_t cluster_ct;
     H5Sget_simple_extent_dims(dataspace, &cluster_ct, nullptr);
-    H5Sclose(dataspace);
+
+    auto [offset, count] = GetRankTaskDivision(cluster_ct, mpi_size, mpi_rank);
+
+    // 5. select hyperslab (contiguous slice of dataset)
+    std::vector<ClusterData> cluster_slice(count);
+
+    hsize_t slab_start[1] = { offset };
+    hsize_t slab_count[1] = { count };
+
+    H5Sselect_hyperslab(
+        dataspace,
+        // H5S_SELECT_SET -> replace with new selection
+        // (as opposed to logical set ops: and/union/or)
+        H5S_SELECT_SET,
+        slab_start,
+        nullptr,
+        slab_count,
+        nullptr
+    );
+
+    // so hdf5 knows the shape of the buffer
+    hid_t buf_space = H5Screate_simple(1, slab_count, slab_count);
+
+    // 6. read with collective I/O
+    // plist for dataset transfer
+    hid_t transfer_plist = H5Pcreate(H5P_DATASET_XFER);
+    // sets data transfew to use collective MPI I/O,
+    // all processes participate, MPI handles coordinating
+    H5Pset_dxpl_mpio(transfer_plist, H5FD_MPIO_COLLECTIVE);
+
+    hid_t datatype = ClusterData::H5Type();
+
+    H5Dread(
+        dataset,
+        datatype,
+        // write into buf with shape `buf_shape`
+        buf_space,
+        // dataspace of full dataset
+        dataspace,
+        transfer_plist,
+        cluster_slice.data()
+    );
 }
