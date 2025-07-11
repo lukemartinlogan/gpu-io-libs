@@ -29,6 +29,48 @@ struct ClusterData {
     }
 };
 
+// return: [offset, count]
+std::tuple<size_t, size_t> GetRankTaskDivision(size_t total_size, size_t num_proc, size_t rank) {
+    // naive division of tasks between processes,
+    size_t count = total_size / num_proc;
+    // ... there's some remainder
+    size_t remainder = total_size % num_proc;
+
+    // if there are 10 processes with a remainder of 4,
+    // the first 4 processes should have one extra,
+    // and the remaining 6 have the normal amount
+
+    size_t offset;
+
+    // if it's a process that should have an extra one
+    if (rank < remainder) {
+        offset = rank * (count + 1);
+    } else {
+        // [ 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 ]
+        // < #0 (2+1)  | #1 (2+1)  | #2 (2)| #3 (2)>
+
+        // > rank = 2, remainder 2, count 2;
+        // extra = 2 * (2 + 1) = 6
+        // normal = (2 - 2) * 2 = 0
+        // -> #2 starts at 6 + 0 = 6
+
+        // > rank = 3, remainder 2, count 2;
+        // extra = 2 * (2 + 1) = 6
+        // normal = (3 - 2) * 2 = 2
+        // -> #3 starts at 6 + 2 = 8
+
+        size_t proc_with_extra = remainder * (count + 1);
+
+        size_t proc_with_normal = (rank - remainder) * count;
+
+        offset = proc_with_extra + proc_with_normal;
+    }
+
+    size_t this_ct = (rank < remainder) ? count + 1 : count;
+
+    return { offset, this_ct };
+}
+
 int main(int argc, char** argv) {
     // 1. initialize MPI env
     MPI_Init(&argc, &argv);
