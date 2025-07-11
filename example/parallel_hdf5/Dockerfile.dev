@@ -10,7 +10,15 @@ RUN apt-get update && apt-get install -y software-properties-common \
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 \
     && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
 
-RUN bash -c "source /root/spack/share/spack/setup-env.sh && spack load hdf5 mpi iowarp"
+ENV SPACK_ROOT=/root/spack
+RUN echo "source $SPACK_ROOT/share/spack/setup-env.sh" >> /etc/bash.bashrc
+
+SHELL ["/bin/bash", "-c"]
+
+RUN source $SPACK_ROOT/share/spack/setup-env.sh \
+    && spack load hdf5 mpi
+
+RUN echo "spack load hdf5 mpi iowarp" >> /etc/bash.bashrc
 
 WORKDIR /project
 

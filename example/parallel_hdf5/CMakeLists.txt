@@ -7,3 +7,5 @@ find_package(HDF5 REQUIRED COMPONENTS C CXX HL)
 find_package(MPI REQUIRED)
 
 target_link_libraries(parallel_hdf5 PRIVATE MPI::MPI_CXX)
+target_include_directories(parallel_hdf5 PRIVATE ${HDF5_INCLUDE_DIRS})
+target_link_libraries(parallel_hdf5 PRIVATE ${HDF5_LIBRARIES})
