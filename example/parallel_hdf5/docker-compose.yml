@@ -1,0 +1,12 @@
+version: "3.8"
+services:
+  parallel_hdf5_dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: iowarp-dev:latest
+    volumes:
+      - .:/project
+    working_dir: /project
+    tty: true
+    stdin_open: true
