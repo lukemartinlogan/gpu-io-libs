@@ -3,6 +3,32 @@
 #include <string>
 #include <filesystem>
 
+struct ClusterData {
+    // Stellar mass (in solar masses)
+    double stellar_mass_;
+    // Gas mass (in solar masses)
+    double gas_mass_;
+    // Mass of DM contained within either virial radius (if virialized)
+    // or FOF output radius (if not virialized) (in solar masses)
+    double dark_matter_mass_;
+    // Half mass radius of object (in kpc)
+    double half_mass_rad_;
+    // if in virial equilibrium (Ek balances Ug)
+    // FIXME: dataset stores as float :,) when it should be boolean
+    double virialized_;
+
+    static hid_t h5_type() {
+        const hid_t ty = H5Tcreate(H5T_COMPOUND, sizeof(ClusterData));
+        H5Tinsert(ty, "stellarMass (Msun)", offsetof(ClusterData, stellar_mass_), H5T_NATIVE_DOUBLE);
+        H5Tinsert(ty, "gasMass (Msun)", offsetof(ClusterData, gas_mass_), H5T_NATIVE_DOUBLE);
+        H5Tinsert(ty, "DMMass_<r (Msun)", offsetof(ClusterData, dark_matter_mass_), H5T_NATIVE_DOUBLE);
+        H5Tinsert(ty, "radius_hm (kpc)", offsetof(ClusterData, half_mass_rad_), H5T_NATIVE_DOUBLE);
+        H5Tinsert(ty, "virialized", offsetof(ClusterData, virialized_), H5T_NATIVE_DOUBLE);
+
+        return ty;
+    }
+};
+
 int main(int argc, char** argv) {
     // 1. initialize MPI env
     MPI_Init(&argc, &argv);
