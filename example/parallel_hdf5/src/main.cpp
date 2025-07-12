@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
     );
 
     // so hdf5 knows the shape of the buffer
-    hid_t buf_space = H5Screate_simple(1, slab_count, slab_count);
+    hid_t slab_space = H5Screate_simple(1, slab_count, slab_count);
 
     // 6. read with collective I/O
     // plist for dataset transfer
@@ -153,11 +153,102 @@ int main(int argc, char** argv) {
     H5Dread(
         dataset,
         datatype,
-        // write into buf with shape `buf_shape`
-        buf_space,
+        // write into buf with shape `slab_space`
+        slab_space,
         // dataspace of full dataset
         dataspace,
         transfer_plist,
         cluster_slice.data()
     );
+
+    // 7. calculate baryonic fraction for each cluster
+    // (how much of the total mass isn't dark matter)
+    std::vector<double> baryonic_fraction(count);
+
+    for (size_t i = 0; i < baryonic_fraction.size(); ++i) {
+        double baryonic_matter = cluster_slice[i].gas_mass + cluster_slice[i].stellar_mass;
+        double total_matter = baryonic_matter + cluster_slice[i].dark_matter_mass;
+
+        baryonic_fraction[i] = total_matter == 0.0 ? 0.0 : baryonic_matter / total_matter;
+    }
+
+    // 8. create a group to save the data in
+    // the first proc creates it, and the rest open it
+    hid_t bfrac_group;
+    std::string_view bfrac_group_name = "/baryonic_fraction";
+
+    if (mpi_rank == 0) {
+        htri_t group_exists = H5Lexists(file_id, bfrac_group_name.data(), H5P_DEFAULT);
+
+        if (group_exists < 0) {
+            throw std::runtime_error("couldn't check if group exists");
+        }
+
+        if (group_exists == 0) {
+            bfrac_group = H5Gcreate(file_id, bfrac_group_name.data(), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+            if (bfrac_group < 0) {
+                throw std::runtime_error("failed to create group");
+            }
+        } else {
+            bfrac_group = H5Gopen(file_id, bfrac_group_name.data(), H5P_DEFAULT);
+        }
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    if (mpi_rank != 0) {
+        bfrac_group = H5Gopen(file_id, bfrac_group_name.data(), H5P_DEFAULT);
+    }
+
+    // 9. create dataset, first proc creates, rest open
+    hid_t bfrac_dataset;
+    hid_t bfrac_datatype = H5T_NATIVE_DOUBLE;
+
+    if (mpi_rank == 0) {
+        bfrac_dataset = H5Dcreate(bfrac_group /* NOLINT */, "/redshift_12", bfrac_datatype, dataspace, H5P_DEFAULT, H5P_DEFAULT,H5P_DEFAULT);
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    if (mpi_rank != 0) {
+        bfrac_dataset = H5Dopen(bfrac_group /* NOLINT */, "/redshift_12", H5P_DEFAULT);
+    }
+
+    // 10. write to dataset through hyperslab
+    H5Sselect_hyperslab(
+        dataspace,
+        H5S_SELECT_SET,
+        slab_start,
+        nullptr,
+        slab_count,
+        nullptr
+    );
+
+    H5Dwrite(
+        bfrac_dataset, // NOLINT
+        bfrac_datatype,
+        // write into buf with shape `buf_shape`
+        slab_space,
+        // dataspace of full dataset
+        dataspace,
+        transfer_plist,
+        baryonic_fraction.data()
+    );
+
+    // 11. close everything! TODO: RAII wrappers?
+    H5Sclose(dataspace);
+    H5Sclose(slab_space);
+
+    H5Tclose(datatype);
+    H5Pclose(transfer_plist);
+
+    H5Dclose(dataset);
+    H5Dclose(bfrac_dataset); // NOLINT
+
+    H5Gclose(bfrac_group); // NOLINT
+
+    H5Fclose(file_id);
+
+    MPI_Finalize();
 }
