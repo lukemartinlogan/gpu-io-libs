@@ -80,6 +80,7 @@ int main(int argc, char** argv) {
     // ΛCDM star clusters at cosmic dawn: stellar densities, environment, and equilibrium
     // Williams et al (2025)
     std::filesystem::path file_name = "./data/starcluster_data.hdf5";
+    std::string_view selected_data = "redshift_12";
 
     int mpi_rank, mpi_size;
 
@@ -107,7 +108,7 @@ int main(int argc, char** argv) {
 
     // mpio transfer prop list is only needed for data transfer,
     // not opening handle of dataset -> H5P_DEFAULT
-    hid_t dataset = H5Dopen(file_id, "/redshift_12", H5P_DEFAULT);
+    hid_t dataset = H5Dopen(file_id, selected_data.data(), H5P_DEFAULT);
 
     // 4. check size of dataspace & divide tasks
     hid_t dataspace = H5Dget_space(dataset);
@@ -206,13 +207,13 @@ int main(int argc, char** argv) {
     hid_t bfrac_datatype = H5T_NATIVE_DOUBLE;
 
     if (mpi_rank == 0) {
-        bfrac_dataset = H5Dcreate(bfrac_group /* NOLINT */, "/redshift_12", bfrac_datatype, dataspace, H5P_DEFAULT, H5P_DEFAULT,H5P_DEFAULT);
+        bfrac_dataset = H5Dcreate(bfrac_group /* NOLINT */, selected_data.data(), bfrac_datatype, dataspace, H5P_DEFAULT, H5P_DEFAULT,H5P_DEFAULT);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
 
     if (mpi_rank != 0) {
-        bfrac_dataset = H5Dopen(bfrac_group /* NOLINT */, "/redshift_12", H5P_DEFAULT);
+        bfrac_dataset = H5Dopen(bfrac_group /* NOLINT */, selected_data.data(), H5P_DEFAULT);
     }
 
     // 10. write to dataset through hyperslab
