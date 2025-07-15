@@ -3,7 +3,7 @@
 
 #include "serialization.h"
 
-class StdioWriter : Serializer {
+class StdioWriter : public Serializer {
 public:
     explicit StdioWriter(const std::filesystem::path& path)
         : path_(path)
@@ -31,7 +31,7 @@ private:
     FILE* file_;
 };
 
-class StdioReader : Deserializer {
+class StdioReader : public Deserializer {
 public:
     explicit StdioReader(const std::filesystem::path& path)
         : path_(path)
