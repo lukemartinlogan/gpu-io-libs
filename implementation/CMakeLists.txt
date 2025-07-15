@@ -10,6 +10,7 @@ add_executable(hdf5_implementation
     include/jenkins/lookup3.cpp
     src/main.cpp
     src/util/lookup3.h
+    src/serialization/serialization.h
 )
 
 #target_link_libraries(hdf5_implementation PRIVATE MPI::MPI_CXX)
