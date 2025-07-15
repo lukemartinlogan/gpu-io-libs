@@ -4,7 +4,7 @@
 
 #include "serialization.h"
 
-class FStreamWriter: Serializer {
+class FStreamWriter: public Serializer {
 public:
     explicit FStreamWriter(const std::filesystem::path& path)
         : path_(path)
@@ -26,7 +26,7 @@ private:
     std::ofstream stream_;
 };
 
-class FStreamReader: Deserializer {
+class FStreamReader: public Deserializer {
 public:
     explicit FStreamReader(const std::filesystem::path& path)
         : path_(path)
