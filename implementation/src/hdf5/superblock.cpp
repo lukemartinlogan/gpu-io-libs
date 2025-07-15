@@ -4,12 +4,10 @@
 #include "superblock.h"
 #include "../util/lookup3.h"
 
-const std::array<uint8_t, 8> SuperblockV2::kSignature = { 0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a };
-
 void SuperblockV2::Serialize(Serializer& s) const {
     const uint32_t checksum = Checksum();
 
-    s.Write(kSignature);
+    s.Write(kSuperblockSignature);
     s.Write(kVersionNumber);
     s.Write(size_of_offsets);
     s.Write(size_of_lengths);
@@ -22,7 +20,7 @@ void SuperblockV2::Serialize(Serializer& s) const {
 }
 
 SuperblockV2 SuperblockV2::Deserialize(Deserializer& de) {
-    if (de.Read<std::array<uint8_t, 8>>() != kSignature) {
+    if (de.Read<std::array<uint8_t, 8>>() != kSuperblockSignature) {
         throw std::runtime_error("Superblock signature was invalid");
     }
 
@@ -53,7 +51,7 @@ SuperblockV2 SuperblockV2::Deserialize(Deserializer& de) {
 
 uint32_t SuperblockV2::Checksum() const { // NOLINT
     struct ChecksumData {
-        std::array<uint8_t, 8> signature = kSignature;
+        std::array<uint8_t, 8> signature = kSuperblockSignature;
         uint8_t version_number= kVersionNumber;
         SuperblockV2 sb;
     };

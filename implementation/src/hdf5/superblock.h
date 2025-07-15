@@ -1,8 +1,11 @@
 #pragma once
 #include <cstdint>
+#include <array>
 
 #include "types.h"
 #include "../serialization/serialization.h"
+
+inline const std::array<uint8_t, 8> kSuperblockSignature = { 0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a };
 
 struct FileConsistencyFlags {
     [[nodiscard]] bool WriteAccess() const {
@@ -48,6 +51,5 @@ struct SuperblockV2 {
 private:
     [[nodiscard]] uint32_t Checksum() const;
 
-    static const std::array<uint8_t, 8> kSignature;
     static constexpr uint8_t kVersionNumber = 0x02;
 };
