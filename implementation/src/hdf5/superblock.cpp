@@ -51,9 +51,18 @@ Superblock Superblock::Deserialize(Deserializer& de) {
     return sb;
 }
 
-uint32_t Superblock::Checksum() const {
-    return lookup3::HashLittle(std::span(
-        reinterpret_cast<const byte_t*>(this),
-        sizeof(Superblock)
-    ));
+uint32_t Superblock::Checksum() const { // NOLINT
+    struct ChecksumData {
+        std::array<uint8_t, 8> signature = kSignature;
+        uint8_t version_number= kVersionNumber;
+        Superblock sb;
+    };
+
+    ChecksumData data {
+        .sb = *this
+    };
+
+    return lookup3::HashLittle(
+        std::as_bytes(std::span(&data, 1))
+    );
 }
