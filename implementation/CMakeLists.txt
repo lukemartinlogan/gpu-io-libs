@@ -12,6 +12,7 @@ add_executable(hdf5_implementation
     src/util/lookup3.h
     src/serialization/serialization.h
     src/serialization/filestream.h
+    src/serialization/stdio.h
 )
 
 #target_link_libraries(hdf5_implementation PRIVATE MPI::MPI_CXX)
