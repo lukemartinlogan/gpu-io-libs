@@ -13,6 +13,8 @@ add_executable(hdf5_implementation
     src/serialization/serialization.h
     src/serialization/filestream.h
     src/serialization/stdio.h
+    src/hdf5/superblock.cpp
+    src/hdf5/superblock.h
     src/hdf5/types.h
 )
 

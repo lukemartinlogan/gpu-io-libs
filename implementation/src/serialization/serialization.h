@@ -58,11 +58,11 @@ public:
     }
 
     template<typename T>
-    void Read(const T& data) {
+    T Read() {
         if constexpr (is_trivially_serializable_v<T>) {
-            return ReadRaw(data);
+            return ReadRaw<T>();
         } else {
-            return ReadComplex(data);
+            return ReadComplex<T>();
         }
     }
 };
