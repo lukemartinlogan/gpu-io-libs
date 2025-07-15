@@ -4,9 +4,9 @@
 #include "superblock.h"
 #include "../util/lookup3.h"
 
-const std::array<uint8_t, 8> Superblock::kSignature = { 0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a };
+const std::array<uint8_t, 8> SuperblockV2::kSignature = { 0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a };
 
-void Superblock::Serialize(Serializer& s) const {
+void SuperblockV2::Serialize(Serializer& s) const {
     const uint32_t checksum = Checksum();
 
     s.Write(kSignature);
@@ -21,7 +21,7 @@ void Superblock::Serialize(Serializer& s) const {
     s.Write(checksum);
 }
 
-Superblock Superblock::Deserialize(Deserializer& de) {
+SuperblockV2 SuperblockV2::Deserialize(Deserializer& de) {
     if (de.Read<std::array<uint8_t, 8>>() != kSignature) {
         throw std::runtime_error("Superblock signature was invalid");
     }
@@ -30,7 +30,7 @@ Superblock Superblock::Deserialize(Deserializer& de) {
         throw std::runtime_error("Superblock version number was invalid");
     }
 
-    const Superblock sb {
+    const SuperblockV2 sb {
         .size_of_offsets = de.Read<uint8_t>(),
         .size_of_lengths = de.Read<uint8_t>(),
         .file_consistency_flags = de.Read<FileConsistencyFlags>(),
@@ -51,11 +51,11 @@ Superblock Superblock::Deserialize(Deserializer& de) {
     return sb;
 }
 
-uint32_t Superblock::Checksum() const { // NOLINT
+uint32_t SuperblockV2::Checksum() const { // NOLINT
     struct ChecksumData {
         std::array<uint8_t, 8> signature = kSignature;
         uint8_t version_number= kVersionNumber;
-        Superblock sb;
+        SuperblockV2 sb;
     };
 
     ChecksumData data {

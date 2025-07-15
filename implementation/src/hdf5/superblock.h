@@ -20,7 +20,7 @@ private:
     uint8_t bitmap = 0;
 };
 
-struct Superblock {
+struct SuperblockV2 {
     // number of bytes used for storing addresses,
     // addresses are relative to base address,
     // superblock address is usually base
@@ -43,7 +43,7 @@ struct Superblock {
 
     void Serialize(Serializer& s) const;
 
-    static Superblock Deserialize(Deserializer& de);
+    static SuperblockV2 Deserialize(Deserializer& de);
 
 private:
     [[nodiscard]] uint32_t Checksum() const;
