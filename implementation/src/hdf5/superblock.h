@@ -24,6 +24,7 @@ private:
     uint8_t bitmap = 0;
 };
 
+// TODO: Superblock checked for at 0, 512, 1024, 2048, ..
 struct SuperblockV0 {
     // number of bytes used for storing addresses,
     // addresses are relative to base address,
