@@ -87,7 +87,7 @@ ObjectHeader ObjectHeader::Deserialize(Deserializer& de) {
         hd.messages.push_back(de.ReadComplex<ObjectHeaderMessage>());
     }
 
-    uint64_t total_bytes = std::reduce(
+    uint64_t total_bytes = std::accumulate(
         hd.messages.begin(),
         hd.messages.end(),
         static_cast<uint64_t>(0),
