@@ -84,7 +84,7 @@ struct ObjectHeaderMessage {
     } type;
 
     // if this gets too large, put it on the heap
-    std::variant<SymbolTableMessage, std::monostate> message{};
+    std::variant<SymbolTableMessage> message;
     uint8_t flags;
 
     uint16_t Size() const {
