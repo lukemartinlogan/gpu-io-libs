@@ -5,12 +5,13 @@
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(type);
     s.Write(size);
-    s.Write(flags);
 
     // FIXME: Serializer::WriteZero<size_t>
     s.Write<uint8_t>(0);
     s.Write<uint8_t>(0);
     s.Write<uint8_t>(0);
+
+    s.Write(flags);
 
     if (size != message.size()) {
         throw std::runtime_error("Mismatch in header message size");
