@@ -13,6 +13,10 @@ struct SymbolTableMessage {
     // for symbol table entries
     offset_t local_heap_addr = kUndefinedOffset;
 
+    uint16_t InternalSize() const { // NOLINT
+        return sizeof(SymbolTableMessage);
+    }
+
     void Serialize(Serializer& s) const {
         s.WriteRaw(*this);
     }
