@@ -5,7 +5,7 @@
 
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(type);
-    s.Write(Size());
+    s.Write(InternalSize());
 
     // FIXME: Serializer::WriteZero<size_t>
     s.Write<uint8_t>(0);
@@ -92,7 +92,7 @@ ObjectHeader ObjectHeader::Deserialize(Deserializer& de) {
         hd.messages.end(),
         static_cast<uint64_t>(0),
         [](uint64_t acc, const ObjectHeaderMessage& msg) {
-            return acc + msg.Size();
+            return acc + msg.InternalSize();
         }
     );
 

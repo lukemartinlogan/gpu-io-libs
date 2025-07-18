@@ -87,17 +87,11 @@ struct ObjectHeaderMessage {
     std::variant<SymbolTableMessage> message;
     uint8_t flags;
 
-    uint16_t Size() const {
-        uint16_t size{};
-
-        switch (type) {
-            case Type::kSymbolTable: {
-                size = sizeof(SymbolTableMessage);
-            }
-            default: {
-
-            }
-        }
+    [[nodiscard]] uint16_t InternalSize() const {
+        uint16_t size = std::visit(
+            [](const auto& m) { return m.InternalSize(); },
+            message
+        );
 
         return size + 8 * sizeof(byte_t);
     }
