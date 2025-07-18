@@ -1,9 +1,7 @@
-#include "object_header.h"
-
 #include <numeric>
 #include <stdexcept>
 
-#include "symbol_table.h"
+#include "object_header.h"
 
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(type);
