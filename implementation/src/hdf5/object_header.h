@@ -12,6 +12,10 @@ struct ObjectHeaderMessage {
     uint8_t flags;
     std::vector<byte_t> message;
 
+    uint16_t InternalSize() const {
+        return sizeof(byte_t) * 8 + size;
+    }
+
     void Serialize(Serializer& s) const;
 
     static ObjectHeaderMessage Deserialize(Deserializer& de);
