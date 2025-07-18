@@ -3,6 +3,8 @@
 #include <numeric>
 #include <stdexcept>
 
+#include "symbol_table.h"
+
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(type);
     s.Write(Size());
@@ -14,24 +16,42 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
 
     s.Write(flags);
 
-    if (Size() != message.size()) {
-        throw std::runtime_error("Mismatch in header message size");
+    switch (type) {
+        case Type::kSymbolTable: {
+            s.Write(std::get<SymbolTableMessage>(message));
+            break;
+        }
+        default: {
+            throw std::logic_error("not implemented");
+        }
     }
-
-    s.WriteBuffer(message);
 }
 
 ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
     ObjectHeaderMessage msg{};
 
-    msg.type = de.Read<uint16_t>();
+    uint16_t type = de.Read<uint16_t>();
+
+    constexpr uint16_t kMessageTypeCt = 0x18;
+    if (type >= kMessageTypeCt) {
+        throw std::runtime_error("Not a valid message type");
+    }
+
+    msg.type = static_cast<Type>(type);
+
     uint16_t size = de.Read<uint16_t>();
     msg.flags = de.Read<uint8_t>();
     de.Skip<3>(); // reserved (0)
 
-    msg.message.resize(size);
 
-    de.ReadBuffer(msg.message);
+    switch (type) {
+        case static_cast<int>(Type::kSymbolTable): {
+            break;
+        }
+        default: {
+            throw std::logic_error("not implemented");
+        }
+    }
 
     return msg;
 }
@@ -74,7 +94,7 @@ ObjectHeader ObjectHeader::Deserialize(Deserializer& de) {
         hd.messages.end(),
         static_cast<uint64_t>(0),
         [](uint64_t acc, const ObjectHeaderMessage& msg) {
-            return acc + msg.InternalSize();
+            return acc + msg.Size();
         }
     );
 
