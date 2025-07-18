@@ -43,6 +43,9 @@ public:
 
     virtual bool ReadBuffer(std::span<byte_t> out) = 0;
 
+    [[nodiscard]] virtual offset_t GetPosition() = 0;
+    virtual void SetPosition(offset_t offset) = 0;
+
     template<typename T>
     T ReadRaw() {
         static_assert(is_trivially_serializable_v<T>, "not safely deserializable");
