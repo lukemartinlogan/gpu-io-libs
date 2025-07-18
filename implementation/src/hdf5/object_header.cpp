@@ -41,9 +41,9 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
     msg.flags = de.Read<uint8_t>();
     de.Skip<3>(); // reserved (0)
 
-
-    switch (type) {
-        case static_cast<int>(Type::kSymbolTable): {
+    switch (static_cast<Type>(type)) {
+        case Type::kSymbolTable: {
+            msg.message = de.ReadComplex<SymbolTableMessage>();
             break;
         }
         default: {
