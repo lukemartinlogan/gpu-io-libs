@@ -5,7 +5,7 @@
 
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(type);
-    s.Write(size);
+    s.Write(Size());
 
     // FIXME: Serializer::WriteZero<size_t>
     s.Write<uint8_t>(0);
@@ -14,7 +14,7 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
 
     s.Write(flags);
 
-    if (size != message.size()) {
+    if (Size() != message.size()) {
         throw std::runtime_error("Mismatch in header message size");
     }
 
@@ -25,11 +25,11 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
     ObjectHeaderMessage msg{};
 
     msg.type = de.Read<uint16_t>();
-    msg.size = de.Read<uint16_t>();
+    uint16_t size = de.Read<uint16_t>();
     msg.flags = de.Read<uint8_t>();
     de.Skip<3>(); // reserved (0)
 
-    msg.message.resize(msg.size);
+    msg.message.resize(size);
 
     de.ReadBuffer(msg.message);
 

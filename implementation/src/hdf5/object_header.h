@@ -8,12 +8,16 @@
 // TODO: replace this with a variant
 struct ObjectHeaderMessage {
     uint16_t type;
-    uint16_t size;
     uint8_t flags;
+    // FIXME: this should not be resized!
     std::vector<byte_t> message;
 
+    uint16_t Size() const {
+        return message.size();
+    }
+
     uint16_t InternalSize() const {
-        return sizeof(byte_t) * 8 + size;
+        return sizeof(byte_t) * 8 + Size();
     }
 
     void Serialize(Serializer& s) const;
