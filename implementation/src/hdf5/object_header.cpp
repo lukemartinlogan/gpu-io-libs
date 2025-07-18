@@ -29,7 +29,7 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
     msg.flags = de.Read<uint8_t>();
     de.Skip<3>(); // reserved (0)
 
-    std::vector<byte_t> message(msg.size);
+    msg.message.resize(msg.size);
 
     de.ReadBuffer(msg.message);
 
