@@ -5,6 +5,22 @@
 #include "types.h"
 #include "../serialization/serialization.h"
 
+struct SymbolTableMessage {
+    // address of v1 b-tree containing symbol table entries
+    offset_t b_tree_addr;
+    // address of local heap containing link names
+    // for symbol table entries
+    offset_t local_heap_addr;
+
+    void Serialize(Serializer& s) const {
+        s.WriteRaw(*this);
+    }
+
+    static SymbolTableMessage Deserialize(Deserializer& de) {
+        return de.ReadRaw<SymbolTableMessage>();
+    }
+};
+
 // TODO: replace this with a variant
 struct ObjectHeaderMessage {
     uint16_t type;
