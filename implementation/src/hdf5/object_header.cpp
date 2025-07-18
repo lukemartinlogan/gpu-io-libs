@@ -43,7 +43,7 @@ void ObjectHeader::Serialize(Serializer& s) const {
     s.Write(object_ref_count);
     s.Write(object_header_size);
     // reserved (zero)
-    s.Write<uint64_t>(0);
+    s.Write<uint32_t>(0);
 
     for (const ObjectHeaderMessage& msg: messages) {
         s.WriteComplex(msg);
@@ -60,10 +60,10 @@ ObjectHeader ObjectHeader::Deserialize(Deserializer& de) {
     ObjectHeader hd{};
 
     hd.message_count = de.Read<uint16_t>();
-    hd.object_ref_count = de.Read<uint64_t>();
-    hd.object_header_size = de.Read<uint64_t>();
+    hd.object_ref_count = de.Read<uint32_t>();
+    hd.object_header_size = de.Read<uint32_t>();
     // reserved (zero)
-    de.Skip<uint64_t>();
+    de.Skip<uint32_t>();
 
     for (uint16_t m = 0; m < hd.message_count; ++m) {
         hd.messages.push_back(de.ReadComplex<ObjectHeaderMessage>());
