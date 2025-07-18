@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <span>
+#include <array>
 
 using byte_t = std::byte;
 
