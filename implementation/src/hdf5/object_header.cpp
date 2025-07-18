@@ -51,6 +51,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
     }
 
+    if (std::visit([](const auto& m) { return m.InternalSize(); }, msg.message) != size) {
+        throw std::runtime_error("message size was incorrect");
+    }
+
     return msg;
 }
 
