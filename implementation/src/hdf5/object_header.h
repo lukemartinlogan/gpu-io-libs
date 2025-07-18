@@ -21,7 +21,7 @@ struct SymbolTableMessage {
         return de.ReadRaw<SymbolTableMessage>();
     }
 
-    const uint16_t kType = 0x11;
+    static constexpr uint16_t kType = 0x11;
 };
 
 struct ObjectHeaderMessage {
