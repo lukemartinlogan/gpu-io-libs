@@ -2,6 +2,7 @@
 #include <filesystem>
 
 #include "serialization.h"
+#include "../hdf5/types.h"
 
 class StdioWriter : public Serializer {
 public:
@@ -52,6 +53,22 @@ public:
     bool ReadBuffer(std::span<byte_t> out) final {
         size_t bytes_read = std::fread(out.data(), 1, out.size(), file_);
         return bytes_read == out.size();
+    }
+
+    [[nodiscard]] offset_t GetPosition() final {
+        const long pos = std::ftell(file_);
+
+        if (pos < 0) {
+            throw std::runtime_error("failed to get position");
+        }
+
+        return static_cast<offset_t>(pos);
+    }
+
+    void SetPosition(offset_t offset) final {
+        if (std::fseek(file_, static_cast<long>(offset), SEEK_SET) != 0) {
+            throw std::runtime_error("Seek failed");
+        }
     }
 
 private:

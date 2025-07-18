@@ -3,6 +3,7 @@
 #include <fstream>
 
 #include "serialization.h"
+#include "../hdf5/types.h"
 
 class FStreamWriter: public Serializer {
 public:
@@ -43,6 +44,25 @@ public:
 
         return stream_.gcount() == out.size() && stream_.good();
     }
+
+    offset_t GetPosition() final {
+        const std::streampos pos = stream_.tellg();
+
+        if (pos < 0) {
+            throw std::runtime_error("failed to get position");
+        }
+
+        return pos;
+    }
+
+    void SetPosition(offset_t offset) final {
+        stream_.seekg(static_cast<std::streamoff>(offset));
+
+        if (stream_.fail()) {
+            throw std::runtime_error("Seek failed");
+        }
+    }
+
 private:
     std::filesystem::path path_;
     std::ifstream stream_;
