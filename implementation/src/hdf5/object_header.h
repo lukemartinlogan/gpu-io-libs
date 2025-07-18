@@ -8,10 +8,10 @@
 
 struct SymbolTableMessage {
     // address of v1 b-tree containing symbol table entries
-    offset_t b_tree_addr;
+    offset_t b_tree_addr = kUndefinedOffset;
     // address of local heap containing link names
     // for symbol table entries
-    offset_t local_heap_addr;
+    offset_t local_heap_addr = kUndefinedOffset;
 
     void Serialize(Serializer& s) const {
         s.WriteRaw(*this);
