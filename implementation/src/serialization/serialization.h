@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <span>
+#include <array>
 
 using byte_t = std::byte;
 
@@ -24,7 +25,7 @@ public:
 
     template<typename T>
     void WriteComplex(const T& data) {
-        T::Serialize(data, this);
+        data.Serialize(*this);
     }
 
     template<typename T>
