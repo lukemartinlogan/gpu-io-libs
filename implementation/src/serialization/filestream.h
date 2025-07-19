@@ -13,10 +13,6 @@ public:
         stream_ = std::ofstream(path, std::ofstream::out | std::ofstream::binary);
     }
 
-    ~FStreamWriter() override {
-        stream_.close();
-    }
-
     bool WriteBuffer(std::span<const byte_t> data) final {
         stream_.write(reinterpret_cast<const char*>(data.data()), data.size());
 
@@ -33,10 +29,6 @@ public:
         : path_(path)
     {
         stream_ = std::ifstream(path, std::ofstream::in | std::ofstream::binary);
-    }
-
-    ~FStreamReader() override {
-        stream_.close();
     }
 
     bool ReadBuffer(std::span<byte_t> out) final {
