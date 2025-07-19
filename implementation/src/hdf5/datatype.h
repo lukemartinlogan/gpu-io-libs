@@ -1,6 +1,7 @@
 #pragma once
 
 #include <bitset>
+#include <stdexcept>
 #include <variant>
 
 #include "types.h"
@@ -41,6 +42,70 @@ private:
     std::bitset<4> bitset_{};
 };
 
+// TODO: don't use a bitset internally for the enums?
+struct FloatingPoint {
+    // TODO: comments
+    uint32_t size{};
+    uint8_t sign_location{};
+    uint16_t bit_offset{};
+    uint16_t bit_precision{};
+    uint8_t exponent_location{};
+    uint8_t exponent_size{};
+    uint8_t mantissa_location{};
+    uint8_t mantissa_size{};
+    uint32_t exponent_bias{};
+
+    enum class ByteOrder : uint8_t { kLittleEndian, kBigEndian, kVAXEndian };
+
+    ByteOrder ByteOrder() const {
+        const bool _0 = bitset_.test(0);
+        const bool _6 = bitset_.test(6);
+
+        if (!_0 && !_6) {
+            return ByteOrder::kLittleEndian;
+        }
+        if (_0 && !_6) {
+            return ByteOrder::kBigEndian;
+        }
+        if (_0 && _6) { // NOLINT
+            return ByteOrder::kVAXEndian;
+        }
+
+        throw std::logic_error("Invalid byte order");
+    }
+
+    bool LowPadding() const {
+        return bitset_.test(1);
+    }
+
+    bool HighPadding() const {
+        return bitset_.test(2);
+    }
+
+    bool InternalPadding() const {
+        return bitset_.test(3);
+    }
+
+    enum class MantissaNormalization : uint8_t { kNone, kMSBSet, kMSBImpliedSet };
+
+    MantissaNormalization MantissaNormalization() const {
+        // get bits 4 & 5
+        switch ((bitset_.to_ulong() >> 4) & 0b11) {
+            case 0: return MantissaNormalization::kNone;
+            case 1: return MantissaNormalization::kMSBSet;
+            case 2: return MantissaNormalization::kMSBImpliedSet;
+            default: throw std::logic_error("invalid mantissa normalization");
+        }
+    }
+
+    void Serialize(Serializer& s) const;
+
+    static FloatingPoint Deserialize(Deserializer& de);
+
+private:
+    std::bitset<7> bitset_{};
+};
+
 // TODO: make meaningful data accessible
 struct DatatypeMessage {
     // TODO: strongly typed variant
@@ -72,7 +137,8 @@ struct DatatypeMessage {
     } class_v;
 
     std::variant<
-        FixedPoint
+        FixedPoint,
+        FloatingPoint
     > data{};
 
     uint16_t InternalSize() const { // NOLINT
