@@ -6,7 +6,7 @@
 #include "types.h"
 #include "../serialization/serialization.h"
 
-inline const std::array<uint8_t, 8> kSuperblockSignature = { 0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a };
+inline constexpr std::array<uint8_t, 8> kSuperblockSignature = { 0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a };
 
 struct FileConsistencyFlags {
     [[nodiscard]] bool WriteAccess() const {
