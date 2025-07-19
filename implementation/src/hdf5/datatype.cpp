@@ -107,6 +107,10 @@ DatatypeMessage DatatypeMessage::Deserialize(Deserializer& de) {
             msg.data = de.ReadComplex<FloatingPoint>();
             break;
         }
+        case Class::kCompound: {
+            msg.data = de.ReadComplex<CompoundDatatype>();
+            break;
+        }
         default: {
             throw std::logic_error("not implemented");
         }

@@ -3,6 +3,7 @@
 #include <bitset>
 #include <stdexcept>
 #include <variant>
+#include <vector>
 
 #include "types.h"
 #include "../serialization/serialization.h"
@@ -106,6 +107,9 @@ private:
     std::bitset<7> bitset_{};
 };
 
+// fwd declaration
+struct CompoundDatatype;
+
 // TODO: make meaningful data accessible
 struct DatatypeMessage {
     // TODO: strongly typed variant
@@ -138,7 +142,8 @@ struct DatatypeMessage {
 
     std::variant<
         FixedPoint,
-        FloatingPoint
+        FloatingPoint,
+        CompoundDatatype
     > data{};
 
     uint16_t InternalSize() const { // NOLINT
@@ -152,4 +157,26 @@ struct DatatypeMessage {
 
 private:
     static constexpr uint16_t kType = 0x03;
+};
+
+struct CompoundMember {
+    // null terminated to multiple of 8 bytes
+    std::string name;
+    // byte offset within datatype
+    uint32_t byte_offset;
+    // TODO: smallvec? max size for this is 4, which would make it smaller than sizeof(std::vector)
+    std::vector<uint32_t> dimension_sizes;
+    DatatypeMessage message;
+
+    void Serialize(Serializer& s) const;
+
+    static CompoundMember Deserialize(Deserializer& de);
+};
+
+struct CompoundDatatype {
+    std::vector<CompoundMember> members;
+
+    void Serialize(Serializer& s) const;
+
+    static CompoundDatatype Deserialize(Deserializer& de);
 };
