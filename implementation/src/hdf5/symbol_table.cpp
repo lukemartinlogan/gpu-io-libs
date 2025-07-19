@@ -32,3 +32,42 @@ SymbolTableEntry SymbolTableEntry::Deserialize(Deserializer& de) {
 
     return ent;
 }
+
+void SymbolTableNode::Serialize(Serializer& s) const {
+    s.Write(kSignature);
+    s.Write(kVersionNumber);
+    s.Write<uint8_t>(0);
+
+    s.Write<uint16_t>(entries.size());
+
+    // TODO: does this need to write the extra unused entries?
+    for (const SymbolTableEntry& entry : entries) {
+        s.WriteComplex(entry);
+    }
+}
+
+SymbolTableNode SymbolTableNode::Deserialize(Deserializer& de) {
+    if (de.Read<std::array<uint8_t, 4>>() != kSignature) {
+        throw std::runtime_error("symbol table node signature was invalid");
+    }
+
+    if (de.Read<uint8_t>() != kVersionNumber) {
+        throw std::runtime_error("symbol table node signature was invalid");
+    }
+
+    // reserved (zero)
+    de.Skip<uint8_t>();
+
+    // actual data
+    auto num_symbols = de.Read<uint16_t>();
+
+    SymbolTableNode node{};
+
+    node.entries.reserve(num_symbols);
+
+    for (uint16_t i = 0; i < num_symbols; ++i) {
+        node.entries.push_back(de.ReadComplex<SymbolTableEntry>());
+    }
+
+    return node;
+}
