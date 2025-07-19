@@ -37,6 +37,8 @@ struct BTreeEntries {
     // TODO: enforce child_pointers.size() + 1 == keys.size()
     std::vector<K> keys;
     std::vector<offset_t> child_pointers;
+
+    [[nodiscard]] uint16_t EntriesUsed() const;
 };
 
 struct BTreeNode {
@@ -46,10 +48,6 @@ struct BTreeNode {
     // what level node appears in the tree, leaf nodes are at zero
     // indicates if child pointers point to subtrees or to data
     uint8_t level{};
-    // max number of children this node points to
-    // all nodes have same max degree (max entries used) but
-    // most nodes point to less than that
-    uint16_t entries_used{};
     // relative addr of curr node's left sibling
     // if leftmost, then kUndefinedOffset
     offset_t left_sibling_addr = kUndefinedOffset;
@@ -61,6 +59,11 @@ struct BTreeNode {
         BTreeEntries<BTreeGroupNodeKey>,
         BTreeEntries<BTreeChunkedRawDataNodeKey>
     > entries{};
+
+    // max number of children this node points to
+    // all nodes have same max degree (max entries used) but
+    // most nodes point to less than that
+    [[nodiscard]] uint16_t EntriesUsed() const;
 
     void Serialize(Serializer& s) const;
 

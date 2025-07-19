@@ -24,6 +24,23 @@ BTreeChunkedRawDataNodeKey BTreeChunkedRawDataNodeKey::Deserialize(Deserializer&
     return key;
 }
 
+template <typename K>
+uint16_t BTreeEntries<K>::EntriesUsed() const {
+    uint16_t entries_ct = child_pointers.size();
+
+    if (keys.size() != entries_ct + 1) {
+        throw std::logic_error("Shape of entries was invalid");
+    }
+
+    return entries_ct;
+}
+
+uint16_t BTreeNode::EntriesUsed() const {
+    return std::visit([](const auto& entries) {
+        return entries.EntriesUsed();
+    }, entries);
+}
+
 template<typename K>
 void WriteEntries(const BTreeEntries<K>& entries, Serializer& s) {
     uint16_t entries_ct = entries.child_pointers.size();
@@ -54,7 +71,7 @@ void BTreeNode::Serialize(Serializer& s) const {
 
     s.Write(type);
     s.Write(level);
-    s.Write(entries_used);
+    s.Write(EntriesUsed());
 
     s.Write(left_sibling_addr);
     s.Write(right_sibling_addr);
@@ -96,15 +113,15 @@ BTreeNode BTreeNode::Deserialize(Deserializer& de) {
     BTreeNode node{};
 
     node.level = de.Read<uint8_t>();
-    node.entries_used = de.Read<uint16_t>();
+    auto entries_used = de.Read<uint16_t>();
 
     node.left_sibling_addr = de.Read<offset_t>();
     node.right_sibling_addr = de.Read<offset_t>();
 
     if (type == kGroupNodeTy) {
-        node.entries = ReadEntries<BTreeGroupNodeKey>(node.entries_used, de);
+        node.entries = ReadEntries<BTreeGroupNodeKey>(entries_used, de);
     } else /* kRawDataChunkNodeTy */ {
-        node.entries = ReadEntries<BTreeChunkedRawDataNodeKey>(node.entries_used, de);
+        node.entries = ReadEntries<BTreeChunkedRawDataNodeKey>(entries_used, de);
     }
 
     return node;
