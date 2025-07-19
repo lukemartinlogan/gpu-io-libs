@@ -28,6 +28,10 @@ struct BTreeChunkedRawDataNodeKey {
     // .size() == number of dimensions
     // extra uint64_t(0) at the end (not stored)
     std::vector<uint64_t> chunk_offset_in_dataset;
+
+    void Serialize(Serializer& s) const;
+
+    static BTreeChunkedRawDataNodeKey Deserialize(Deserializer& de);
 };
 
 template<typename K>
