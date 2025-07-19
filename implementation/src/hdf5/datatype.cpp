@@ -4,7 +4,7 @@
 
 void FixedPoint::Serialize(Serializer& s) const {
     // first four bits are used
-    s.Write(static_cast<uint8_t>(bitset_.to_ulong()));
+    s.Write(static_cast<uint8_t>(bitset_.to_ulong()) & 0x0f);
     // reserved (zero)
     s.Write<uint16_t>(0);
 
