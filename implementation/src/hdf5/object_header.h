@@ -153,7 +153,7 @@ struct ObjectHeaderMessage {
         kObjectRefCount = 0x0016,
         //
         kFileSpaceInfo = 0x0017,
-    } type;
+    } type{};
 
     // if this gets too large, put it on the heap
     std::variant<
@@ -161,7 +161,7 @@ struct ObjectHeaderMessage {
         ObjectHeaderContinuationMessage,
         SymbolTableMessage
     > message{};
-    uint8_t flags;
+    uint8_t flags{};
 
     [[nodiscard]] uint16_t InternalSize() const {
         uint16_t size = std::visit(
