@@ -93,7 +93,7 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
     msg.flags = de.Read<uint8_t>();
     de.Skip<3>(); // reserved (0)
 
-    switch (static_cast<Type>(type)) {
+    switch (msg.type) {
         case Type::kDatatype: {
             msg.message = de.ReadComplex<DatatypeMessage>();
         }
