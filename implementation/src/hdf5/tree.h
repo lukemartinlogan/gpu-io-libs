@@ -7,11 +7,6 @@
 
 inline constexpr std::array<uint8_t, 4> kTreeSignature = { 0x54, 0x52, 0x45, 0x45 };
 
-enum class BTreeNodeType : uint8_t {
-    GroupNodes = 0,
-    RawDataChunk = 1,
-};
-
 struct BTreeGroupNodeKey {
     // byte offset into local heap
     // first object name in the subtree the key describes
@@ -35,8 +30,8 @@ struct BTreeEntry {
 using BTreeEntries = std::variant<std::vector<BTreeEntry<BTreeGroupNodeKey>>, std::vector<BTreeEntry<BTreeChunkedRawDataNodeKey>>>;
 
 struct BTreeNode {
+    // type: (not stored, check variant)
     // implies max degree K of the tree & size of each key field
-    BTreeNodeType type{};
 
     // what level node appears in the tree, leaf nodes are at zero
     // indicates if child pointers point to subtrees or to data
