@@ -96,6 +96,7 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
     switch (msg.type) {
         case Type::kDatatype: {
             msg.message = de.ReadComplex<DatatypeMessage>();
+            break;
         }
         case Type::kObjectHeaderContinuation: {
             msg.message = de.ReadComplex<ObjectHeaderContinuationMessage>();
