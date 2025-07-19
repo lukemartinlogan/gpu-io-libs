@@ -121,3 +121,105 @@ DatatypeMessage DatatypeMessage::Deserialize(Deserializer& de) {
 
     return msg;
 }
+
+
+void WritePaddedString(std::string_view name, Serializer&s) {
+    size_t name_size = name.size();
+
+    // write string
+    s.WriteBuffer(std::span(
+        reinterpret_cast<const byte_t*>(name.data()),
+        name_size
+    ));
+
+    // pad to 8 bytes
+    size_t padding = (name_size / 8 + 1) * 8 - name_size;
+    static constexpr std::array<byte_t, 8> nul_bytes{};
+
+    s.WriteBuffer(std::span(nul_bytes.data(), padding));
+}
+
+void CompoundMember::Serialize(Serializer& s) const {
+    // includes null terminator
+    WritePaddedString(name, s);
+
+    s.Write(byte_offset);
+
+    auto dimensionality = static_cast<uint8_t>(dimension_sizes.size());
+    s.Write(dimensionality);
+
+    // reserved (zero)
+    s.Write<uint8_t>(0);
+    s.Write<uint8_t>(0);
+    s.Write<uint8_t>(0);
+    // dimension permutation (unused)
+    s.Write<uint32_t>(0);
+    // reserved (zero)
+    s.Write<uint32_t>(0);
+
+    for (uint8_t i = 0; i < 4; ++i) {
+        if (i < dimensionality) {
+            s.Write<uint32_t>(dimension_sizes.at(i));
+        } else {
+            s.Write<uint32_t>(0);
+        }
+    }
+
+    s.WriteComplex(message);
+}
+
+std::string ReadPaddedString(Deserializer& de) {
+    std::string name;
+    size_t read = 0;
+
+    for (;;) {
+        // 8 byte blocks
+        std::array<byte_t, 8> buf{};
+
+        if (!de.ReadBuffer(buf)) {
+            throw std::runtime_error("failed to read string block");
+        }
+
+        read += buf.size();
+
+        auto nul_pos = std::find(buf.begin(), buf.end(), '\0');
+
+        name.append(
+            reinterpret_cast<const char*>(buf.data()),
+            std::distance(buf.begin(), nul_pos)
+        );
+
+        if (nul_pos != buf.end()) {
+            break;
+        }
+    }
+
+    return name;
+}
+
+CompoundMember CompoundMember::Deserialize(Deserializer& de) {
+    CompoundMember mem{};
+
+    mem.name = ReadPaddedString(de);
+    mem.byte_offset = de.Read<uint32_t>();
+
+    uint8_t dimensionality = de.Read<uint8_t>();
+    // reserved (zero)
+    de.Skip<3>();
+    // dimension permutation (unused)
+    de.Skip<uint32_t>();
+    // reserved (zero)
+    de.Skip<uint32_t>();
+
+    for (uint8_t i = 0; i < 4; ++i) {
+        auto size = de.Read<uint32_t>();
+
+        if (size < dimensionality) {
+            mem.dimension_sizes.push_back(size);
+        }
+    }
+
+    mem.message = de.ReadComplex<DatatypeMessage>();
+
+    return mem;
+}
