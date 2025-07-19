@@ -1,9 +1,45 @@
 #pragma once
 
-#include <vector>
+#include <bitset>
+#include <variant>
 
 #include "types.h"
 #include "../serialization/serialization.h"
+
+struct FixedPoint {
+    // bit offset of first significant bit of fixed point value in datatype
+    // bit offset specifies num of bits "to right of" value (set to LowPadding() value)
+    uint16_t bit_offset{};
+    // num of bits of precision of fixed point value in datatype
+    // this, combined with datatype's element size and bit offset
+    // specifies the num of bits "to left of" value (which are set to HighPadding () value)
+    uint8_t bit_precision{};
+    // size in bytes
+    uint32_t size{};
+
+    bool BigEndian() const {
+        return bitset_.test(0);
+    }
+
+    bool LowPadding() const {
+        return bitset_.test(1);
+    }
+
+    bool HighPadding() const {
+        return bitset_.test(2);
+    }
+
+    // is signed in two's complement?
+    bool Signed() const {
+        return bitset_.test(3);
+    }
+
+    void Serialize(Serializer& s) const;
+
+    static FixedPoint Deserialize(Deserializer& de);
+private:
+    std::bitset<4> bitset_{};
+};
 
 // TODO: make meaningful data accessible
 struct DatatypeMessage {
@@ -35,10 +71,9 @@ struct DatatypeMessage {
         kComplex = 11,
     } class_v;
 
-    std::array<uint8_t, 3> bit_field{};
-    uint32_t size_bytes;
-    // datatype class specific
-    std::vector<byte_t> properties;
+    std::variant<
+        FixedPoint
+    > data{};
 
     uint16_t InternalSize() const { // NOLINT
         // TODO: correctly calculate this size
