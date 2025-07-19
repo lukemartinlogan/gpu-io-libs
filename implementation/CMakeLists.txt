@@ -19,6 +19,8 @@ add_executable(hdf5_implementation
     src/hdf5/symbol_table.h
     src/hdf5/object_header.cpp
     src/hdf5/object_header.h
+    src/hdf5/tree.cpp
+    src/hdf5/tree.h
     src/hdf5/types.h
 )
 
