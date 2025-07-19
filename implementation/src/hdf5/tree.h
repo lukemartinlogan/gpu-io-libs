@@ -62,6 +62,11 @@ struct BTreeNode {
         BTreeEntries<BTreeChunkedRawDataNodeKey>
     > entries{};
 
+    void Serialize(Serializer& s) const;
+
+    static BTreeNode Deserialize(Deserializer& de);
+
 private:
+    static constexpr uint8_t kGroupNodeTy = 0, kRawDataChunkNodeTy = 1;
     static constexpr std::array<uint8_t, 4> kTreeSignature = { 0x54, 0x52, 0x45, 0x45 };
 };
