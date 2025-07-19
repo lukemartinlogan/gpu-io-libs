@@ -6,8 +6,6 @@
 #include "types.h"
 #include "../serialization/serialization.h"
 
-inline constexpr std::array<uint8_t, 4> kTreeSignature = { 0x54, 0x52, 0x45, 0x45 };
-
 struct BTreeGroupNodeKey {
     // byte offset into local heap
     // first object name in the subtree the key describes
@@ -63,4 +61,7 @@ struct BTreeNode {
         BTreeEntries<BTreeGroupNodeKey>,
         BTreeEntries<BTreeChunkedRawDataNodeKey>
     > entries{};
+
+private:
+    static constexpr std::array<uint8_t, 4> kTreeSignature = { 0x54, 0x52, 0x45, 0x45 };
 };
