@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <vector>
 
 #include "types.h"
 #include "../serialization/serialization.h"
@@ -31,5 +32,16 @@ struct SymbolTableEntry {
     void Serialize(Serializer& s) const;
 
     static SymbolTableEntry Deserialize(Deserializer& de);
+};
+
+struct SymbolTableNode {
+    std::vector<SymbolTableEntry> entries;
+
+    void Serialize(Serializer& s) const;
+
+    static SymbolTableNode Deserialize(Deserializer& de);
+private:
+    static constexpr uint8_t kVersionNumber = 0x01;
+    static constexpr std::array<uint8_t, 4> kSignature = { 0x53, 0x4e, 0x4f, 0x44 };
 };
 
