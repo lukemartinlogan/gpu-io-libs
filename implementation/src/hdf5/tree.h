@@ -35,15 +35,11 @@ struct BTreeChunkedRawDataNodeKey {
 };
 
 template<typename K>
-struct BTreeEntry {
-    K key;
-    offset_t child_pointer;
+struct BTreeEntries {
+    // TODO: enforce child_pointers.size() + 1 == keys.size()
+    std::vector<K> keys;
+    std::vector<offset_t> child_pointers;
 };
-
-using BTreeEntries = std::variant<
-    std::vector<BTreeEntry<BTreeGroupNodeKey>>,
-    std::vector<BTreeEntry<BTreeChunkedRawDataNodeKey>>
->;
 
 struct BTreeNode {
     // type: (not stored, check variant)
@@ -63,5 +59,8 @@ struct BTreeNode {
     // if rightmost, then kUndefinedOffset
     offset_t right_sibling_addr = kUndefinedOffset;
     // last entry's child_pointer field is unused
-    BTreeEntries entries;
+    std::variant<
+        BTreeEntries<BTreeGroupNodeKey>,
+        BTreeEntries<BTreeChunkedRawDataNodeKey>
+    > entries{};
 };
