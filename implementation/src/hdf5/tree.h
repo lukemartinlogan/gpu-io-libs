@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "types.h"
+#include "../serialization/serialization.h"
 
 inline constexpr std::array<uint8_t, 4> kTreeSignature = { 0x54, 0x52, 0x45, 0x45 };
 
@@ -11,6 +12,14 @@ struct BTreeGroupNodeKey {
     // byte offset into local heap
     // first object name in the subtree the key describes
     len_t first_object_name;
+
+    void Serialize(Serializer& s) const {
+        s.WriteRaw<BTreeGroupNodeKey>(*this);
+    }
+
+    static BTreeGroupNodeKey Deserialize(Deserializer& de) {
+        return de.ReadRaw<BTreeGroupNodeKey>();
+    }
 };
 
 struct BTreeChunkedRawDataNodeKey {
