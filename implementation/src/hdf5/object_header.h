@@ -95,6 +95,7 @@ struct SymbolTableMessage {
         return de.ReadRaw<SymbolTableMessage>();
     }
 
+private:
     static constexpr uint16_t kType = 0x11;
 };
 
