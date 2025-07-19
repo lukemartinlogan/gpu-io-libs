@@ -27,7 +27,10 @@ struct BTreeEntry {
     offset_t child_pointer;
 };
 
-using BTreeEntries = std::variant<std::vector<BTreeEntry<BTreeGroupNodeKey>>, std::vector<BTreeEntry<BTreeChunkedRawDataNodeKey>>>;
+using BTreeEntries = std::variant<
+    std::vector<BTreeEntry<BTreeGroupNodeKey>>,
+    std::vector<BTreeEntry<BTreeChunkedRawDataNodeKey>>
+>;
 
 struct BTreeNode {
     // type: (not stored, check variant)
