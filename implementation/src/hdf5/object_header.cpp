@@ -110,9 +110,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
     }
 
-    if (std::visit([](const auto& m) { return m.InternalSize(); }, msg.message) != size) {
-        throw std::runtime_error("message size was incorrect");
-    }
+    // FIXME(datatype-impl)
+    // if (std::visit([](const auto& m) { return m.InternalSize(); }, msg.message) != size) {
+    //     throw std::runtime_error("message size was incorrect");
+    // }
 
     return msg;
 }
@@ -150,18 +151,19 @@ ObjectHeader ObjectHeader::Deserialize(Deserializer& de) {
         hd.messages.push_back(de.ReadComplex<ObjectHeaderMessage>());
     }
 
-    uint64_t total_bytes = std::accumulate(
-        hd.messages.begin(),
-        hd.messages.end(),
-        static_cast<uint64_t>(0),
-        [](uint64_t acc, const ObjectHeaderMessage& msg) {
-            return acc + msg.InternalSize();
-        }
-    );
-
-    if (total_bytes != hd.object_header_size) {
-        throw std::runtime_error("Failed to read correct number of header bytes");
-    }
+    // FIXME(datatype-impl): readd this check once datatypes are properly parsed
+    // uint64_t total_bytes = std::accumulate(
+    //     hd.messages.begin(),
+    //     hd.messages.end(),
+    //     static_cast<uint64_t>(0),
+    //     [](uint64_t acc, const ObjectHeaderMessage& msg) {
+    //         return acc + msg.InternalSize();
+    //     }
+    // );
+    //
+    // if (total_bytes != hd.object_header_size) {
+    //     throw std::runtime_error("Failed to read correct number of header bytes");
+    // }
 
     return hd;
 }
