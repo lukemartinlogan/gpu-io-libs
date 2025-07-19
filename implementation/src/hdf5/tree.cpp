@@ -67,7 +67,7 @@ void BTreeNode::Serialize(Serializer& s) const {
         throw std::logic_error("Variant has invalid state");
     }
 
-    s.Write(kTreeSignature);
+    s.Write(kSignature);
 
     s.Write(type);
     s.Write(level);
@@ -100,7 +100,7 @@ BTreeEntries<K> ReadEntries(uint16_t entries_used, Deserializer& de) {
 }
 
 BTreeNode BTreeNode::Deserialize(Deserializer& de) {
-    if (de.Read<std::array<uint8_t, 4>>() != kTreeSignature) {
+    if (de.Read<std::array<uint8_t, 4>>() != kSignature) {
         throw std::runtime_error("BTree signature was invalid");
     }
 

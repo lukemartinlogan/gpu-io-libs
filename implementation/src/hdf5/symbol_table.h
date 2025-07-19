@@ -42,6 +42,6 @@ struct SymbolTableNode {
     static SymbolTableNode Deserialize(Deserializer& de);
 private:
     static constexpr uint8_t kVersionNumber = 0x01;
-    static constexpr std::array<uint8_t, 4> kSignature = { 0x53, 0x4e, 0x4f, 0x44 };
+    static constexpr std::array<uint8_t, 4> kSignature = { 'S', 'N', 'O', 'D' };
 };
 
