@@ -6,6 +6,28 @@
 #include "types.h"
 #include "../serialization/serialization.h"
 
+struct ObjectHeaderContinuationMessage {
+    // where header continuation block is located
+    offset_t offset = kUndefinedOffset;
+    // size of header continuation block
+    len_t length{};
+
+    uint16_t InternalSize() const { // NOLINT
+        return sizeof(ObjectHeaderContinuationMessage);
+    }
+
+    void Serialize(Serializer& s) const {
+        s.WriteRaw(*this);
+    }
+
+    static ObjectHeaderContinuationMessage Deserialize(Deserializer& de) {
+        return de.ReadRaw<ObjectHeaderContinuationMessage>();
+    }
+
+private:
+    static constexpr uint16_t kType = 0x10;
+};
+
 struct SymbolTableMessage {
     // address of v1 b-tree containing symbol table entries
     offset_t b_tree_addr = kUndefinedOffset;
@@ -65,7 +87,8 @@ struct ObjectHeaderMessage {
         kObjectModificationTimeOld = 0x000e,
         //
         kSharedMessageTable = 0x000f,
-        //
+        // location containing more header messages for current data object
+        // can be used if header blocks are too large or likely to change over time
         kObjectHeaderContinuation = 0x0010,
         //
         kSymbolTable = 0x0011,
@@ -84,7 +107,10 @@ struct ObjectHeaderMessage {
     } type;
 
     // if this gets too large, put it on the heap
-    std::variant<SymbolTableMessage> message;
+    std::variant<
+        ObjectHeaderContinuationMessage,
+        SymbolTableMessage
+    > message{};
     uint8_t flags;
 
     [[nodiscard]] uint16_t InternalSize() const {

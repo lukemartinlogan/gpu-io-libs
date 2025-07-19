@@ -15,6 +15,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(flags);
 
     switch (type) {
+        case Type::kObjectHeaderContinuation: {
+            s.Write(std::get<ObjectHeaderContinuationMessage>(message));
+            break;
+        }
         case Type::kSymbolTable: {
             s.Write(std::get<SymbolTableMessage>(message));
             break;
@@ -42,6 +46,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
     de.Skip<3>(); // reserved (0)
 
     switch (static_cast<Type>(type)) {
+        case Type::kObjectHeaderContinuation: {
+            msg.message = de.ReadComplex<ObjectHeaderContinuationMessage>();
+            break;
+        }
         case Type::kSymbolTable: {
             msg.message = de.ReadComplex<SymbolTableMessage>();
             break;
