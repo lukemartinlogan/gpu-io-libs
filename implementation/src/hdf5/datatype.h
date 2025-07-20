@@ -120,6 +120,16 @@ struct CompoundMember {
     // TODO: finding a better way to introduce indirection here would be nice
     std::unique_ptr<DatatypeMessage> message;
 
+    CompoundMember() = default;
+
+    CompoundMember(const CompoundMember& other);
+
+    CompoundMember& operator=(const CompoundMember& other);
+
+    CompoundMember(CompoundMember&& other) noexcept = default;
+
+    CompoundMember& operator=(CompoundMember&& other) noexcept = default;
+
     void Serialize(Serializer& s) const;
 
     static CompoundMember Deserialize(Deserializer& de);

@@ -139,6 +139,26 @@ void WritePaddedString(std::string_view name, Serializer&s) {
     s.WriteBuffer(std::span(nul_bytes.data(), padding));
 }
 
+CompoundMember::CompoundMember(const CompoundMember& other)
+        : name(other.name),
+          byte_offset(other.byte_offset),
+          dimension_sizes(other.dimension_sizes),
+          message(std::make_unique<DatatypeMessage>(*other.message))
+{ }
+
+CompoundMember& CompoundMember::operator=(const CompoundMember& other) {
+    if (this == &other) {
+        return *this;
+    }
+
+    name = other.name;
+    byte_offset = other.byte_offset;
+    dimension_sizes = other.dimension_sizes;
+    message = std::make_unique<DatatypeMessage>(*other.message);
+    return *this;
+}
+
+
 void CompoundMember::Serialize(Serializer& s) const {
     // includes null terminator
     WritePaddedString(name, s);
