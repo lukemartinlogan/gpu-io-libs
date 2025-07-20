@@ -117,7 +117,8 @@ struct CompoundMember {
     uint32_t byte_offset;
     // TODO: smallvec? max size for this is 4, which would make it smaller than sizeof(std::vector)
     std::vector<uint32_t> dimension_sizes;
-    DatatypeMessage message;
+    // TODO: finding a better way to introduce indirection here would be nice
+    std::unique_ptr<DatatypeMessage> message;
 
     void Serialize(Serializer& s) const;
 

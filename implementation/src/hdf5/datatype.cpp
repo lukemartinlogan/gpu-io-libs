@@ -165,7 +165,7 @@ void CompoundMember::Serialize(Serializer& s) const {
         }
     }
 
-    s.WriteComplex(message);
+    s.WriteComplex(*message);
 }
 
 std::string ReadPaddedString(Deserializer& de) {
@@ -219,7 +219,9 @@ CompoundMember CompoundMember::Deserialize(Deserializer& de) {
         }
     }
 
-    mem.message = de.ReadComplex<DatatypeMessage>();
+    auto msg = de.ReadComplex<DatatypeMessage>();
+
+    mem.message = std::make_unique<DatatypeMessage>(msg);
 
     return mem;
 }
