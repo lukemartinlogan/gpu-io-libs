@@ -137,6 +137,7 @@ struct CompoundMember {
 
 struct CompoundDatatype {
     std::vector<CompoundMember> members;
+    uint32_t size{};
 
     void Serialize(Serializer& s) const;
 
