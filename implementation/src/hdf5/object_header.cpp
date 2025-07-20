@@ -109,6 +109,8 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
     msg.flags = de.Read<uint8_t>();
     de.Skip<3>(); // reserved (0)
 
+    auto start = de.GetPosition();
+
     switch (msg.type) {
         case Type::kNil: {
             // FIXME: this can be optimized
@@ -140,10 +142,11 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
     }
 
-    // FIXME(datatype-impl)
-    // if (std::visit([](const auto& m) { return m.InternalSize(); }, msg.message) != size) {
-    //     throw std::runtime_error("message size was incorrect");
-    // }
+    auto difference = de.GetPosition() - start;
+
+    if (difference != size) {
+        throw std::runtime_error("read an incorrect number of bytes!");
+    }
 
     return msg;
 }
