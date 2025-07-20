@@ -148,8 +148,20 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
 
     auto difference = de.GetPosition() - start;
 
-    if (difference != size) {
+    if (difference > size) {
         throw std::runtime_error("read an incorrect number of bytes!");
+    }
+
+    if (size > difference) {
+        auto padding_ct = size - difference;
+
+        if (padding_ct >= 8) {
+            throw std::runtime_error("shouldn't be more than 8 bytes to pad to 8 bytes");
+        }
+
+        std::array<byte_t, 8> padding{};
+
+        de.ReadBuffer(std::span(padding.data(), padding_ct));
     }
 
     return msg;
