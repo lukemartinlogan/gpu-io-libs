@@ -46,11 +46,20 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
 
     msg.type = static_cast<Type>(type);
 
-    uint16_t size = de.Read<uint16_t>();
+    auto size = de.Read<uint16_t>();
     msg.flags = de.Read<uint8_t>();
     de.Skip<3>(); // reserved (0)
 
     switch (msg.type) {
+        case Type::kNil: {
+            // FIXME: this can be optimized
+            for (uint16_t i = 0; i < size; ++i) {
+                de.Skip<uint8_t>();
+            }
+
+            msg.message = NilMessage { .size = size };
+            break;
+        }
         case Type::kDatatype: {
             msg.message = de.ReadComplex<DatatypeMessage>();
             break;

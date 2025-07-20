@@ -7,6 +7,21 @@
 #include "datatype.h"
 #include "../serialization/serialization.h"
 
+struct NilMessage {
+    uint16_t size{};
+
+    uint16_t InternalSize() const { // NOLINT
+        return size;
+    }
+
+    void Serialize(Serializer& s) const {
+        // TODO: this can be optimized
+        for (uint16_t i = 0; i < size; ++i) {
+            s.Write<uint8_t>(0);
+        }
+    }
+};
+
 struct ObjectHeaderContinuationMessage {
     // where header continuation block is located
     offset_t offset = kUndefinedOffset;
@@ -110,6 +125,7 @@ struct ObjectHeaderMessage {
 
     // if this gets too large, put it on the heap
     std::variant<
+        NilMessage,
         DatatypeMessage,
         ObjectHeaderContinuationMessage,
         SymbolTableMessage
