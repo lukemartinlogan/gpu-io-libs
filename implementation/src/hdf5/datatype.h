@@ -114,7 +114,7 @@ struct CompoundMember {
     // null terminated to multiple of 8 bytes
     std::string name;
     // byte offset within datatype
-    uint32_t byte_offset;
+    uint32_t byte_offset{};
     // TODO: smallvec? max size for this is 4, which would make it smaller than sizeof(std::vector)
     std::vector<uint32_t> dimension_sizes;
     // TODO: finding a better way to introduce indirection here would be nice
