@@ -182,7 +182,7 @@ std::string ReadPaddedString(Deserializer& de) {
 
         read += buf.size();
 
-        auto nul_pos = std::find(buf.begin(), buf.end(), '\0');
+        auto nul_pos = std::ranges::find(buf, static_cast<byte_t>('\0'));
 
         name.append(
             reinterpret_cast<const char*>(buf.data()),
