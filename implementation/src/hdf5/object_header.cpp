@@ -198,6 +198,11 @@ ObjectHeader ObjectHeader::Deserialize(Deserializer& de) {
 
     for (uint16_t m = 0; m < hd.message_count; ++m) {
         hd.messages.push_back(de.ReadComplex<ObjectHeaderMessage>());
+
+        if (const auto* p = std::get_if<ObjectHeaderContinuationMessage>(&hd.messages.back().message)) {
+            de.SetPosition(/* TODO: sb.base_addr + */ p->offset);
+            // TODO: don't read over size
+        }
     }
 
     // FIXME(datatype-impl): readd this check once datatypes are properly parsed
