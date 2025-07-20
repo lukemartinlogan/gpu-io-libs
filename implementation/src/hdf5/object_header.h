@@ -20,6 +20,9 @@ struct NilMessage {
             s.Write<uint8_t>(0);
         }
     }
+
+private:
+    static constexpr uint16_t kType = 0x00;
 };
 
 struct ObjectHeaderContinuationMessage {
