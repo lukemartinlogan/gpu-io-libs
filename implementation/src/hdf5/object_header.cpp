@@ -4,6 +4,61 @@
 #include "object_header.h"
 #include "datatype.h"
 
+void DataspaceMessage::Serialize(Serializer& s) const {
+    s.Write(kVersionNumber);
+
+    auto dimensionality = static_cast<uint8_t>(dimensions.size());
+    s.Write(dimensionality);
+
+    s.Write(static_cast<uint8_t>(bitset_.to_ulong()) & 0b11);
+
+    // reserved
+    s.Write<uint32_t>(0);
+    s.Write<uint8_t>(0);
+
+    for (const DimensionInfo& d : dimensions) {
+        s.Write(d.size);
+    }
+
+    for (const DimensionInfo& d : dimensions) {
+        s.Write(d.max_size);
+    }
+
+    for (const DimensionInfo& d : dimensions) {
+        s.Write(d.permutation_index);
+    }
+}
+
+DataspaceMessage DataspaceMessage::Deserialize(Deserializer& de) {
+    if (de.Read<uint8_t>() != kVersionNumber) {
+        throw std::runtime_error("Version number was invalid");
+    }
+
+    DataspaceMessage msg{};
+
+    auto dimensionality = de.Read<uint8_t>();
+    msg.dimensions.resize(dimensionality);
+
+    msg.bitset_ = de.Read<uint8_t>() & 0b11;
+
+    // reserved
+    de.Skip<5>();
+
+    for (uint8_t d = 0; d < msg.dimensions.size(); ++d) {
+        msg.dimensions.at(d).size = de.Read<len_t>();
+    }
+
+    for (uint8_t d = 0; d < msg.dimensions.size(); ++d) {
+        msg.dimensions.at(d).max_size = de.Read<len_t>();
+    }
+
+    for (uint8_t d = 0; d < msg.dimensions.size(); ++d) {
+        msg.dimensions.at(d).permutation_index = de.Read<len_t>();
+    }
+
+    return msg;
+}
+
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(type);
     s.Write(InternalSize());
@@ -18,6 +73,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
     switch (type) {
         case Type::kDatatype: {
             s.Write(std::get<DatatypeMessage>(message));
+            break;
+        }
+        case Type::kDataspace: {
+            s.Write(std::get<DataspaceMessage>(message));
             break;
         }
         case Type::kObjectHeaderContinuation: {
@@ -58,6 +117,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
             }
 
             msg.message = NilMessage { .size = size };
+            break;
+        }
+        case Type::kDataspace: {
+            msg.message = de.ReadComplex<DataspaceMessage>();
             break;
         }
         case Type::kDatatype: {

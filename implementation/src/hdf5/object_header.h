@@ -25,6 +25,41 @@ private:
     static constexpr uint16_t kType = 0x00;
 };
 
+struct DimensionInfo {
+    len_t size;
+    len_t max_size;
+    len_t permutation_index;
+};
+
+struct DataspaceMessage {
+    std::vector<DimensionInfo> dimensions;
+
+    [[nodiscard]] bool IsMaxDimensionsPresent() const {
+        return bitset_.test(0);
+    }
+
+    [[nodiscard]] bool PermutationIndicesPresent() const {
+        return bitset_.test(1);
+    }
+
+    uint16_t InternalSize() const { // NOLINT
+        uint16_t dimension_info_size = sizeof(DimensionInfo) * dimensions.size();
+        uint16_t header_size = 8 * sizeof(byte_t);
+
+        return dimension_info_size * header_size;
+    }
+
+    void Serialize(Serializer& s) const;
+
+    static DataspaceMessage Deserialize(Deserializer& de);
+
+private:
+    std::bitset<2> bitset_;
+
+    static constexpr uint8_t kVersionNumber = 0x01;
+    static constexpr uint16_t kType = 0x01;
+};
+
 struct ObjectHeaderContinuationMessage {
     // where header continuation block is located
     offset_t offset = kUndefinedOffset;
@@ -129,6 +164,7 @@ struct ObjectHeaderMessage {
     // if this gets too large, put it on the heap
     std::variant<
         NilMessage,
+        DataspaceMessage,
         DatatypeMessage,
         ObjectHeaderContinuationMessage,
         SymbolTableMessage
