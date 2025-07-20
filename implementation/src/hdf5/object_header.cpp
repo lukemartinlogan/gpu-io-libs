@@ -92,7 +92,7 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
             break;
         }
         default: {
-            throw std::logic_error("not implemented");
+            throw std::logic_error("object header ty not implemented");
         }
     }
 }
@@ -142,7 +142,7 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
             break;
         }
         default: {
-            throw std::logic_error("not implemented");
+            throw std::logic_error("object header ty not implemented");
         }
     }
 

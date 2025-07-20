@@ -112,7 +112,7 @@ DatatypeMessage DatatypeMessage::Deserialize(Deserializer& de) {
             break;
         }
         default: {
-            throw std::logic_error("not implemented");
+            throw std::logic_error("datatype message ty not implemented");
         }
     }
 
