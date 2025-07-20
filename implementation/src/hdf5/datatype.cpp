@@ -245,3 +245,34 @@ CompoundMember CompoundMember::Deserialize(Deserializer& de) {
 
     return mem;
 }
+
+void CompoundDatatype::Serialize(Serializer& s) const {
+    auto num_members = static_cast<uint16_t>(members.size());
+
+    s.Write(num_members);
+    // reserved (zero)
+    s.Write<uint8_t>(0);
+
+    s.Write(size);
+
+    for (const CompoundMember& mem : members) {
+        s.Write(mem);
+    }
+}
+
+CompoundDatatype CompoundDatatype::Deserialize(Deserializer& de) {
+    auto num_members = de.Read<uint16_t>();
+    // reserved (zero)
+    de.Skip<uint8_t>();
+
+    CompoundDatatype comp{};
+    comp.members.reserve(num_members);
+
+    comp.size = de.Read<uint32_t>();
+
+    for (uint16_t i = 0; i < num_members; ++i) {
+        comp.members.push_back(de.Read<CompoundMember>());
+    }
+
+    return comp;
+}
