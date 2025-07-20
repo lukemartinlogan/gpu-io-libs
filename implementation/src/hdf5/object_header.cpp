@@ -24,8 +24,10 @@ void DataspaceMessage::Serialize(Serializer& s) const {
         s.Write(d.max_size);
     }
 
-    for (const DimensionInfo& d : dimensions) {
-        s.Write(d.permutation_index);
+    if (PermutationIndicesPresent()) {
+        for (const DimensionInfo& d : dimensions) {
+            s.Write(d.permutation_index);
+        }
     }
 }
 
@@ -52,8 +54,10 @@ DataspaceMessage DataspaceMessage::Deserialize(Deserializer& de) {
         msg.dimensions.at(d).max_size = de.Read<len_t>();
     }
 
-    for (uint8_t d = 0; d < msg.dimensions.size(); ++d) {
-        msg.dimensions.at(d).permutation_index = de.Read<len_t>();
+    if (msg.PermutationIndicesPresent()) {
+        for (uint8_t d = 0; d < msg.dimensions.size(); ++d) {
+            msg.dimensions.at(d).permutation_index = de.Read<len_t>();
+        }
     }
 
     return msg;
