@@ -12,6 +12,7 @@ add_executable(hdf5_implementation
     src/util/lookup3.h
     src/serialization/serialization.h
     src/serialization/filestream.h
+    src/serialization/buffer.h
     src/serialization/stdio.h
     src/hdf5/superblock.cpp
     src/hdf5/superblock.h
