@@ -4,6 +4,26 @@
 #include "object_header.h"
 #include "datatype.h"
 
+size_t DataspaceMessage::TotalElements() const {
+    return std::accumulate(
+        dimensions.begin(), dimensions.end(),
+        1,
+        [](size_t acc, const DimensionInfo& info) {
+            return acc * info.size;
+        }
+    );
+}
+
+size_t DataspaceMessage::MaxElements() const {
+    return std::accumulate(
+        dimensions.begin(), dimensions.end(),
+        1,
+        [](size_t acc, const DimensionInfo& info) {
+            return acc * info.max_size;
+        }
+    );
+}
+
 void DataspaceMessage::Serialize(Serializer& s) const {
     s.Write(kVersionNumber);
 
