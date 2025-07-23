@@ -52,6 +52,10 @@ public:
         cursor = offset;
     }
 
+    bool IsExhausted() const {
+        return cursor == buf.size();
+    }
+
     std::span<byte_t> buf;
     size_t cursor;
 };
