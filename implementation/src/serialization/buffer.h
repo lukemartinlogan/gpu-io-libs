@@ -44,6 +44,14 @@ public:
         return true;
     }
 
+    [[nodiscard]] offset_t GetPosition() final {
+        return cursor;
+    };
+
+    void SetPosition(offset_t offset) final {
+        cursor = offset;
+    }
+
     std::span<byte_t> buf;
     size_t cursor;
 };
