@@ -3,6 +3,7 @@
 
 #include "object_header.h"
 #include "datatype.h"
+#include "../serialization/buffer.h"
 
 size_t DataspaceMessage::TotalElements() const {
     return std::accumulate(
@@ -83,6 +84,100 @@ DataspaceMessage DataspaceMessage::Deserialize(Deserializer& de) {
     return msg;
 }
 
+void WriteEightBytePaddedFields(Serializer& s, std::span<const byte_t> buf) {
+    s.WriteBuffer(buf);
+
+    size_t leftover = (8 - buf.size() % 8) % 8;
+
+    static std::array<const byte_t, 8> extra_padding{};
+    s.WriteBuffer(std::span(extra_padding.data(), leftover));
+}
+
+void AttributeMessage::Serialize(Serializer& s) const {
+    s.Write(kVersionNumber);
+    // reserved (zero)
+    s.Write<uint8_t>(0);
+
+    // FIXME: these values aren't correctly calculated in the slightest
+    s.Write<uint16_t>(name.size() + 1);
+    s.Write<uint16_t>(0 /* TODO: datatype size */);
+    s.Write<uint16_t>(0 /* TODO: dataspace size */);
+
+    // write name
+    WriteEightBytePaddedFields(s,std::span(
+        reinterpret_cast<const byte_t*>(name.data()),
+        name.size() + 1
+    ));
+
+    // write data
+    DynamicBufferSerializer datatype_bufs;
+    datatype_bufs.WriteComplex(datatype);
+    // FIXME: change this function to write directly into 's'?
+    WriteEightBytePaddedFields(s, datatype_bufs.buf);
+
+    // write dataspace
+    DynamicBufferSerializer dataspace_bufs;
+    dataspace_bufs.WriteComplex(dataspace);
+    WriteEightBytePaddedFields(s, dataspace_bufs.buf);
+
+    // write data
+    s.WriteBuffer(data);
+}
+
+void ReadEightBytePaddedData(Deserializer& de, std::span<byte_t> buffer) {
+    de.ReadBuffer(buffer);
+
+    size_t leftover = (8 - buffer.size() % 8) % 8;
+
+    static std::array<byte_t, 8> leftover_buf;
+    de.ReadBuffer(std::span(leftover_buf.data(), leftover));
+}
+
+AttributeMessage AttributeMessage::Deserialize(Deserializer& de) {
+    if (de.Read<uint8_t>() != kVersionNumber) {
+        throw std::runtime_error("Version number was invalid");
+    }
+    // reserved (zero)
+    de.Skip<uint8_t>();
+
+    auto name_size = de.Read<uint16_t>();
+    auto datatype_size = de.Read<uint16_t>();
+    auto dataspace_size = de.Read<uint16_t>();
+
+    auto max_buf_size = std::max(std::max(name_size, datatype_size), dataspace_size);
+    std::vector<byte_t> buf(max_buf_size);
+
+    AttributeMessage msg{};
+
+    // read name
+    ReadEightBytePaddedData(de, std::span(buf.data(), name_size));
+
+    if (buf.at(name_size - 1) != static_cast<byte_t>('\0')) {
+        throw std::runtime_error("string read was not null-terminated");
+    }
+
+    msg.name = std::string(reinterpret_cast<const char*>(buf.data()), name_size - 1);
+
+    // read datatype
+    BufferDeserializer datatype_buf_de(std::span(buf.data(), datatype_size));
+    ReadEightBytePaddedData(de, datatype_buf_de.buf);
+
+    msg.datatype = datatype_buf_de.ReadComplex<DatatypeMessage>();
+
+    // read dataspace
+    BufferDeserializer dataspace_buf_de(std::span(buf.data(), dataspace_size));
+    ReadEightBytePaddedData(de, dataspace_buf_de.buf);
+
+    msg.dataspace = dataspace_buf_de.ReadComplex<DataspaceMessage>();
+
+    size_t data_size = msg.datatype.Size() * msg.dataspace.MaxElements();
+    msg.data.resize(data_size);
+
+    de.ReadBuffer(msg.data);
+
+    return msg;
+}
+
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(type);
     s.Write(InternalSize());
@@ -101,6 +196,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
         }
         case Type::kDataspace: {
             s.Write(std::get<DataspaceMessage>(message));
+            break;
+        }
+        case Type::kAttribute: {
+            s.Write(std::get<AttributeMessage>(message));
             break;
         }
         case Type::kObjectHeaderContinuation: {
@@ -151,6 +250,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kDatatype: {
             msg.message = de.ReadComplex<DatatypeMessage>();
+            break;
+        }
+        case Type::kAttribute: {
+            msg.message = de.ReadComplex<AttributeMessage>();
             break;
         }
         case Type::kObjectHeaderContinuation: {
