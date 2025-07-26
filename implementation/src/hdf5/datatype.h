@@ -110,6 +110,27 @@ private:
 
 struct DatatypeMessage;
 
+struct VariableLength {
+    enum class Type : uint8_t { kSequence = 0, kString = 1 } type{};
+    enum class PaddingType : uint8_t { kNullTerminate = 0, kNullPadded = 1, kSpacePad = 2 } padding{};
+    enum class Charset : uint8_t { kASCII = 0, kUTF8 = 1 } charset{};
+
+    uint32_t size{};
+    // nullable
+    std::unique_ptr<DatatypeMessage> parent_type{};
+
+    VariableLength() = default;
+
+    VariableLength(const VariableLength& other);
+    VariableLength& operator=(const VariableLength& other);
+
+    VariableLength(VariableLength&& other) noexcept = default;
+    VariableLength& operator=(VariableLength&& other) noexcept = default;
+
+    void Serialize(Serializer& s) const;
+    static VariableLength Deserialize(Deserializer& de);
+};
+
 struct CompoundMember {
     // null terminated to multiple of 8 bytes
     std::string name;
@@ -177,7 +198,8 @@ struct DatatypeMessage {
     std::variant<
         FixedPoint,
         FloatingPoint,
-        CompoundDatatype
+        CompoundDatatype,
+        VariableLength
     > data{};
 
     uint16_t InternalSize() const { // NOLINT

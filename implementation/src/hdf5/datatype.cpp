@@ -111,6 +111,10 @@ DatatypeMessage DatatypeMessage::Deserialize(Deserializer& de) {
             msg.data = de.ReadComplex<CompoundDatatype>();
             break;
         }
+        case Class::kVariableLength: {
+            msg.data = de.ReadComplex<VariableLength>();
+            break;
+        }
         default: {
             throw std::logic_error("datatype message ty not implemented");
         }
@@ -137,6 +141,102 @@ void WritePaddedString(std::string_view name, Serializer&s) {
     static constexpr std::array<byte_t, 8> nul_bytes{};
 
     s.WriteBuffer(std::span(nul_bytes.data(), padding));
+}
+
+VariableLength::VariableLength(const VariableLength& other)
+    : type(other.type),
+      padding(other.padding),
+      charset(other.charset),
+      size(other.size)
+{
+    if (other.parent_type) {
+        parent_type = std::make_unique<DatatypeMessage>(*other.parent_type);
+    } else {
+        parent_type = nullptr;
+    }
+}
+
+VariableLength& VariableLength::operator=(const VariableLength& other) {
+    if (this == &other) {
+        return *this;
+    }
+
+    type = other.type;
+    padding = other.padding;
+    charset = other.charset;
+    size = other.size;
+
+    if (other.parent_type) {
+        parent_type = std::make_unique<DatatypeMessage>(*other.parent_type);
+    } else {
+        parent_type = nullptr;
+    }
+
+    return *this;
+}
+
+void VariableLength::Serialize(Serializer& s) const {
+    uint8_t bitset_1 = (static_cast<uint8_t>(padding) << 4) | static_cast<uint8_t>(type);
+    s.Write(bitset_1);
+
+    // Write charset in lower 4 bits, upper 4 bits zero
+    s.Write(static_cast<uint8_t>(charset) & 0b1111);
+
+    // Reserved byte (zero)
+    s.Write<uint8_t>(0);
+
+    // Write size
+    s.Write(size);
+
+    // If not a string, write the parent_type
+    if (type != Type::kString) {
+        s.WriteComplex(*parent_type);
+    }
+}
+
+VariableLength VariableLength::Deserialize(Deserializer& de) {
+    auto bitset_1 = de.Read<uint8_t>();
+
+    VariableLength vl{};
+
+    // type
+    auto type = bitset_1 & 0b1111;
+
+    if (type >= 2) {
+        throw std::runtime_error("type wasn't valid");
+    }
+
+    vl.type = static_cast<Type>(type);
+
+    // padding
+    auto padding_ty = (bitset_1 >> 4) & 0b1111;
+
+    if (padding_ty >= 3) {
+        throw std::runtime_error("padding type wasn't valid");
+    }
+
+    vl.padding = static_cast<PaddingType>(padding_ty);
+
+    // charset
+    auto charset = de.Read<uint8_t>() & 0b1111;
+
+    if (charset >= 2) {
+        throw std::runtime_error("charset wasn't valid");
+    }
+
+    vl.charset = static_cast<Charset>(charset);
+
+    // reserved (zero)
+    de.Skip<uint8_t>();
+
+    vl.size = de.Read<uint32_t>();
+
+    if (vl.type != Type::kString) {
+        auto datatype_message = de.ReadComplex<DatatypeMessage>();
+        vl.parent_type = std::make_unique<DatatypeMessage>(datatype_message);
+    }
+
+    return vl;
 }
 
 CompoundMember::CompoundMember(const CompoundMember& other)
