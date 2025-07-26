@@ -5,6 +5,7 @@
 
 #include "types.h"
 #include "datatype.h"
+#include "../serialization/buffer.h"
 #include "../serialization/serialization.h"
 
 struct NilMessage {
@@ -49,6 +50,9 @@ struct DataspaceMessage {
         return dimension_info_size * header_size;
     }
 
+    size_t TotalElements() const;
+    size_t MaxElements() const;
+
     void Serialize(Serializer& s) const;
 
     static DataspaceMessage Deserialize(Deserializer& de);
@@ -58,6 +62,40 @@ private:
 
     static constexpr uint8_t kVersionNumber = 0x01;
     static constexpr uint16_t kType = 0x01;
+};
+
+struct AttributeMessage {
+    std::string name;
+    DatatypeMessage datatype;
+    DataspaceMessage dataspace;
+
+    // TODO: is there a better way to create this
+    std::vector<byte_t> data;
+
+    uint16_t InternalSize() const { // NOLINT
+        return 0;
+    }
+
+    template<typename T>
+    T ReadDataAs() {
+        BufferDeserializer buf_de(data);
+
+        T out = buf_de.Read<T>();
+
+        if (!buf_de.IsExhausted()) {
+            throw std::runtime_error("Invalid type was read from data");
+        }
+
+        return out;
+    }
+
+    void Serialize(Serializer& s) const;
+
+    static AttributeMessage Deserialize(Deserializer& de);
+
+private:
+    static constexpr uint8_t kVersionNumber = 0x01;
+    static constexpr uint16_t kType = 0x0c;
 };
 
 struct ObjectHeaderContinuationMessage {
@@ -166,6 +204,7 @@ struct ObjectHeaderMessage {
         NilMessage,
         DataspaceMessage,
         DatatypeMessage,
+        AttributeMessage,
         ObjectHeaderContinuationMessage,
         SymbolTableMessage
     > message{};

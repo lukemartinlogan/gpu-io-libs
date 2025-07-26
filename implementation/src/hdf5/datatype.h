@@ -185,6 +185,10 @@ struct DatatypeMessage {
         return 0;
     }
 
+    uint16_t Size() const {
+        return std::visit([](const auto& elem) { return elem.size; }, data);
+    }
+
     void Serialize(Serializer& s) const;
 
     static DatatypeMessage Deserialize(Deserializer& de);

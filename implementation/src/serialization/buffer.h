@@ -25,6 +25,21 @@ public:
     size_t cursor;
 };
 
+class DynamicBufferSerializer : public Serializer {
+public:
+    explicit DynamicBufferSerializer(size_t size = 0) {
+        buf.reserve(size);
+    }
+
+    bool WriteBuffer(std::span<const byte_t> data) final {
+        buf.insert(buf.end(), data.begin(), data.end());
+        // FIXME: no error reporting
+        return true;
+    }
+
+    std::vector<byte_t> buf;
+};
+
 class BufferDeserializer : public Deserializer {
 public:
     BufferDeserializer(std::span<byte_t> buf) // NOLINT
