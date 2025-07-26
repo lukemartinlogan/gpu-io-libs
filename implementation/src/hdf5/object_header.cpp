@@ -84,6 +84,61 @@ DataspaceMessage DataspaceMessage::Deserialize(Deserializer& de) {
     return msg;
 }
 
+void FillValueMessage::Serialize(Serializer& s) const {
+    s.Write(kVersionNumber);
+
+    s.Write(static_cast<uint8_t>(space_alloc_time));
+    s.Write(static_cast<uint8_t>(write_time));
+
+    if (fill_value.has_value()) {
+        s.Write<uint8_t>(1);
+        s.Write(static_cast<uint32_t>(fill_value->size()));
+        s.WriteBuffer(*fill_value);
+    } else {
+        s.Write<uint8_t>(0);
+    }
+}
+
+FillValueMessage FillValueMessage::Deserialize(Deserializer& de) {
+    if (de.Read<uint8_t>() != kVersionNumber) {
+        throw std::runtime_error("Version number was invalid");
+    }
+
+    FillValueMessage msg{};
+
+    // space allocation time
+    auto space_alloc = de.Read<uint8_t>();
+    if (space_alloc >= 4) {
+        throw std::runtime_error("space alloc time was invalid");
+    }
+
+    msg.space_alloc_time = static_cast<SpaceAllocTime>(space_alloc);
+
+    // fv write time
+    auto write_time = de.Read<uint8_t>();
+    if (write_time >= 3) {
+        throw std::runtime_error("fill value write time was invalid");
+    }
+
+    msg.write_time = static_cast<ValWriteTime>(write_time);
+
+    auto defined = de.Read<uint8_t>();
+    if (defined == 0) {
+        msg.fill_value = std::nullopt;
+    } else if (defined == 1) {
+        auto size = de.Read<uint32_t>();
+
+        std::vector<byte_t> fv(size);
+        de.ReadBuffer(fv);
+
+        msg.fill_value = fv;
+    } else {
+        throw std::runtime_error("invalid fill value defined state");
+    }
+
+    return msg;
+}
+
 void WriteEightBytePaddedFields(Serializer& s, std::span<const byte_t> buf) {
     s.WriteBuffer(buf);
 
@@ -250,6 +305,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kDatatype: {
             msg.message = de.ReadComplex<DatatypeMessage>();
+            break;
+        }
+        case Type::kFillValue: {
+            msg.message = de.ReadComplex<FillValueMessage>();
             break;
         }
         case Type::kAttribute: {

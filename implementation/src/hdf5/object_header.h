@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <optional>
 #include <variant>
 #include <vector>
 
@@ -62,6 +63,34 @@ private:
 
     static constexpr uint8_t kVersionNumber = 0x01;
     static constexpr uint16_t kType = 0x01;
+};
+
+struct FillValueMessage {
+    enum class SpaceAllocTime {
+        kNotUsed = 0,
+        kEarly = 1,
+        kLate = 2,
+        kIncremental = 3,
+    } space_alloc_time;
+
+    enum class ValWriteTime {
+        kOnAlloc = 0,
+        kNever = 1,
+        kIfExplicit = 2,
+    } write_time;
+
+    std::optional<std::vector<byte_t>> fill_value;
+
+    uint16_t InternalSize() const { // NOLINT
+        return 0; // FIXME
+    }
+
+    void Serialize(Serializer& s) const;
+
+    static FillValueMessage Deserialize(Deserializer& de);
+private:
+    static constexpr uint8_t kVersionNumber = 0x02;
+    static constexpr uint16_t kType = 0x05;
 };
 
 struct AttributeMessage {
@@ -204,6 +233,7 @@ struct ObjectHeaderMessage {
         NilMessage,
         DataspaceMessage,
         DatatypeMessage,
+        FillValueMessage,
         AttributeMessage,
         ObjectHeaderContinuationMessage,
         SymbolTableMessage
