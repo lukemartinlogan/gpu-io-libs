@@ -139,6 +139,107 @@ FillValueMessage FillValueMessage::Deserialize(Deserializer& de) {
     return msg;
 }
 
+void CompactStorageProperty::Serialize(Serializer& s) const {
+    s.Write<uint16_t>(raw_data.size());
+    s.WriteBuffer(raw_data);
+}
+
+CompactStorageProperty CompactStorageProperty::Deserialize(Deserializer& de) {
+    auto size = de.Read<uint16_t>();
+
+    CompactStorageProperty msg{};
+    msg.raw_data.resize(size);
+
+    de.ReadBuffer(msg.raw_data);
+
+    return msg;
+}
+
+void ContiguousStorageProperty::Serialize(Serializer& s) const {
+    s.Write(address);
+    s.Write(size);
+}
+
+ContiguousStorageProperty ContiguousStorageProperty::Deserialize(Deserializer& de) {
+    ContiguousStorageProperty prop{};
+
+    prop.address = de.Read<offset_t>();
+    prop.size = de.Read<len_t>();
+
+    return prop;
+}
+
+void ChunkedStorageProperty::Serialize(Serializer& s) const {
+    s.Write(static_cast<uint8_t>(dimension_sizes.size()));
+
+    s.Write(b_tree_addr);
+
+    s.WriteBuffer(std::span(
+        reinterpret_cast<const byte_t*>(dimension_sizes.data()),
+        dimension_sizes.size() * sizeof(uint32_t)
+    ));
+
+    s.Write(elem_size_bytes);
+}
+
+ChunkedStorageProperty ChunkedStorageProperty::Deserialize(Deserializer& de) {
+    auto dimensionality = de.Read<uint8_t>();
+
+    ChunkedStorageProperty prop{};
+
+    prop.b_tree_addr = de.Read<offset_t>();
+
+    prop.dimension_sizes.resize(dimensionality);
+
+    de.ReadBuffer(std::span(
+        reinterpret_cast<byte_t*>(prop.dimension_sizes.data()),
+        prop.dimension_sizes.size() * sizeof(uint32_t)
+    ));
+
+    prop.elem_size_bytes = de.Read<uint32_t>();
+
+    return prop;
+}
+
+void DataLayoutMessage::Serialize(Serializer& s) const {
+    s.Write(kVersionNumber);
+
+    if (std::holds_alternative<CompactStorageProperty>(properties)) {
+        s.Write<uint8_t>(kCompact);
+        s.WriteComplex(std::get<CompactStorageProperty>(properties));
+    } else if (std::holds_alternative<ContiguousStorageProperty>(properties)) {
+        s.Write<uint8_t>(kContiguous);
+        s.WriteComplex(std::get<ContiguousStorageProperty>(properties));
+    } else if (std::holds_alternative<ChunkedStorageProperty>(properties)) {
+        s.Write<uint8_t>(kChunked);
+        s.WriteComplex(std::get<ChunkedStorageProperty>(properties));
+    } else {
+        throw std::runtime_error("invalid data layout class");
+    }
+}
+
+DataLayoutMessage DataLayoutMessage::Deserialize(Deserializer& de) {
+    if (de.Read<uint8_t>() != kVersionNumber) {
+        throw std::runtime_error("Version number was invalid");
+    }
+
+    auto layout_class = de.Read<uint8_t>();
+
+    DataLayoutMessage msg{};
+
+    if (layout_class == kCompact) {
+        msg.properties = de.ReadComplex<CompactStorageProperty>();
+    } else if (layout_class == kContiguous) {
+        msg.properties = de.ReadComplex<ContiguousStorageProperty>();
+    } else if (layout_class == kChunked) {
+        msg.properties = de.ReadComplex<ChunkedStorageProperty>();
+    } else {
+        throw std::runtime_error("invalid data layout class");
+    }
+
+    return msg;
+}
+
 void WriteEightBytePaddedFields(Serializer& s, std::span<const byte_t> buf) {
     s.WriteBuffer(buf);
 
@@ -309,6 +410,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kFillValue: {
             msg.message = de.ReadComplex<FillValueMessage>();
+            break;
+        }
+        case Type::kDataLayout: {
+            msg.message = de.ReadComplex<DataLayoutMessage>();
             break;
         }
         case Type::kAttribute: {

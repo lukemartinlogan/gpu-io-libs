@@ -93,6 +93,55 @@ private:
     static constexpr uint16_t kType = 0x05;
 };
 
+struct CompactStorageProperty {
+    std::vector<byte_t> raw_data;
+
+    void Serialize(Serializer& s) const;
+
+    static CompactStorageProperty Deserialize(Deserializer& de);
+};
+
+struct ContiguousStorageProperty {
+    offset_t address{};
+    len_t size{};
+
+    void Serialize(Serializer& s) const;
+
+    static ContiguousStorageProperty Deserialize(Deserializer& de);
+};
+
+struct ChunkedStorageProperty {
+    offset_t b_tree_addr = kUndefinedOffset;
+    // units of array elements, not bytes
+    std::vector<uint32_t> dimension_sizes;
+    uint32_t elem_size_bytes;
+
+    void Serialize(Serializer& s) const;
+
+    static ChunkedStorageProperty Deserialize(Deserializer& de);
+};
+
+struct DataLayoutMessage {
+    std::variant<
+        CompactStorageProperty,
+        ContiguousStorageProperty,
+        ChunkedStorageProperty
+    > properties;
+
+    uint16_t InternalSize() const { // NOLINT
+        return 0; // FIXME
+    }
+
+    void Serialize(Serializer& s) const;
+
+    static DataLayoutMessage Deserialize(Deserializer& de);
+private:
+    static constexpr uint8_t kVersionNumber = 0x03;
+    static constexpr uint16_t kType = 0x05;
+
+    static constexpr uint8_t kCompact = 0, kContiguous = 1, kChunked = 2;
+};
+
 struct AttributeMessage {
     std::string name;
     DatatypeMessage datatype;
@@ -234,6 +283,7 @@ struct ObjectHeaderMessage {
         DataspaceMessage,
         DatatypeMessage,
         FillValueMessage,
+        DataLayoutMessage,
         AttributeMessage,
         ObjectHeaderContinuationMessage,
         SymbolTableMessage
