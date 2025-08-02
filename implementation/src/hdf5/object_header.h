@@ -1,4 +1,5 @@
 #pragma once
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <variant>
@@ -221,6 +222,21 @@ private:
     static constexpr uint16_t kType = 0x11;
 };
 
+struct ObjectModificationTimeMessage {
+    std::chrono::system_clock::time_point modification_time;
+
+    uint16_t InternalSize() const { // NOLINT
+        return 8 * sizeof(byte_t);
+    }
+
+    void Serialize(Serializer& s) const;
+
+    static ObjectModificationTimeMessage Deserialize(Deserializer& de);
+private:
+    static constexpr uint16_t kType = 0x12;
+    static constexpr uint8_t kVersionNumber = 0x01;
+};
+
 struct ObjectHeaderMessage {
     // TODO: this can be stored in the variant
     enum class Type : uint16_t {
@@ -286,7 +302,8 @@ struct ObjectHeaderMessage {
         DataLayoutMessage,
         AttributeMessage,
         ObjectHeaderContinuationMessage,
-        SymbolTableMessage
+        SymbolTableMessage,
+        ObjectModificationTimeMessage
     > message{};
     uint8_t flags{};
 

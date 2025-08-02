@@ -334,6 +334,35 @@ AttributeMessage AttributeMessage::Deserialize(Deserializer& de) {
     return msg;
 }
 
+void ObjectModificationTimeMessage::Serialize(Serializer& s) const {
+    s.Write(kVersionNumber);
+
+    s.Write<uint8_t>(0);
+    s.Write<uint8_t>(0);
+    s.Write<uint8_t>(0);
+
+    auto seconds_since_epoch = std::chrono::duration_cast<std::chrono::seconds>(
+        modification_time.time_since_epoch()
+    ).count();
+
+    s.Write(static_cast<uint32_t>(seconds_since_epoch));
+}
+
+ObjectModificationTimeMessage ObjectModificationTimeMessage::Deserialize(Deserializer& de) {
+    if (de.Read<uint8_t>() != kVersionNumber) {
+        throw std::runtime_error("Version number was invalid");
+    }
+
+    // reserved (zero)
+    de.Skip<3>();
+
+    auto seconds_since_epoch = de.Read<uint32_t>();
+
+    return {
+        .modification_time = std::chrono::system_clock::time_point{ std::chrono::seconds{seconds_since_epoch} }
+    };
+}
+
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(type);
     s.Write(InternalSize());
@@ -364,6 +393,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
         }
         case Type::kSymbolTable: {
             s.Write(std::get<SymbolTableMessage>(message));
+            break;
+        }
+        case Type::kObjectModificationTime: {
+            s.Write(std::get<ObjectModificationTimeMessage>(message));
             break;
         }
         default: {
@@ -426,6 +459,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kSymbolTable: {
             msg.message = de.ReadComplex<SymbolTableMessage>();
+            break;
+        }
+        case Type::kObjectModificationTime: {
+            msg.message = de.ReadComplex<ObjectModificationTimeMessage>();
             break;
         }
         default: {
