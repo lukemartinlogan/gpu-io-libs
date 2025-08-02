@@ -14,7 +14,7 @@ public:
             return false;
         }
 
-        std::copy(data.begin(), data.end(), buf.data() + cursor);
+        std::ranges::copy(data, buf.data() + cursor);
 
         cursor += data.size();
 
@@ -67,7 +67,7 @@ public:
         cursor = offset;
     }
 
-    bool IsExhausted() const {
+    [[nodiscard]] bool IsExhausted() const {
         return cursor == buf.size();
     }
 

@@ -52,8 +52,8 @@ struct DataspaceMessage {
         return dimension_info_size * header_size;
     }
 
-    size_t TotalElements() const;
-    size_t MaxElements() const;
+    [[nodiscard]] size_t TotalElements() const;
+    [[nodiscard]] size_t MaxElements() const;
 
     void Serialize(Serializer& s) const;
 

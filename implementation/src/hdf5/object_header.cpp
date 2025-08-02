@@ -67,17 +67,17 @@ DataspaceMessage DataspaceMessage::Deserialize(Deserializer& de) {
     // reserved
     de.Skip<5>();
 
-    for (uint8_t d = 0; d < msg.dimensions.size(); ++d) {
-        msg.dimensions.at(d).size = de.Read<len_t>();
+    for (DimensionInfo& dimension : msg.dimensions) {
+        dimension.size = de.Read<len_t>();
     }
 
-    for (uint8_t d = 0; d < msg.dimensions.size(); ++d) {
-        msg.dimensions.at(d).max_size = de.Read<len_t>();
+    for (DimensionInfo& dimension : msg.dimensions) {
+        dimension.max_size = de.Read<len_t>();
     }
 
     if (msg.PermutationIndicesPresent()) {
-        for (uint8_t d = 0; d < msg.dimensions.size(); ++d) {
-            msg.dimensions.at(d).permutation_index = de.Read<len_t>();
+        for (DimensionInfo& dimension : msg.dimensions) {
+            dimension.permutation_index = de.Read<len_t>();
         }
     }
 
@@ -408,7 +408,7 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
 ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
     ObjectHeaderMessage msg{};
 
-    uint16_t type = de.Read<uint16_t>();
+    auto type = de.Read<uint16_t>();
 
     constexpr uint16_t kMessageTypeCt = 0x18;
     if (type >= kMessageTypeCt) {

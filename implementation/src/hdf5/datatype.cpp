@@ -67,8 +67,8 @@ FloatingPoint FloatingPoint::Deserialize(Deserializer& de) {
 }
 
 void DatatypeMessage::Serialize(Serializer& s) const {
-    uint8_t high = static_cast<uint8_t>(version);
-    uint8_t low = static_cast<uint8_t>(class_v);
+    auto high = static_cast<uint8_t>(version);
+    auto low = static_cast<uint8_t>(class_v);
 
     uint8_t class_and_version = (high << 4) | (low & 0x0f);
 
@@ -78,7 +78,7 @@ void DatatypeMessage::Serialize(Serializer& s) const {
 }
 
 DatatypeMessage DatatypeMessage::Deserialize(Deserializer& de) {
-    uint8_t class_and_version = de.Read<uint8_t>();
+    auto class_and_version = de.Read<uint8_t>();
 
     // high
     uint8_t version = ((class_and_version >> 4) & 0x0f);
@@ -323,7 +323,7 @@ CompoundMember CompoundMember::Deserialize(Deserializer& de) {
     mem.name = ReadPaddedString(de);
     mem.byte_offset = de.Read<uint32_t>();
 
-    uint8_t dimensionality = de.Read<uint8_t>();
+    auto dimensionality = de.Read<uint8_t>();
     // reserved (zero)
     de.Skip<3>();
     // dimension permutation (unused)

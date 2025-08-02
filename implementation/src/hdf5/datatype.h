@@ -20,20 +20,20 @@ struct FixedPoint {
     // size in bytes
     uint32_t size{};
 
-    bool BigEndian() const {
+    [[nodiscard]] bool BigEndian() const {
         return bitset_.test(0);
     }
 
-    bool LowPadding() const {
+    [[nodiscard]] bool LowPadding() const {
         return bitset_.test(1);
     }
 
-    bool HighPadding() const {
+    [[nodiscard]] bool HighPadding() const {
         return bitset_.test(2);
     }
 
     // is signed in two's complement?
-    bool Signed() const {
+    [[nodiscard]] bool Signed() const {
         return bitset_.test(3);
     }
 
@@ -59,7 +59,7 @@ struct FloatingPoint {
 
     enum class ByteOrder : uint8_t { kLittleEndian, kBigEndian, kVAXEndian };
 
-    ByteOrder ByteOrder() const {
+    [[nodiscard]] ByteOrder ByteOrder() const {
         const bool _0 = bitset_.test(0);
         const bool _6 = bitset_.test(6);
 
@@ -76,21 +76,21 @@ struct FloatingPoint {
         throw std::logic_error("Invalid byte order");
     }
 
-    bool LowPadding() const {
+    [[nodiscard]] bool LowPadding() const {
         return bitset_.test(1);
     }
 
-    bool HighPadding() const {
+    [[nodiscard]] bool HighPadding() const {
         return bitset_.test(2);
     }
 
-    bool InternalPadding() const {
+    [[nodiscard]] bool InternalPadding() const {
         return bitset_.test(3);
     }
 
     enum class MantissaNormalization : uint8_t { kNone, kMSBSet, kMSBImpliedSet };
 
-    MantissaNormalization MantissaNormalization() const {
+    [[nodiscard]] MantissaNormalization MantissaNormalization() const {
         // get bits 4 & 5
         switch ((bitset_.to_ulong() >> 4) & 0b11) {
             case 0: return MantissaNormalization::kNone;
@@ -207,7 +207,7 @@ struct DatatypeMessage {
         return 0;
     }
 
-    uint16_t Size() const {
+    [[nodiscard]] uint16_t Size() const {
         return std::visit([](const auto& elem) { return elem.size; }, data);
     }
 
