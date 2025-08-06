@@ -602,6 +602,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
             s.Write(std::get<ObjectCommentMessage>(message));
             break;
         }
+        case Type::kObjectModificationTimeOld: {
+            s.Write(std::get<ObjectModificationTimeOldMessage>(message));
+            break;
+        }
         case Type::kObjectHeaderContinuation: {
             s.Write(std::get<ObjectHeaderContinuationMessage>(message));
             break;
@@ -698,6 +702,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kObjectComment: {
             msg.message = de.ReadComplex<ObjectCommentMessage>();
+            break;
+        }
+        case Type::kObjectModificationTimeOld: {
+            msg.message = de.ReadComplex<ObjectModificationTimeOldMessage>();
             break;
         }
         case Type::kObjectHeaderContinuation: {

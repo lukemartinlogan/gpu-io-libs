@@ -316,6 +316,18 @@ private:
     static constexpr uint16_t kType = 0x000d;
 };
 
+struct ObjectModificationTimeOldMessage {
+    void Serialize(Serializer& _s) const { // NOLINT
+        throw std::logic_error("old object modification time message is deprecated");
+    }
+
+    static FilterPipelineMessage Deserialize(Deserializer& _de) {
+        throw std::logic_error("old object modification time message is deprecated");
+    }
+private:
+    static constexpr uint16_t kType = 0x000e;
+};
+
 struct ObjectHeaderContinuationMessage {
     // where header continuation block is located
     offset_t offset = kUndefinedOffset;
@@ -451,6 +463,8 @@ struct ObjectHeaderMessage {
         AttributeMessage, // 0x0c
         // short description about object
         ObjectCommentMessage, // 0x0d
+        // old object modification time, deprecated
+        ObjectModificationTimeOldMessage, // 0x0e
         ObjectHeaderContinuationMessage, // 0x10
         SymbolTableMessage, // 0x11
         ObjectModificationTimeMessage // 0x12
