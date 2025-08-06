@@ -535,6 +535,45 @@ ObjectModificationTimeMessage ObjectModificationTimeMessage::Deserialize(Deseria
     };
 }
 
+void DriverInfoMessage::Serialize(Serializer& s) const {
+    s.Write(kVersionNumber);
+
+    // check that driver_id has len kDriverIdSize and is all ascii
+    if (driver_id.size() != kDriverIdSize || !std::ranges::all_of(driver_id, [](char c) { return c >= 0 && c <= 127; })) {
+        throw std::runtime_error("DriverInfoMessage: driver_id must be exactly eight ASCII characters");
+    }
+
+    s.WriteBuffer(std::span(
+        reinterpret_cast<const byte_t*>(driver_id.data()),
+        driver_id.size()
+    ));
+
+    s.Write<uint16_t>(driver_info.size());
+
+    s.WriteBuffer(driver_info);
+}
+
+DriverInfoMessage DriverInfoMessage::Deserialize(Deserializer& de) {
+    if (de.Read<uint8_t>() != kVersionNumber) {
+        throw std::runtime_error("DriverInfoMessage: unsupported version");
+    }
+
+    // read 8 bytes, then make a string out of it
+    DriverInfoMessage msg{};
+
+    // read id
+    std::array<char, kDriverIdSize> id{};
+    de.ReadBuffer(std::span(reinterpret_cast<byte_t*>(id.data()), id.size()));
+    msg.driver_id = std::string(id.data(), id.size());
+
+
+    auto driver_info_size = de.Read<uint16_t>();
+    msg.driver_info.resize(driver_info_size);
+    de.ReadBuffer(msg.driver_info);
+
+    return msg;
+}
+
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(type);
     s.Write<uint16_t>(0); // FIXME: object header size!
@@ -624,6 +663,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
         }
         case Type::kBTreeKValues: {
             s.Write(std::get<BTreeKValuesMessage>(message));
+            break;
+        }
+        case Type::kDriverInfo: {
+            s.Write(std::get<DriverInfoMessage>(message));
             break;
         }
         default: {
@@ -734,6 +777,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kBTreeKValues: {
             msg.message = de.ReadComplex<BTreeKValuesMessage>();
+            break;
+        }
+        case Type::kDriverInfo: {
+            msg.message = de.ReadComplex<DriverInfoMessage>();
             break;
         }
         default: {

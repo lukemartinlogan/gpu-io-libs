@@ -434,6 +434,22 @@ private:
     static constexpr uint16_t kType = 0x13;
 };
 
+struct DriverInfoMessage {
+    // 8 ascii bytes
+    std::string driver_id{};
+    std::vector<byte_t> driver_info;
+
+    void Serialize(Serializer& s) const;
+
+    static DriverInfoMessage Deserialize(Deserializer& de);
+
+private:
+    static constexpr size_t kDriverIdSize = 8;
+
+    static constexpr uint8_t kVersionNumber = 0x00;
+    static constexpr uint16_t kType = 0x14;
+};
+
 struct ObjectHeaderMessage {
     // TODO: this can be stored in the variant
     enum class Type : uint16_t {
@@ -529,7 +545,9 @@ struct ObjectHeaderMessage {
         SymbolTableMessage, // 0x11
         ObjectModificationTimeMessage, // 0x12
         // contains k values for b-trees, only found in superblock extension
-        BTreeKValuesMessage // 0x13
+        BTreeKValuesMessage, // 0x13
+        // contains driver id and info
+        DriverInfoMessage // 0x14
     > message{};
     uint8_t flags{};
 
