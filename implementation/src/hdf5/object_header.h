@@ -608,9 +608,6 @@ struct ObjectHeaderMessage {
 };
 
 struct ObjectHeader {
-    // total number of messages listed
-    // includes continuation messages
-    uint16_t message_count{};
     // number of hard links to this object in the current file
     uint32_t object_ref_count{};
     // number of bytes of header message data for this header

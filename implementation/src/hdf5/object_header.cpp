@@ -843,7 +843,7 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
 void ObjectHeader::Serialize(Serializer& s) const {
     s.Write(kVersionNumber);
     s.Write<uint8_t>(0);
-    s.Write(message_count);
+    s.Write<uint16_t>(messages.size());
     s.Write(object_ref_count);
     s.Write(object_header_size);
     // reserved (zero)
@@ -861,16 +861,16 @@ ObjectHeader ObjectHeader::Deserialize(Deserializer& de) {
     // reserved (zero)
     de.Skip<uint8_t>();
 
+    auto message_count = de.Read<uint16_t>();
+
     ObjectHeader hd{};
 
-    // FIXME: don't save this
-    hd.message_count = de.Read<uint16_t>();
     hd.object_ref_count = de.Read<uint32_t>();
     hd.object_header_size = de.Read<uint32_t>();
     // reserved (zero)
     de.Skip<uint32_t>();
 
-    for (uint16_t m = 0; m < hd.message_count; ++m) {
+    for (uint16_t m = 0; m < message_count; ++m) {
         hd.messages.push_back(de.ReadComplex<ObjectHeaderMessage>());
 
         if (const auto* p = std::get_if<ObjectHeaderContinuationMessage>(&hd.messages.back().message)) {
