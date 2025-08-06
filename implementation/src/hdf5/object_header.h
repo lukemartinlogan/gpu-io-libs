@@ -172,6 +172,25 @@ private:
     static constexpr uint16_t kType = 0x07;
 };
 
+struct BogusMessage {
+    static constexpr uint32_t kBogusValue = 0xdeadbeef;
+
+    void Serialize(Serializer& s) const { // NOLINT
+        s.Write<uint32_t>(kBogusValue);
+    }
+
+    static BogusMessage Deserialize(Deserializer& de) {
+        if (de.Read<uint32_t>() != kBogusValue) {
+            throw std::runtime_error("BogusMessage: value is not 0xdeadbeef");
+        }
+
+        return {};
+    }
+
+private:
+    static constexpr uint16_t kType = 0x0009;
+};
+
 struct CompactStorageProperty {
     std::vector<byte_t> raw_data;
 
@@ -373,6 +392,8 @@ struct ObjectHeaderMessage {
         ExternalDataFilesMessage, // 0x07
         // how elems of multi dimensions array are stored
         DataLayoutMessage, // 0x08
+        // for testing, should never appear
+        BogusMessage, // 0x09
         AttributeMessage, // 0x0c
         ObjectHeaderContinuationMessage, // 0x10
         SymbolTableMessage, // 0x11

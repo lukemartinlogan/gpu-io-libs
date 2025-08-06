@@ -507,6 +507,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
             s.Write(std::get<DataLayoutMessage>(message));
             break;
         }
+        case Type::kBogus: {
+            s.Write(std::get<BogusMessage>(message));
+            break;
+        }
         case Type::kAttribute: {
             s.Write(std::get<AttributeMessage>(message));
             break;
@@ -587,6 +591,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kDataLayout: {
             msg.message = de.ReadComplex<DataLayoutMessage>();
+            break;
+        }
+        case Type::kBogus: {
+            msg.message = de.ReadComplex<BogusMessage>();
             break;
         }
         case Type::kAttribute: {
