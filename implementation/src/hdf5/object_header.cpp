@@ -565,6 +565,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
             s.Write(std::get<GroupInfoMessage>(message));
             break;
         }
+        case Type::kFilterPipeline: {
+            s.Write(std::get<FilterPipelineMessage>(message));
+            break;
+        }
         case Type::kAttribute: {
             s.Write(std::get<AttributeMessage>(message));
             break;
@@ -653,6 +657,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kGroupInfo: {
             msg.message = de.ReadComplex<GroupInfoMessage>();
+            break;
+        }
+        case Type::kFilterPipeline: {
+            msg.message = de.ReadComplex<FilterPipelineMessage>();
             break;
         }
         case Type::kAttribute: {

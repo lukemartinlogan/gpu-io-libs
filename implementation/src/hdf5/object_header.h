@@ -218,6 +218,18 @@ private:
     static constexpr uint16_t kType = 0x000a;
 };
 
+struct FilterPipelineMessage {
+    void Serialize(Serializer& _s) const { // NOLINT
+        throw std::logic_error("TODO: filter pipeline message not implemented");
+    }
+
+    static FilterPipelineMessage Deserialize(Deserializer& _de) {
+        throw std::logic_error("TODO: filter pipeline message not implemented");
+    }
+private:
+    static constexpr uint16_t kType = 0x0b;
+};
+
 struct CompactStorageProperty {
     std::vector<byte_t> raw_data;
 
@@ -423,6 +435,8 @@ struct ObjectHeaderMessage {
         BogusMessage, // 0x09
         // info for constants defining group behavior
         GroupInfoMessage, // 0x0a
+        // filter pipeline, TODO
+        FilterPipelineMessage, // 0x0b
         AttributeMessage, // 0x0c
         ObjectHeaderContinuationMessage, // 0x10
         SymbolTableMessage, // 0x11
