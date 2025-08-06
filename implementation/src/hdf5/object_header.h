@@ -129,7 +129,7 @@ struct LinkMessage {
         throw std::logic_error("TODO: not implemented");
     }
 
-    static FillValueMessage Deserialize(Deserializer& de) {
+    static LinkMessage Deserialize(Deserializer& de) {
         throw std::logic_error("TODO: not implemented");
     }
 private:
@@ -321,7 +321,7 @@ struct ObjectModificationTimeOldMessage {
         throw std::logic_error("old object modification time message is deprecated");
     }
 
-    static FilterPipelineMessage Deserialize(Deserializer& _de) {
+    static ObjectModificationTimeOldMessage Deserialize(Deserializer& _de) {
         throw std::logic_error("old object modification time message is deprecated");
     }
 private:
