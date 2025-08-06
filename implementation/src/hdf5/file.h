@@ -21,6 +21,8 @@ class File {
 public:
     explicit File(const std::filesystem::path& path);
 
+    Dataset GetDataset(std::string_view dataset_name);
+
 private:
     StdioReader read_;
     SuperblockV0 superblock_;
