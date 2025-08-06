@@ -492,6 +492,53 @@ private:
     static constexpr uint16_t kType = 0x16;
 };
 
+// FIXME: refactor this message
+struct FileSpaceInfoMessage {
+    // strategy used to manage file space
+    enum class Strategy : uint8_t {
+        // free space managers, aggregators, virtual file drivers
+        kFSMAggregators = 0,
+        // free space managers, embedded page aggregation, virtual file drivers
+        kPage = 1,
+        // aggregators, virtual file drivers
+        kAggregators = 2,
+        // virtual vile drivers
+        kNone = 3
+    } strategy{};
+
+    // smallest free-space section size that free-space manager will track
+    len_t free_space_threshold{};
+    // file space page size, used when paged aggregation is enabled
+    uint32_t file_space_page_size{};
+    // smallest free-space section size at end of a page that free space manager will track
+    // used when pageed aggregation is enabled
+    uint16_t page_end_metadata_threshold{};
+    // the end of allocated [space] of free-space manager header and section info
+    // for self-referential free-space managers when persisting free-space
+    offset_t eoa{};
+
+    // 6 small-sized free-space managers
+    std::optional<std::array<offset_t, 6>> small_managers;
+    // 6 large-sized free-space managers
+    std::optional<std::array<offset_t, 6>> large_managers;
+
+    [[nodiscard]] bool PersistingFreeSpace() const {
+        if (small_managers.has_value() != large_managers.has_value()) {
+            throw std::runtime_error("FileSpaceInfoMessage: small and large managers must be both present or both absent");
+        }
+
+        return small_managers.has_value();
+    }
+
+    void Serialize(Serializer& s) const;
+
+    static FileSpaceInfoMessage Deserialize(Deserializer& de);
+
+private:
+    static constexpr uint8_t kVersionNumber = 0x01;
+    static constexpr uint16_t kType = 0x17;
+};
+
 struct ObjectHeaderMessage {
     // TODO: this can be stored in the variant
     enum class Type : uint16_t {
@@ -594,7 +641,9 @@ struct ObjectHeaderMessage {
         AttributeInfoMessage, // 0x15
         // number of hard links to this object in the current file
         // only present in v2+ of object headers; if not present, refct is assumed 1
-        ObjectReferenceCountMessage // 0x16
+        ObjectReferenceCountMessage, // 0x16
+        // file space info, used to manage free space in file
+        FileSpaceInfoMessage // 0x17
     > message{};
     uint8_t flags{};
 

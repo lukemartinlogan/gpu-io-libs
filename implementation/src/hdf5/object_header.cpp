@@ -623,6 +623,55 @@ AttributeInfoMessage AttributeInfoMessage::Deserialize(Deserializer& de) {
     return msg;
 }
 
+void FileSpaceInfoMessage::Serialize(Serializer& s) const {
+    s.Write(kVersionNumber);
+    s.Write(static_cast<uint8_t>(strategy));
+
+    auto persisting_free_space = PersistingFreeSpace();
+
+    s.Write(static_cast<uint8_t>(persisting_free_space));
+    s.Write(free_space_threshold);
+    s.Write(file_space_page_size);
+    s.Write(page_end_metadata_threshold);
+    s.Write(eoa);
+
+    if (persisting_free_space) {
+        s.Write(*small_managers);
+        s.Write(*large_managers);
+    }
+}
+
+FileSpaceInfoMessage FileSpaceInfoMessage::Deserialize(Deserializer& de) {
+    if (de.Read<uint8_t>() != kVersionNumber) {
+        throw std::runtime_error("FileSpaceInfoMessage: invalid version");
+    }
+
+    FileSpaceInfoMessage msg{};
+
+    auto strategy = de.Read<uint8_t>();
+
+    constexpr uint16_t kStrategyCt = 4;
+    if (strategy >= kStrategyCt) {
+        throw std::runtime_error("FileSpaceInfoMessage: invalid strategy");
+    }
+
+    msg.strategy = static_cast<Strategy>(strategy);
+
+    auto persisting_free_space = de.Read<uint8_t>() != 0;
+
+    msg.free_space_threshold = de.Read<len_t>();
+    msg.file_space_page_size = de.Read<uint32_t>();
+    msg.page_end_metadata_threshold = de.Read<uint16_t>();
+    msg.eoa = de.Read<offset_t>();
+
+    if (persisting_free_space) {
+        msg.small_managers = de.Read<std::array<offset_t, 6>>();
+        msg.large_managers = de.Read<std::array<offset_t, 6>>();
+    }
+
+    return msg;
+}
+
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(type);
     s.Write<uint16_t>(0); // FIXME: object header size!
@@ -724,6 +773,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
         }
         case Type::kObjectRefCount: {
             s.Write(std::get<ObjectReferenceCountMessage>(message));
+            break;
+        }
+        case Type::kFileSpaceInfo: {
+            s.Write(std::get<FileSpaceInfoMessage>(message));
             break;
         }
         default: {
@@ -846,6 +899,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kObjectRefCount: {
             msg.message = de.ReadComplex<ObjectReferenceCountMessage>();
+            break;
+        }
+        case Type::kFileSpaceInfo: {
+            msg.message = de.ReadComplex<FileSpaceInfoMessage>();
             break;
         }
         default: {
