@@ -375,12 +375,23 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(flags);
 
     switch (type) {
+        case Type::kNil: {
+            s.Write(std::get<NilMessage>(message));
+        }
+        case Type::kDataspace: {
+            s.Write(std::get<DataspaceMessage>(message));
+            break;
+        }
         case Type::kDatatype: {
             s.Write(std::get<DatatypeMessage>(message));
             break;
         }
-        case Type::kDataspace: {
-            s.Write(std::get<DataspaceMessage>(message));
+        case Type::kFillValue: {
+            s.Write(std::get<FillValueMessage>(message));
+            break;
+        }
+        case Type::kDataLayout: {
+            s.Write(std::get<DataLayoutMessage>(message));
             break;
         }
         case Type::kAttribute: {
