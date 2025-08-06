@@ -275,16 +275,24 @@ struct ObjectHeaderMessage {
 
     // if this gets too large, put it on the heap
     std::variant<
-        NilMessage,
-        DataspaceMessage,
-        LinkInfoMessage,
-        DatatypeMessage,
-        FillValueMessage,
-        DataLayoutMessage,
-        AttributeMessage,
-        ObjectHeaderContinuationMessage,
-        SymbolTableMessage,
-        ObjectModificationTimeMessage
+        // ignore message, variable length
+        NilMessage, // 0x00
+        // exactly 1 req for datasets
+        // variable len based on num of dimensions
+        DataspaceMessage, // 0x01
+        // ?current state of links
+        LinkInfoMessage, // 0x02
+        // exactly 1 req for datasets
+        // datatype for each elem of dataset
+        DatatypeMessage, // 0x03
+        // uninit value, same datatype as dataset
+        FillValueMessage, // 0x05
+        // how elems of multi dimensions array are stored
+        DataLayoutMessage, // 0x08
+        AttributeMessage, // 0x0c
+        ObjectHeaderContinuationMessage, // 0x10
+        SymbolTableMessage, // 0x11
+        ObjectModificationTimeMessage // 0x12
     > message{};
     uint8_t flags{};
 
