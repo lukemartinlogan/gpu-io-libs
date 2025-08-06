@@ -439,6 +439,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
             s.Write(std::get<DatatypeMessage>(message));
             break;
         }
+        case Type::kFillValueOld: {
+            s.Write(std::get<FillValueOldMessage>(message));
+            break;
+        }
         case Type::kFillValue: {
             s.Write(std::get<FillValueMessage>(message));
             break;
@@ -507,6 +511,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kDatatype: {
             msg.message = de.ReadComplex<DatatypeMessage>();
+            break;
+        }
+        case Type::kFillValueOld: {
+            msg.message = de.ReadComplex<FillValueOldMessage>();
             break;
         }
         case Type::kFillValue: {

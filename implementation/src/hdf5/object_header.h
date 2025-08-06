@@ -70,6 +70,36 @@ private:
     static constexpr uint16_t kType = 0x02;
 };
 
+struct FillValueOldMessage {
+    std::vector<byte_t> fill_value;
+
+    void Serialize(Serializer& s) const {
+        s.Write<uint32_t>(fill_value.size());
+
+        if (!fill_value.empty()) {
+            s.WriteBuffer(fill_value);
+        }
+    }
+
+    static FillValueOldMessage Deserialize(Deserializer& de) {
+        FillValueOldMessage msg{};
+
+        auto size = de.Read<uint32_t>();
+
+        if (size > 0) {
+            msg.fill_value.resize(size);
+            de.ReadBuffer(msg.fill_value);
+        } else {
+            msg.fill_value.clear();
+        }
+
+        return msg;
+    }
+
+private:
+    static constexpr uint16_t kType = 0x04;
+};
+
 struct FillValueMessage {
     enum class SpaceAllocTime {
         kNotUsed = 0,
@@ -285,6 +315,8 @@ struct ObjectHeaderMessage {
         // exactly 1 req for datasets
         // datatype for each elem of dataset
         DatatypeMessage, // 0x03
+        // uninit value, same datatype as dataset
+        FillValueOldMessage, // 0x04
         // uninit value, same datatype as dataset
         FillValueMessage, // 0x05
         // how elems of multi dimensions array are stored
