@@ -722,6 +722,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
             s.Write(std::get<AttributeInfoMessage>(message));
             break;
         }
+        case Type::kObjectRefCount: {
+            s.Write(std::get<ObjectReferenceCountMessage>(message));
+            break;
+        }
         default: {
             throw std::logic_error("object header ty not implemented");
         }
@@ -838,6 +842,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kAttributeInfo: {
             msg.message = de.ReadComplex<AttributeInfoMessage>();
+            break;
+        }
+        case Type::kObjectRefCount: {
+            msg.message = de.ReadComplex<ObjectReferenceCountMessage>();
             break;
         }
         default: {

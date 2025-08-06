@@ -469,6 +469,29 @@ private:
     static constexpr uint16_t kType = 0x15;
 };
 
+struct ObjectReferenceCountMessage {
+    uint32_t reference_count{};
+
+    void Serialize(Serializer& s) const {
+        s.Write(kVersionNumber);
+        s.Write(reference_count);
+    }
+
+    static ObjectReferenceCountMessage Deserialize(Deserializer& de) {
+        if (de.Read<uint8_t>() != kVersionNumber) {
+            throw std::runtime_error("ObjectReferenceCountMessage: invalid version");
+        }
+
+        return {
+            .reference_count = de.Read<uint32_t>()
+        };
+    }
+
+private:
+    static constexpr uint8_t kVersionNumber = 0x00;
+    static constexpr uint16_t kType = 0x16;
+};
+
 struct ObjectHeaderMessage {
     // TODO: this can be stored in the variant
     enum class Type : uint16_t {
@@ -568,7 +591,10 @@ struct ObjectHeaderMessage {
         // contains driver id and info
         DriverInfoMessage, // 0x14
         // infromation about attributes on an object
-        AttributeInfoMessage // 0x15
+        AttributeInfoMessage, // 0x15
+        // number of hard links to this object in the current file
+        // only present in v2+ of object headers; if not present, refct is assumed 1
+        ObjectReferenceCountMessage // 0x16
     > message{};
     uint8_t flags{};
 
