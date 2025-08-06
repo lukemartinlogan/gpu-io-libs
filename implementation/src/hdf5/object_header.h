@@ -124,6 +124,18 @@ private:
     static constexpr uint16_t kType = 0x05;
 };
 
+struct LinkMessage {
+    void Serialize(Serializer& s) const { // NOLINT
+        throw std::logic_error("TODO: not implemented");
+    }
+
+    static FillValueMessage Deserialize(Deserializer& de) {
+        throw std::logic_error("TODO: not implemented");
+    }
+private:
+    static constexpr uint16_t kType = 0x06;
+};
+
 struct CompactStorageProperty {
     std::vector<byte_t> raw_data;
 
@@ -319,6 +331,8 @@ struct ObjectHeaderMessage {
         FillValueOldMessage, // 0x04
         // uninit value, same datatype as dataset
         FillValueMessage, // 0x05
+        // info for link in group object header, TODO
+        LinkMessage, // 0x06
         // how elems of multi dimensions array are stored
         DataLayoutMessage, // 0x08
         AttributeMessage, // 0x0c

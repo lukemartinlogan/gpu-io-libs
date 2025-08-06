@@ -447,6 +447,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
             s.Write(std::get<FillValueMessage>(message));
             break;
         }
+        case Type::kLink: {
+            s.Write(std::get<LinkMessage>(message));
+            break;
+        }
         case Type::kDataLayout: {
             s.Write(std::get<DataLayoutMessage>(message));
             break;
@@ -519,6 +523,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kFillValue: {
             msg.message = de.ReadComplex<FillValueMessage>();
+            break;
+        }
+        case Type::kLink: {
+            msg.message = de.ReadComplex<LinkMessage>();
             break;
         }
         case Type::kDataLayout: {
