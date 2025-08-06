@@ -27,6 +27,8 @@ add_executable(hdf5_implementation
     src/hdf5/types.h
     src/hdf5/local_heap.h
     src/hdf5/local_heap.cpp
+    src/hdf5/file.h
+    src/hdf5/file.cpp
 )
 
 #target_link_libraries(hdf5_implementation PRIVATE MPI::MPI_CXX)

@@ -1,0 +1,27 @@
+#include "file.h"
+
+File::File(const std::filesystem::path& path): read_(path) {
+    superblock_ = read_.ReadComplex<SuperblockV0>();
+
+    // read the root group
+    offset_t root_group_header_addr = superblock_.root_group_symbol_table_entry_addr.object_header_addr;
+    read_.SetPosition(superblock_.base_addr + root_group_header_addr);
+
+    auto root_header = read_.ReadComplex<ObjectHeader>();
+
+    if (root_header.messages.size() != 1) {
+        throw std::runtime_error("Root group must have exactly one message");
+    }
+
+    const auto* sym_tbl = std::get_if<SymbolTableMessage>(&root_header.messages.front().message);
+
+    if (!sym_tbl) {
+        throw std::runtime_error("Root group must have a symbol table message");
+    }
+
+    read_.SetPosition(superblock_.base_addr + sym_tbl->b_tree_addr);
+    group_table_ = read_.ReadComplex<BTreeNode>();
+
+    read_.SetPosition(superblock_.base_addr + sym_tbl->local_heap_addr);
+    local_heap_ = read_.ReadComplex<LocalHeap>();
+}
