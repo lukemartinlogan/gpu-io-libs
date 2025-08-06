@@ -462,16 +462,16 @@ AttributeMessage AttributeMessage::Deserialize(Deserializer& de) {
     msg.name = std::string(reinterpret_cast<const char*>(buf.data()), name_size - 1);
 
     // read datatype
-    BufferDeserializer datatype_buf_de(std::span(buf.data(), datatype_size));
-    ReadEightBytePaddedData(de, datatype_buf_de.buf);
+    std::span datatype_buf(buf.data(), datatype_size);
+    ReadEightBytePaddedData(de, datatype_buf);
 
-    msg.datatype = datatype_buf_de.ReadComplex<DatatypeMessage>();
+    msg.datatype = BufferDeserializer(datatype_buf).ReadComplex<DatatypeMessage>();
 
     // read dataspace
-    BufferDeserializer dataspace_buf_de(std::span(buf.data(), dataspace_size));
-    ReadEightBytePaddedData(de, dataspace_buf_de.buf);
+    std::span dataspace_buf(buf.data(), dataspace_size);
+    ReadEightBytePaddedData(de, dataspace_buf);
 
-    msg.dataspace = dataspace_buf_de.ReadComplex<DataspaceMessage>();
+    msg.dataspace = BufferDeserializer(dataspace_buf).ReadComplex<DataspaceMessage>();
 
     size_t data_size = msg.datatype.Size() * msg.dataspace.MaxElements();
     msg.data.resize(data_size);
