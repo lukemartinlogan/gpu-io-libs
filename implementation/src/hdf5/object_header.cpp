@@ -706,16 +706,14 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         throw std::runtime_error("Not a valid message type");
     }
 
-    msg.type = static_cast<Type>(type);
-
     auto size = de.Read<uint16_t>();
     msg.flags = de.Read<uint8_t>();
     de.Skip<3>(); // reserved (0)
 
     auto start = de.GetPosition();
 
-    switch (msg.type) {
-        case Type::kNil: {
+    switch (type) {
+        case NilMessage::kType: {
             // FIXME: this can be optimized
             for (uint16_t i = 0; i < size; ++i) {
                 de.Skip<uint8_t>();
@@ -724,100 +722,100 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
             msg.message = NilMessage { .size = size };
             break;
         }
-        case Type::kDataspace: {
+        case DataspaceMessage::kType: {
             msg.message = de.ReadComplex<DataspaceMessage>();
             break;
         }
-        case Type::kLinkInfo: {
+        case LinkInfoMessage::kType: {
             msg.message = de.ReadComplex<LinkInfoMessage>();
             break;
         }
-        case Type::kDatatype: {
+        case DatatypeMessage::kType: {
             msg.message = de.ReadComplex<DatatypeMessage>();
             break;
         }
-        case Type::kFillValueOld: {
+        case FillValueOldMessage::kType: {
             msg.message = de.ReadComplex<FillValueOldMessage>();
             break;
         }
-        case Type::kFillValue: {
+        case FillValueMessage::kType: {
             msg.message = de.ReadComplex<FillValueMessage>();
             break;
         }
-        case Type::kLink: {
+        case LinkMessage::kType: {
             msg.message = de.ReadComplex<LinkMessage>();
             break;
         }
-        case Type::kExternalDataFiles: {
+        case ExternalDataFilesMessage::kType: {
             msg.message = de.ReadComplex<ExternalDataFilesMessage>();
             break;
         }
-        case Type::kDataLayout: {
+        case DataLayoutMessage::kType: {
             msg.message = de.ReadComplex<DataLayoutMessage>();
             break;
         }
-        case Type::kBogus: {
+        case BogusMessage::kType: {
             msg.message = de.ReadComplex<BogusMessage>();
             break;
         }
-        case Type::kGroupInfo: {
+        case GroupInfoMessage::kType: {
             msg.message = de.ReadComplex<GroupInfoMessage>();
             break;
         }
-        case Type::kFilterPipeline: {
+        case FilterPipelineMessage::kType: {
             msg.message = de.ReadComplex<FilterPipelineMessage>();
             break;
         }
-        case Type::kAttribute: {
+        case AttributeMessage::kType: {
             msg.message = de.ReadComplex<AttributeMessage>();
             break;
         }
-        case Type::kObjectComment: {
+        case ObjectCommentMessage::kType: {
             msg.message = de.ReadComplex<ObjectCommentMessage>();
             break;
         }
-        case Type::kObjectModificationTimeOld: {
+        case ObjectModificationTimeOldMessage::kType: {
             msg.message = de.ReadComplex<ObjectModificationTimeOldMessage>();
             break;
         }
-        case Type::kSharedMessageTable: {
+        case SharedMessageTableMessage::kType: {
             msg.message = de.ReadComplex<SharedMessageTableMessage>();
             break;
         }
-        case Type::kObjectHeaderContinuation: {
+        case ObjectHeaderContinuationMessage::kType: {
             msg.message = de.ReadComplex<ObjectHeaderContinuationMessage>();
             break;
         }
-        case Type::kSymbolTable: {
+        case SymbolTableMessage::kType: {
             msg.message = de.ReadComplex<SymbolTableMessage>();
             break;
         }
-        case Type::kObjectModificationTime: {
+        case ObjectModificationTimeMessage::kType: {
             msg.message = de.ReadComplex<ObjectModificationTimeMessage>();
             break;
         }
-        case Type::kBTreeKValues: {
+        case BTreeKValuesMessage::kType: {
             msg.message = de.ReadComplex<BTreeKValuesMessage>();
             break;
         }
-        case Type::kDriverInfo: {
+        case DriverInfoMessage::kType: {
             msg.message = de.ReadComplex<DriverInfoMessage>();
             break;
         }
-        case Type::kAttributeInfo: {
+        case AttributeInfoMessage::kType: {
             msg.message = de.ReadComplex<AttributeInfoMessage>();
             break;
         }
-        case Type::kObjectRefCount: {
+        case ObjectReferenceCountMessage::kType: {
             msg.message = de.ReadComplex<ObjectReferenceCountMessage>();
             break;
         }
-        case Type::kFileSpaceInfo: {
+        case FileSpaceInfoMessage::kType: {
             msg.message = de.ReadComplex<FileSpaceInfoMessage>();
             break;
         }
         default: {
-            throw std::logic_error("object header ty not implemented");
+            throw std::logic_error("invalid object header message type");
         }
     }
 
@@ -865,6 +863,7 @@ ObjectHeader ObjectHeader::Deserialize(Deserializer& de) {
 
     ObjectHeader hd{};
 
+    // FIXME: don't save this
     hd.message_count = de.Read<uint16_t>();
     hd.object_ref_count = de.Read<uint32_t>();
     hd.object_header_size = de.Read<uint32_t>();
