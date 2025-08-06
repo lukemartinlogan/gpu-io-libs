@@ -715,11 +715,11 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
     switch (type) {
         case NilMessage::kType: {
             // FIXME: this can be optimized
-            for (uint16_t i = 0; i < size; ++i) {
+            for (uint16_t i = 0; i < msg.size; ++i) {
                 de.Skip<uint8_t>();
             }
 
-            msg.message = NilMessage { .size = size };
+            msg.message = NilMessage { .size = msg.size };
             break;
         }
         case DataspaceMessage::kType: {
