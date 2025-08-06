@@ -654,6 +654,8 @@ struct ObjectHeaderMessage {
     > message{};
     uint8_t flags{};
 
+    [[nodiscard]] uint16_t MessageType() const;
+
     void Serialize(Serializer& s) const;
 
     static ObjectHeaderMessage Deserialize(Deserializer& de);

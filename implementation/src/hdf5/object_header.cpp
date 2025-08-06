@@ -672,6 +672,16 @@ FileSpaceInfoMessage FileSpaceInfoMessage::Deserialize(Deserializer& de) {
     return msg;
 }
 
+uint16_t ObjectHeaderMessage::MessageType() const {
+    auto index = std::visit([]<typename T>(const T&) { return T::kType; }, message);
+
+    if (index != message.index()) {
+        throw std::runtime_error("mismatch between variant index and message type");
+    }
+
+    return index;
+}
+
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(type);
     s.Write<uint16_t>(0); // FIXME: object header size!
