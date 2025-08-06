@@ -188,7 +188,7 @@ struct BogusMessage {
     }
 
 private:
-    static constexpr uint16_t kType = 0x0009;
+    static constexpr uint16_t kType = 0x09;
 };
 
 struct GroupInfoMessage {
@@ -215,7 +215,7 @@ struct GroupInfoMessage {
 
 private:
     static constexpr uint8_t kVersionNumber = 0x00;
-    static constexpr uint16_t kType = 0x000a;
+    static constexpr uint16_t kType = 0x0a;
 };
 
 struct FilterPipelineMessage {
@@ -313,7 +313,7 @@ struct ObjectCommentMessage {
     static ObjectCommentMessage Deserialize(Deserializer& de);
 
 private:
-    static constexpr uint16_t kType = 0x000d;
+    static constexpr uint16_t kType = 0x0d;
 };
 
 struct ObjectModificationTimeOldMessage {
@@ -325,7 +325,7 @@ struct ObjectModificationTimeOldMessage {
         throw std::logic_error("old object modification time message is deprecated");
     }
 private:
-    static constexpr uint16_t kType = 0x000e;
+    static constexpr uint16_t kType = 0x0e;
 };
 
 struct ObjectHeaderContinuationMessage {
