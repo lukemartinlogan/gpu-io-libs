@@ -849,8 +849,31 @@ void ObjectHeader::Serialize(Serializer& s) const {
     // reserved (zero)
     s.Write<uint32_t>(0);
 
+    // FIXME: handle object continuation
     for (const ObjectHeaderMessage& msg: messages) {
         s.WriteComplex(msg);
+    }
+}
+
+void ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& de, uint32_t size_limit, uint16_t total_message_ct) {
+    uint32_t bytes_read = 0;
+
+    while (bytes_read < size_limit && hd.messages.size() < total_message_ct) {
+        size_t before_read = de.GetPosition();
+
+        hd.messages.push_back(de.ReadComplex<ObjectHeaderMessage>());
+
+        bytes_read += de.GetPosition() - before_read;
+
+        if (const auto* cont = std::get_if<ObjectHeaderContinuationMessage>(&hd.messages.back().message)) {
+            offset_t return_pos = de.GetPosition();
+
+            de.SetPosition(/* TODO: sb.base_addr + */ cont->offset);
+
+            ParseObjectHeaderMessages(hd, de, cont->length, total_message_ct);
+
+            de.SetPosition(return_pos);
+        }
     }
 }
 
@@ -870,14 +893,7 @@ ObjectHeader ObjectHeader::Deserialize(Deserializer& de) {
     // reserved (zero)
     de.Skip<uint32_t>();
 
-    for (uint16_t m = 0; m < message_count; ++m) {
-        hd.messages.push_back(de.ReadComplex<ObjectHeaderMessage>());
-
-        if (const auto* p = std::get_if<ObjectHeaderContinuationMessage>(&hd.messages.back().message)) {
-            de.SetPosition(/* TODO: sb.base_addr + */ p->offset);
-            // TODO: don't read over size
-        }
-    }
+    ParseObjectHeaderMessages(hd, de, hd.object_header_size, message_count);
 
     return hd;
 }
