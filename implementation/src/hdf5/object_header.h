@@ -598,13 +598,58 @@ struct ObjectHeaderMessage {
         FileSpaceInfoMessage // 0x17
     > message{};
 
-    uint8_t flags{};
-
     [[nodiscard]] uint16_t MessageType() const;
+
+    [[nodiscard]] bool DataConstant() const {
+        return flags_.test(0);
+    }
+
+    [[nodiscard]] bool MessageShared() const {
+        auto isShared = flags_.test(1);
+
+        if (isShared && MessageType() != SharedMessageTableMessage::kType) {
+            throw std::runtime_error("Only SharedMessageTableMessage can have the shared flag set");
+        }
+
+        return isShared;
+    }
+
+    [[nodiscard]] bool ShouldNotBeShared() const {
+        return flags_.test(2);
+    }
+
+    [[nodiscard]] bool AssertUnderstandMessageForWrite() const {
+        return flags_.test(3);
+    }
+
+    [[nodiscard]] bool ShouldNotifyIfNotUnderstoodAndObjectModified() const {
+        return flags_.test(4);
+    }
+
+    [[nodiscard]] bool NotUnderstoodAndObjectModified() const {
+        return flags_.test(5);
+    }
+
+    [[nodiscard]] bool Shareable() const {
+        return flags_.test(6);
+    }
+
+    [[nodiscard]] bool AssertUnderstandMessage() const {
+        return flags_.test(7);
+    }
+
+    void NotifyNotUnderstoodAndModified() {
+        if (ShouldNotifyIfNotUnderstoodAndObjectModified()) {
+            flags_.set(5);
+        }
+    }
 
     void Serialize(Serializer& s) const;
 
     static ObjectHeaderMessage Deserialize(Deserializer& de);
+
+private:
+    std::bitset<8> flags_{};
 };
 
 struct ObjectHeader {
@@ -618,6 +663,7 @@ struct ObjectHeader {
 
     void Serialize(Serializer& s) const;
 
+    // FIXME: ignore unknown messages
     static ObjectHeader Deserialize(Deserializer& de);
 private:
     static constexpr uint8_t kVersionNumber = 0x01;

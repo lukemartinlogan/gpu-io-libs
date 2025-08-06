@@ -691,7 +691,7 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write<uint8_t>(0);
     s.Write<uint8_t>(0);
 
-    s.Write(flags);
+    s.Write<uint8_t>(flags_.to_ulong());
 
     std::visit([&s](const auto& msg) { s.WriteComplex(msg); }, message);
 }
@@ -707,7 +707,7 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
     }
 
     auto size = de.Read<uint16_t>();
-    msg.flags = de.Read<uint8_t>();
+    msg.flags_ = de.Read<uint8_t>();
     de.Skip<3>(); // reserved (0)
 
     auto start = de.GetPosition();
