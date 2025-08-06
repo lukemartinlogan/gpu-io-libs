@@ -328,6 +328,32 @@ private:
     static constexpr uint16_t kType = 0x0e;
 };
 
+struct SharedMessageTableMessage {
+    offset_t table_address = kUndefinedOffset;
+    uint8_t num_indices{};
+
+    void Serialize(Serializer& s) const {
+        s.Write(kVersionNumber);
+        s.Write(table_address);
+        s.Write(num_indices);
+    }
+
+    static SharedMessageTableMessage Deserialize(Deserializer& de) {
+        if (de.Read<uint8_t>() != kVersionNumber) {
+            throw std::runtime_error("SharedMessageTableMessage: unsupported version");
+        }
+
+        return {
+            .table_address = de.Read<offset_t>(),
+            .num_indices = de.Read<uint8_t>()
+        };
+    }
+
+private:
+    static constexpr uint8_t kVersionNumber = 0x00;
+    static constexpr uint16_t kType = 0x0f;
+};
+
 struct ObjectHeaderContinuationMessage {
     // where header continuation block is located
     offset_t offset = kUndefinedOffset;
@@ -465,6 +491,8 @@ struct ObjectHeaderMessage {
         ObjectCommentMessage, // 0x0d
         // old object modification time, deprecated
         ObjectModificationTimeOldMessage, // 0x0e
+        // shared object header message indices
+        SharedMessageTableMessage, // 0x0f
         ObjectHeaderContinuationMessage, // 0x10
         SymbolTableMessage, // 0x11
         ObjectModificationTimeMessage // 0x12
