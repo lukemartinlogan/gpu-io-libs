@@ -164,7 +164,7 @@ struct DataLayoutMessage {
     static DataLayoutMessage Deserialize(Deserializer& de);
 private:
     static constexpr uint8_t kVersionNumber = 0x03;
-    static constexpr uint16_t kType = 0x05;
+    static constexpr uint16_t kType = 0x08;
 
     static constexpr uint8_t kCompact = 0, kContiguous = 1, kChunked = 2;
 };
