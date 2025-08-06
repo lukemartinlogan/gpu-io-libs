@@ -450,6 +450,25 @@ private:
     static constexpr uint16_t kType = 0x14;
 };
 
+struct AttributeInfoMessage {
+    // maximum creation order index value for attributes on object
+    std::optional<uint16_t> max_creation_index;
+    // address of fractal heap for dense attributes
+    offset_t fractal_heap_addr = kUndefinedOffset;
+    // address of v2 b-tree for names of densely stored attributes
+    offset_t name_btree_addr = kUndefinedOffset;
+    // addr of v2 b-tree to index creation order of desnsely stored attributes
+    std::optional<offset_t> creation_order_btree_addr;
+
+    void Serialize(Serializer& s) const;
+
+    static AttributeInfoMessage Deserialize(Deserializer& de);
+
+private:
+    static constexpr uint8_t kVersionNumber = 0x00;
+    static constexpr uint16_t kType = 0x15;
+};
+
 struct ObjectHeaderMessage {
     // TODO: this can be stored in the variant
     enum class Type : uint16_t {
@@ -547,7 +566,9 @@ struct ObjectHeaderMessage {
         // contains k values for b-trees, only found in superblock extension
         BTreeKValuesMessage, // 0x13
         // contains driver id and info
-        DriverInfoMessage // 0x14
+        DriverInfoMessage, // 0x14
+        // infromation about attributes on an object
+        AttributeInfoMessage // 0x15
     > message{};
     uint8_t flags{};
 

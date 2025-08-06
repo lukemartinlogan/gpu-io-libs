@@ -574,6 +574,55 @@ DriverInfoMessage DriverInfoMessage::Deserialize(Deserializer& de) {
     return msg;
 }
 
+void AttributeInfoMessage::Serialize(Serializer& s) const {
+    s.Write(kVersionNumber);
+
+    std::bitset<2> flags;
+    flags.set(0, max_creation_index.has_value());
+    flags.set(1, creation_order_btree_addr.has_value());
+
+    s.Write<uint8_t>(flags.to_ulong());
+
+    if (max_creation_index.has_value()) {
+        s.Write(*max_creation_index);
+    }
+
+    s.Write(fractal_heap_addr);
+    s.Write(name_btree_addr);
+
+    if (creation_order_btree_addr.has_value()) {
+        s.Write(*creation_order_btree_addr);
+    }
+}
+
+AttributeInfoMessage AttributeInfoMessage::Deserialize(Deserializer& de) {
+    if (de.Read<uint8_t>() != kVersionNumber) {
+        throw std::runtime_error("AttributeInfoMessage: unsupported version");
+    }
+
+    AttributeInfoMessage msg{};
+
+    auto flags = de.Read<uint8_t>();
+    std::bitset<8> flag_bits(flags);
+
+    if (flag_bits.test(0)) {
+        msg.max_creation_index = de.Read<uint16_t>();
+    } else {
+        msg.max_creation_index = std::nullopt;
+    }
+
+    msg.fractal_heap_addr = de.Read<offset_t>();
+    msg.name_btree_addr = de.Read<offset_t>();
+
+    if (flag_bits.test(1)) {
+        msg.creation_order_btree_addr = de.Read<offset_t>();
+    } else {
+        msg.creation_order_btree_addr = std::nullopt;
+    }
+
+    return msg;
+}
+
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(type);
     s.Write<uint16_t>(0); // FIXME: object header size!
@@ -667,6 +716,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
         }
         case Type::kDriverInfo: {
             s.Write(std::get<DriverInfoMessage>(message));
+            break;
+        }
+        case Type::kAttributeInfo: {
+            s.Write(std::get<AttributeInfoMessage>(message));
             break;
         }
         default: {
@@ -781,6 +834,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kDriverInfo: {
             msg.message = de.ReadComplex<DriverInfoMessage>();
+            break;
+        }
+        case Type::kAttributeInfo: {
+            msg.message = de.ReadComplex<AttributeInfoMessage>();
             break;
         }
         default: {
