@@ -191,6 +191,33 @@ private:
     static constexpr uint16_t kType = 0x0009;
 };
 
+struct GroupInfoMessage {
+    // maximum number of links to store "compactly"
+    std::optional<uint16_t> max_compact;
+    // minimum number of links to store "densely"
+    std::optional<uint16_t> min_dense;
+    // estimated number of entries in the group
+    std::optional<uint16_t> est_num_entries;
+    // estimated length of entry name
+    std::optional<uint16_t> est_entries_name_len;
+
+    [[nodiscard]] uint16_t GetEstimatedNumberOfEntries() const {
+        return est_num_entries.value_or(4);
+    }
+
+    [[nodiscard]] uint16_t GetEstimatedEntryNameLength() const {
+        return est_entries_name_len.value_or(8);
+    }
+
+    void Serialize(Serializer& s) const;
+
+    static GroupInfoMessage Deserialize(Deserializer& de);
+
+private:
+    static constexpr uint8_t kVersionNumber = 0x00;
+    static constexpr uint16_t kType = 0x000a;
+};
+
 struct CompactStorageProperty {
     std::vector<byte_t> raw_data;
 
@@ -394,6 +421,8 @@ struct ObjectHeaderMessage {
         DataLayoutMessage, // 0x08
         // for testing, should never appear
         BogusMessage, // 0x09
+        // info for constants defining group behavior
+        GroupInfoMessage, // 0x0a
         AttributeMessage, // 0x0c
         ObjectHeaderContinuationMessage, // 0x10
         SymbolTableMessage, // 0x11

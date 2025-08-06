@@ -236,6 +236,56 @@ ExternalDataFilesMessage ExternalDataFilesMessage::Deserialize(Deserializer& de)
     return msg;
 }
 
+void GroupInfoMessage::Serialize(Serializer& s) const {
+    s.Write(kVersionNumber);
+
+    std::bitset<2> flags;
+    flags.set(0, max_compact.has_value());
+
+    if (max_compact.has_value() != min_dense.has_value()) {
+        throw std::logic_error("max_compact and min_dense must both be present or absent");
+    }
+
+    flags.set(1, est_num_entries.has_value());
+
+    if (est_num_entries.has_value() != est_entries_name_len.has_value()) {
+        throw std::logic_error("est_num_entries and est_entries_name_len must both be present or absent");
+    }
+
+    s.Write(static_cast<uint8_t>(flags.to_ulong()));
+
+    if (max_compact.has_value() && min_dense.has_value()) {
+        s.Write(*max_compact);
+        s.Write(*min_dense);
+    }
+    if (est_num_entries.has_value() && est_entries_name_len.has_value()) {
+        s.Write(*est_num_entries);
+        s.Write(*est_entries_name_len);
+    }
+}
+
+GroupInfoMessage GroupInfoMessage::Deserialize(Deserializer& de) {
+    if (de.Read<uint8_t>() != 0) {
+        throw std::runtime_error("Invalid version number for GroupInfoMessage");
+    }
+
+    GroupInfoMessage msg;
+
+    auto flags = de.Read<uint8_t>();
+    std::bitset<2> flags_bits(flags);
+
+    if (flags_bits.test(0)) {
+        msg.max_compact = de.Read<uint16_t>();
+        msg.min_dense = de.Read<uint16_t>();
+    }
+    if (flags_bits.test(1)) {
+        msg.est_num_entries = de.Read<uint16_t>();
+        msg.est_entries_name_len = de.Read<uint16_t>();
+    }
+
+    return msg;
+}
+
 void CompactStorageProperty::Serialize(Serializer& s) const {
     s.Write<uint16_t>(raw_data.size());
     s.WriteBuffer(raw_data);
@@ -511,6 +561,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
             s.Write(std::get<BogusMessage>(message));
             break;
         }
+        case Type::kGroupInfo: {
+            s.Write(std::get<GroupInfoMessage>(message));
+            break;
+        }
         case Type::kAttribute: {
             s.Write(std::get<AttributeMessage>(message));
             break;
@@ -595,6 +649,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kBogus: {
             msg.message = de.ReadComplex<BogusMessage>();
+            break;
+        }
+        case Type::kGroupInfo: {
+            msg.message = de.ReadComplex<GroupInfoMessage>();
             break;
         }
         case Type::kAttribute: {
