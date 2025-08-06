@@ -1,6 +1,8 @@
 #include "file.h"
 
-Dataset::Dataset(const ObjectHeader& header) {
+Dataset::Dataset(const ObjectHeader& header, Deserializer& de)
+    : read_(de)
+{
     bool found_layout = false, found_type = false, found_space = false;
 
     for (const ObjectHeaderMessage& msg : header.messages) {
@@ -81,7 +83,7 @@ Dataset File::GetDataset(std::string_view dataset_name) {
 
             auto header = read_.ReadComplex<ObjectHeader>();
 
-            return Dataset(header);
+            return Dataset(header, this->read_);
         }
     }
 

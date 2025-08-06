@@ -9,9 +9,12 @@ class File;
 
 class Dataset {
 public:
-    explicit Dataset(const ObjectHeader& header);
+    explicit Dataset(const ObjectHeader& header, /* temporary */ Deserializer& de);
 
 private:
+    // TODO: handle references in a better way
+    Deserializer& read_;
+
     DataLayoutMessage layout_{};
     DatatypeMessage type_{};
     DataspaceMessage space_{};
