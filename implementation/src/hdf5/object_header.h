@@ -13,10 +13,6 @@
 struct NilMessage {
     uint16_t size{};
 
-    uint16_t InternalSize() const { // NOLINT
-        return size;
-    }
-
     void Serialize(Serializer& s) const {
         // TODO: this can be optimized
         for (uint16_t i = 0; i < size; ++i) {
@@ -43,13 +39,6 @@ struct DataspaceMessage {
 
     [[nodiscard]] bool PermutationIndicesPresent() const {
         return bitset_.test(1);
-    }
-
-    uint16_t InternalSize() const { // NOLINT
-        uint16_t dimension_info_size = sizeof(DimensionInfo) * dimensions.size();
-        uint16_t header_size = 8 * sizeof(byte_t);
-
-        return dimension_info_size * header_size;
     }
 
     [[nodiscard]] size_t TotalElements() const;
@@ -81,10 +70,6 @@ struct FillValueMessage {
     } write_time;
 
     std::optional<std::vector<byte_t>> fill_value;
-
-    uint16_t InternalSize() const { // NOLINT
-        return 0; // FIXME
-    }
 
     void Serialize(Serializer& s) const;
 
@@ -129,10 +114,6 @@ struct DataLayoutMessage {
         ChunkedStorageProperty
     > properties;
 
-    uint16_t InternalSize() const { // NOLINT
-        return 0; // FIXME
-    }
-
     void Serialize(Serializer& s) const;
 
     static DataLayoutMessage Deserialize(Deserializer& de);
@@ -150,10 +131,6 @@ struct AttributeMessage {
 
     // TODO: is there a better way to create this
     std::vector<byte_t> data;
-
-    uint16_t InternalSize() const { // NOLINT
-        return 0;
-    }
 
     template<typename T>
     T ReadDataAs() {
@@ -183,10 +160,6 @@ struct ObjectHeaderContinuationMessage {
     // size of header continuation block
     len_t length{};
 
-    uint16_t InternalSize() const { // NOLINT
-        return sizeof(ObjectHeaderContinuationMessage);
-    }
-
     void Serialize(Serializer& s) const {
         s.WriteRaw(*this);
     }
@@ -206,10 +179,6 @@ struct SymbolTableMessage {
     // for symbol table entries
     offset_t local_heap_addr = kUndefinedOffset;
 
-    uint16_t InternalSize() const { // NOLINT
-        return sizeof(SymbolTableMessage);
-    }
-
     void Serialize(Serializer& s) const {
         s.WriteRaw(*this);
     }
@@ -224,10 +193,6 @@ private:
 
 struct ObjectModificationTimeMessage {
     std::chrono::system_clock::time_point modification_time;
-
-    uint16_t InternalSize() const { // NOLINT
-        return 8 * sizeof(byte_t);
-    }
 
     void Serialize(Serializer& s) const;
 
@@ -306,15 +271,6 @@ struct ObjectHeaderMessage {
         ObjectModificationTimeMessage
     > message{};
     uint8_t flags{};
-
-    [[nodiscard]] uint16_t InternalSize() const {
-        uint16_t size = std::visit(
-            [](const auto& m) { return m.InternalSize(); },
-            message
-        );
-
-        return size + 8 * sizeof(byte_t);
-    }
 
     void Serialize(Serializer& s) const;
 

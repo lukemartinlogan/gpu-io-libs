@@ -365,7 +365,7 @@ ObjectModificationTimeMessage ObjectModificationTimeMessage::Deserialize(Deseria
 
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(type);
-    s.Write(InternalSize());
+    s.Write<uint16_t>(0); // FIXME: object header size!
 
     // FIXME: Serializer::WriteZero<size_t>
     s.Write<uint8_t>(0);
@@ -539,20 +539,6 @@ ObjectHeader ObjectHeader::Deserialize(Deserializer& de) {
             // TODO: don't read over size
         }
     }
-
-    // FIXME(datatype-impl): readd this check once datatypes are properly parsed
-    // uint64_t total_bytes = std::accumulate(
-    //     hd.messages.begin(),
-    //     hd.messages.end(),
-    //     static_cast<uint64_t>(0),
-    //     [](uint64_t acc, const ObjectHeaderMessage& msg) {
-    //         return acc + msg.InternalSize();
-    //     }
-    // );
-    //
-    // if (total_bytes != hd.object_header_size) {
-    //     throw std::runtime_error("Failed to read correct number of header bytes");
-    // }
 
     return hd;
 }

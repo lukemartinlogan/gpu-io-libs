@@ -202,11 +202,6 @@ struct DatatypeMessage {
         VariableLength
     > data{};
 
-    uint16_t InternalSize() const { // NOLINT
-        // TODO: correctly calculate this size
-        return 0;
-    }
-
     [[nodiscard]] uint16_t Size() const {
         return std::visit([](const auto& elem) { return elem.size; }, data);
     }
