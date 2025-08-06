@@ -402,6 +402,38 @@ private:
     static constexpr uint8_t kVersionNumber = 0x01;
 };
 
+struct BTreeKValuesMessage {
+    // node k value for each internal node
+    uint16_t indexed_storage_internal_k{};
+    // node k value for each internal node in group b-tree
+    uint16_t group_internal_k{};
+    // node k value for each leaf node in group b-tree
+    uint16_t group_leaf_k{};
+
+    void Serialize(Serializer& s) const {
+        s.Write(kVersionNumber);
+        s.Write(indexed_storage_internal_k);
+        s.Write(group_internal_k);
+        s.Write(group_leaf_k);
+    }
+
+    static BTreeKValuesMessage Deserialize(Deserializer& de) {
+        if (de.Read<uint8_t>() != kVersionNumber) {
+            throw std::runtime_error("BTreeKValuesMessage: unsupported version");
+        }
+
+        return {
+            .indexed_storage_internal_k = de.Read<uint16_t>(),
+            .group_internal_k = de.Read<uint16_t>(),
+            .group_leaf_k = de.Read<uint16_t>()
+        };
+    }
+
+private:
+    static constexpr uint8_t kVersionNumber = 0x00;
+    static constexpr uint16_t kType = 0x13;
+};
+
 struct ObjectHeaderMessage {
     // TODO: this can be stored in the variant
     enum class Type : uint16_t {
@@ -495,7 +527,9 @@ struct ObjectHeaderMessage {
         SharedMessageTableMessage, // 0x0f
         ObjectHeaderContinuationMessage, // 0x10
         SymbolTableMessage, // 0x11
-        ObjectModificationTimeMessage // 0x12
+        ObjectModificationTimeMessage, // 0x12
+        // contains k values for b-trees, only found in superblock extension
+        BTreeKValuesMessage // 0x13
     > message{};
     uint8_t flags{};
 

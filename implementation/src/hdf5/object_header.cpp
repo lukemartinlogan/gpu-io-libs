@@ -622,6 +622,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
             s.Write(std::get<ObjectModificationTimeMessage>(message));
             break;
         }
+        case Type::kBTreeKValues: {
+            s.Write(std::get<BTreeKValuesMessage>(message));
+            break;
+        }
         default: {
             throw std::logic_error("object header ty not implemented");
         }
@@ -726,6 +730,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kObjectModificationTime: {
             msg.message = de.ReadComplex<ObjectModificationTimeMessage>();
+            break;
+        }
+        case Type::kBTreeKValues: {
+            msg.message = de.ReadComplex<BTreeKValuesMessage>();
             break;
         }
         default: {
