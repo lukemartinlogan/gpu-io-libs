@@ -136,6 +136,42 @@ private:
     static constexpr uint16_t kType = 0x06;
 };
 
+struct ExternalDataFilesMessage {
+    struct ExternalFileSlot {
+        // the byte offset within the local name heap for the name of the file
+        len_t name_offset;
+        // the byte offset within the file for the start of the data
+        len_t file_offset;
+        // total number of bytes reserved in the specified file for raw data storage
+        len_t data_size;
+
+        void Serialize(Serializer& s) const {
+            s.Write(name_offset);
+            s.Write(file_offset);
+            s.Write(data_size);
+        }
+
+        static ExternalFileSlot Deserialize(Deserializer& de) {
+            return {
+                .name_offset = de.Read<len_t>(),
+                .file_offset = de.Read<len_t>(),
+                .data_size = de.Read<len_t>()
+            };
+        }
+    };
+
+    offset_t heap_address;
+    std::vector<ExternalFileSlot> slots;
+
+    void Serialize(Serializer& s) const;
+
+    static ExternalDataFilesMessage Deserialize(Deserializer& de);
+
+private:
+    static constexpr uint8_t kVersionNumber = 0x01;
+    static constexpr uint16_t kType = 0x07;
+};
+
 struct CompactStorageProperty {
     std::vector<byte_t> raw_data;
 
@@ -333,6 +369,8 @@ struct ObjectHeaderMessage {
         FillValueMessage, // 0x05
         // info for link in group object header, TODO
         LinkMessage, // 0x06
+        // indicated data for object stored out of file
+        ExternalDataFilesMessage, // 0x07
         // how elems of multi dimensions array are stored
         DataLayoutMessage, // 0x08
         AttributeMessage, // 0x0c

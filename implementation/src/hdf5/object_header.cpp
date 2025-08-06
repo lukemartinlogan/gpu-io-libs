@@ -188,6 +188,54 @@ FillValueMessage FillValueMessage::Deserialize(Deserializer& de) {
     return msg;
 }
 
+void ExternalDataFilesMessage::Serialize(Serializer& s) const {
+    s.Write<uint8_t>(kVersionNumber);
+
+    // reserved (zero)
+    s.Write<uint8_t>(0);
+    s.Write<uint8_t>(0);
+    s.Write<uint8_t>(0);
+
+    // allocated slots
+    s.Write<uint16_t>(slots.size());
+    // used slots
+    s.Write<uint16_t>(slots.size());
+
+    s.Write(heap_address);
+
+    for (const ExternalFileSlot& slot: slots) {
+        s.WriteComplex(slot);
+    }
+}
+
+ExternalDataFilesMessage ExternalDataFilesMessage::Deserialize(Deserializer& de) {
+    if (de.Read<uint8_t>() != 1) {
+        throw std::runtime_error("ExternalDataFilesMessage: unsupported version");
+    }
+
+    de.Skip<3>(); // reserved
+
+    ExternalDataFilesMessage msg{};
+
+    auto allocated_slots = de.Read<uint16_t>();
+    auto used_slots = de.Read<uint16_t>();
+
+    if (allocated_slots != used_slots) {
+        // "The current library simply uses the number of Used Slots for this message)"
+        throw std::logic_error("ExternalDataFilesMessage: allocated slots does not match used slots");
+    }
+
+    msg.heap_address = de.Read<offset_t>();
+
+    msg.slots.reserve(used_slots);
+
+    for (uint16_t i = 0; i < used_slots; ++i) {
+        msg.slots.push_back(de.ReadComplex<ExternalFileSlot>());
+    }
+
+    return msg;
+}
+
 void CompactStorageProperty::Serialize(Serializer& s) const {
     s.Write<uint16_t>(raw_data.size());
     s.WriteBuffer(raw_data);
@@ -451,6 +499,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
             s.Write(std::get<LinkMessage>(message));
             break;
         }
+        case Type::kExternalDataFiles: {
+            s.Write(std::get<ExternalDataFilesMessage>(message));
+            break;
+        }
         case Type::kDataLayout: {
             s.Write(std::get<DataLayoutMessage>(message));
             break;
@@ -527,6 +579,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kLink: {
             msg.message = de.ReadComplex<LinkMessage>();
+            break;
+        }
+        case Type::kExternalDataFiles: {
+            msg.message = de.ReadComplex<ExternalDataFilesMessage>();
             break;
         }
         case Type::kDataLayout: {
