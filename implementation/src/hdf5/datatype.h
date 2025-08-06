@@ -210,6 +210,5 @@ struct DatatypeMessage {
 
     static DatatypeMessage Deserialize(Deserializer& de);
 
-private:
     static constexpr uint16_t kType = 0x03;
 };

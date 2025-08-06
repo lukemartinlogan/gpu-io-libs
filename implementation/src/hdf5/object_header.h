@@ -20,7 +20,6 @@ struct NilMessage {
         }
     }
 
-private:
     static constexpr uint16_t kType = 0x00;
 };
 
@@ -52,6 +51,7 @@ private:
     std::bitset<2> bitset_;
 
     static constexpr uint8_t kVersionNumber = 0x01;
+public:
     static constexpr uint16_t kType = 0x01;
 };
 
@@ -67,6 +67,7 @@ struct LinkInfoMessage {
 
 private:
     static constexpr uint8_t kVersionNumber = 0x00;
+public:
     static constexpr uint16_t kType = 0x02;
 };
 
@@ -96,7 +97,6 @@ struct FillValueOldMessage {
         return msg;
     }
 
-private:
     static constexpr uint16_t kType = 0x04;
 };
 
@@ -119,8 +119,10 @@ struct FillValueMessage {
     void Serialize(Serializer& s) const;
 
     static FillValueMessage Deserialize(Deserializer& de);
+
 private:
     static constexpr uint8_t kVersionNumber = 0x02;
+public:
     static constexpr uint16_t kType = 0x05;
 };
 
@@ -132,7 +134,7 @@ struct LinkMessage {
     static LinkMessage Deserialize(Deserializer& de) {
         throw std::logic_error("TODO: not implemented");
     }
-private:
+
     static constexpr uint16_t kType = 0x06;
 };
 
@@ -169,6 +171,7 @@ struct ExternalDataFilesMessage {
 
 private:
     static constexpr uint8_t kVersionNumber = 0x01;
+public:
     static constexpr uint16_t kType = 0x07;
 };
 
@@ -187,7 +190,6 @@ struct BogusMessage {
         return {};
     }
 
-private:
     static constexpr uint16_t kType = 0x09;
 };
 
@@ -215,6 +217,7 @@ struct GroupInfoMessage {
 
 private:
     static constexpr uint8_t kVersionNumber = 0x00;
+public:
     static constexpr uint16_t kType = 0x0a;
 };
 
@@ -226,7 +229,7 @@ struct FilterPipelineMessage {
     static FilterPipelineMessage Deserialize(Deserializer& _de) {
         throw std::logic_error("TODO: filter pipeline message not implemented");
     }
-private:
+
     static constexpr uint16_t kType = 0x0b;
 };
 
@@ -270,9 +273,9 @@ struct DataLayoutMessage {
     static DataLayoutMessage Deserialize(Deserializer& de);
 private:
     static constexpr uint8_t kVersionNumber = 0x03;
-    static constexpr uint16_t kType = 0x08;
-
     static constexpr uint8_t kCompact = 0, kContiguous = 1, kChunked = 2;
+public:
+    static constexpr uint16_t kType = 0x08;
 };
 
 struct AttributeMessage {
@@ -302,6 +305,7 @@ struct AttributeMessage {
 
 private:
     static constexpr uint8_t kVersionNumber = 0x01;
+public:
     static constexpr uint16_t kType = 0x0c;
 };
 
@@ -312,7 +316,6 @@ struct ObjectCommentMessage {
 
     static ObjectCommentMessage Deserialize(Deserializer& de);
 
-private:
     static constexpr uint16_t kType = 0x0d;
 };
 
@@ -324,7 +327,7 @@ struct ObjectModificationTimeOldMessage {
     static ObjectModificationTimeOldMessage Deserialize(Deserializer& _de) {
         throw std::logic_error("old object modification time message is deprecated");
     }
-private:
+
     static constexpr uint16_t kType = 0x0e;
 };
 
@@ -351,6 +354,7 @@ struct SharedMessageTableMessage {
 
 private:
     static constexpr uint8_t kVersionNumber = 0x00;
+public:
     static constexpr uint16_t kType = 0x0f;
 };
 
@@ -368,7 +372,6 @@ struct ObjectHeaderContinuationMessage {
         return de.ReadRaw<ObjectHeaderContinuationMessage>();
     }
 
-private:
     static constexpr uint16_t kType = 0x10;
 };
 
@@ -387,7 +390,6 @@ struct SymbolTableMessage {
         return de.ReadRaw<SymbolTableMessage>();
     }
 
-private:
     static constexpr uint16_t kType = 0x11;
 };
 
@@ -398,8 +400,9 @@ struct ObjectModificationTimeMessage {
 
     static ObjectModificationTimeMessage Deserialize(Deserializer& de);
 private:
-    static constexpr uint16_t kType = 0x12;
     static constexpr uint8_t kVersionNumber = 0x01;
+public:
+    static constexpr uint16_t kType = 0x12;
 };
 
 struct BTreeKValuesMessage {
@@ -431,6 +434,7 @@ struct BTreeKValuesMessage {
 
 private:
     static constexpr uint8_t kVersionNumber = 0x00;
+public:
     static constexpr uint16_t kType = 0x13;
 };
 
@@ -445,8 +449,8 @@ struct DriverInfoMessage {
 
 private:
     static constexpr size_t kDriverIdSize = 8;
-
     static constexpr uint8_t kVersionNumber = 0x00;
+public:
     static constexpr uint16_t kType = 0x14;
 };
 
@@ -466,6 +470,7 @@ struct AttributeInfoMessage {
 
 private:
     static constexpr uint8_t kVersionNumber = 0x00;
+public:
     static constexpr uint16_t kType = 0x15;
 };
 
@@ -489,6 +494,7 @@ struct ObjectReferenceCountMessage {
 
 private:
     static constexpr uint8_t kVersionNumber = 0x00;
+public:
     static constexpr uint16_t kType = 0x16;
 };
 
@@ -536,6 +542,7 @@ struct FileSpaceInfoMessage {
 
 private:
     static constexpr uint8_t kVersionNumber = 0x01;
+public:
     static constexpr uint16_t kType = 0x17;
 };
 
