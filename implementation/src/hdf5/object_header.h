@@ -55,6 +55,21 @@ private:
     static constexpr uint16_t kType = 0x01;
 };
 
+struct LinkInfoMessage {
+    std::optional<uint64_t> max_creation_index;
+    offset_t fractal_heap_addr = kUndefinedOffset;
+    offset_t index_names_btree_addr = kUndefinedOffset;
+    std::optional<offset_t> creation_order_btree_addr;
+
+    void Serialize(Serializer& s) const;
+
+    static LinkInfoMessage Deserialize(Deserializer& de);
+
+private:
+    static constexpr uint8_t kVersionNumber = 0x00;
+    static constexpr uint16_t kType = 0x02;
+};
+
 struct FillValueMessage {
     enum class SpaceAllocTime {
         kNotUsed = 0,
@@ -262,6 +277,7 @@ struct ObjectHeaderMessage {
     std::variant<
         NilMessage,
         DataspaceMessage,
+        LinkInfoMessage,
         DatatypeMessage,
         FillValueMessage,
         DataLayoutMessage,

@@ -84,6 +84,55 @@ DataspaceMessage DataspaceMessage::Deserialize(Deserializer& de) {
     return msg;
 }
 
+void LinkInfoMessage::Serialize(Serializer& s) const {
+    s.Write(kVersionNumber);
+
+    std::bitset<2> flags;
+    flags.set(0, max_creation_index.has_value());
+    flags.set(1, creation_order_btree_addr.has_value());
+
+    s.Write(static_cast<uint8_t>(flags.to_ulong()));
+
+    if (max_creation_index.has_value()) {
+        s.Write(*max_creation_index);
+    }
+
+    s.Write(fractal_heap_addr);
+    s.Write(index_names_btree_addr);
+
+    if (creation_order_btree_addr.has_value()) {
+        s.Write(*creation_order_btree_addr);
+    }
+}
+
+LinkInfoMessage LinkInfoMessage::Deserialize(Deserializer& de) {
+    if (de.Read<uint8_t>() != kVersionNumber) {
+        throw std::runtime_error("Version number was invalid");
+    }
+
+    LinkInfoMessage msg{};
+
+    auto flags = de.Read<uint8_t>();
+    std::bitset<2> flag_bits(flags);
+
+    if (flag_bits.test(0)) {
+        msg.max_creation_index = de.Read<uint64_t>();
+    } else {
+        msg.max_creation_index = std::nullopt;
+    }
+
+    msg.fractal_heap_addr = de.Read<offset_t>();
+    msg.index_names_btree_addr = de.Read<offset_t>();
+
+    if (flag_bits.test(1)) {
+        msg.creation_order_btree_addr = de.Read<offset_t>();
+    } else {
+        msg.creation_order_btree_addr = std::nullopt;
+    }
+
+    return msg;
+}
+
 void FillValueMessage::Serialize(Serializer& s) const {
     s.Write(kVersionNumber);
 
@@ -382,6 +431,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
             s.Write(std::get<DataspaceMessage>(message));
             break;
         }
+        case Type::kLinkInfo: {
+            s.Write(std::get<LinkInfoMessage>(message));
+            break;
+        }
         case Type::kDatatype: {
             s.Write(std::get<DatatypeMessage>(message));
             break;
@@ -446,6 +499,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kDataspace: {
             msg.message = de.ReadComplex<DataspaceMessage>();
+            break;
+        }
+        case Type::kLinkInfo: {
+            msg.message = de.ReadComplex<LinkInfoMessage>();
             break;
         }
         case Type::kDatatype: {
