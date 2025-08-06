@@ -5,6 +5,18 @@
 #include "tree.h"
 #include "../serialization/stdio.h"
 
+class File;
+
+class Dataset {
+public:
+    explicit Dataset(const ObjectHeader& header);
+
+private:
+    DataLayoutMessage layout_{};
+    DatatypeMessage type_{};
+    DataspaceMessage space_{};
+};
+
 class File {
 public:
     explicit File(const std::filesystem::path& path);
