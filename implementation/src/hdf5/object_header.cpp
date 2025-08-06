@@ -481,6 +481,31 @@ AttributeMessage AttributeMessage::Deserialize(Deserializer& de) {
     return msg;
 }
 
+void ObjectCommentMessage::Serialize(Serializer& s) const {
+    s.WriteBuffer(std::span(
+        reinterpret_cast<const byte_t*>(comment.c_str()),
+        comment.size() + 1 // null terminator
+    ));
+}
+
+ObjectCommentMessage ObjectCommentMessage::Deserialize(Deserializer& de) {
+    std::vector<byte_t> buf;
+
+    while (true) {
+        auto c = de.Read<byte_t>();
+
+        if (c == static_cast<byte_t>('\0')) {
+            break;
+        }
+
+        buf.push_back(c);
+    }
+
+    return {
+        .comment = std::string(reinterpret_cast<const char*>(buf.data()), buf.size())
+    };
+}
+
 void ObjectModificationTimeMessage::Serialize(Serializer& s) const {
     s.Write(kVersionNumber);
 
@@ -571,6 +596,10 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
         }
         case Type::kAttribute: {
             s.Write(std::get<AttributeMessage>(message));
+            break;
+        }
+        case Type::kObjectComment: {
+            s.Write(std::get<ObjectCommentMessage>(message));
             break;
         }
         case Type::kObjectHeaderContinuation: {
@@ -665,6 +694,10 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         }
         case Type::kAttribute: {
             msg.message = de.ReadComplex<AttributeMessage>();
+            break;
+        }
+        case Type::kObjectComment: {
+            msg.message = de.ReadComplex<ObjectCommentMessage>();
             break;
         }
         case Type::kObjectHeaderContinuation: {

@@ -305,6 +305,17 @@ private:
     static constexpr uint16_t kType = 0x0c;
 };
 
+struct ObjectCommentMessage {
+    std::string comment;
+
+    void Serialize(Serializer& s) const;
+
+    static ObjectCommentMessage Deserialize(Deserializer& de);
+
+private:
+    static constexpr uint16_t kType = 0x000d;
+};
+
 struct ObjectHeaderContinuationMessage {
     // where header continuation block is located
     offset_t offset = kUndefinedOffset;
@@ -438,6 +449,8 @@ struct ObjectHeaderMessage {
         // filter pipeline, TODO
         FilterPipelineMessage, // 0x0b
         AttributeMessage, // 0x0c
+        // short description about object
+        ObjectCommentMessage, // 0x0d
         ObjectHeaderContinuationMessage, // 0x10
         SymbolTableMessage, // 0x11
         ObjectModificationTimeMessage // 0x12
