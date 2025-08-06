@@ -683,7 +683,7 @@ uint16_t ObjectHeaderMessage::MessageType() const {
 }
 
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
-    s.Write(type);
+    s.Write(MessageType());
     s.Write<uint16_t>(0); // FIXME: object header size!
 
     // FIXME: Serializer::WriteZero<size_t>
@@ -693,106 +693,7 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
 
     s.Write(flags);
 
-    switch (type) {
-        case Type::kNil: {
-            s.Write(std::get<NilMessage>(message));
-        }
-        case Type::kDataspace: {
-            s.Write(std::get<DataspaceMessage>(message));
-            break;
-        }
-        case Type::kLinkInfo: {
-            s.Write(std::get<LinkInfoMessage>(message));
-            break;
-        }
-        case Type::kDatatype: {
-            s.Write(std::get<DatatypeMessage>(message));
-            break;
-        }
-        case Type::kFillValueOld: {
-            s.Write(std::get<FillValueOldMessage>(message));
-            break;
-        }
-        case Type::kFillValue: {
-            s.Write(std::get<FillValueMessage>(message));
-            break;
-        }
-        case Type::kLink: {
-            s.Write(std::get<LinkMessage>(message));
-            break;
-        }
-        case Type::kExternalDataFiles: {
-            s.Write(std::get<ExternalDataFilesMessage>(message));
-            break;
-        }
-        case Type::kDataLayout: {
-            s.Write(std::get<DataLayoutMessage>(message));
-            break;
-        }
-        case Type::kBogus: {
-            s.Write(std::get<BogusMessage>(message));
-            break;
-        }
-        case Type::kGroupInfo: {
-            s.Write(std::get<GroupInfoMessage>(message));
-            break;
-        }
-        case Type::kFilterPipeline: {
-            s.Write(std::get<FilterPipelineMessage>(message));
-            break;
-        }
-        case Type::kAttribute: {
-            s.Write(std::get<AttributeMessage>(message));
-            break;
-        }
-        case Type::kObjectComment: {
-            s.Write(std::get<ObjectCommentMessage>(message));
-            break;
-        }
-        case Type::kObjectModificationTimeOld: {
-            s.Write(std::get<ObjectModificationTimeOldMessage>(message));
-            break;
-        }
-        case Type::kSharedMessageTable: {
-            s.Write(std::get<SharedMessageTableMessage>(message));
-            break;
-        }
-        case Type::kObjectHeaderContinuation: {
-            s.Write(std::get<ObjectHeaderContinuationMessage>(message));
-            break;
-        }
-        case Type::kSymbolTable: {
-            s.Write(std::get<SymbolTableMessage>(message));
-            break;
-        }
-        case Type::kObjectModificationTime: {
-            s.Write(std::get<ObjectModificationTimeMessage>(message));
-            break;
-        }
-        case Type::kBTreeKValues: {
-            s.Write(std::get<BTreeKValuesMessage>(message));
-            break;
-        }
-        case Type::kDriverInfo: {
-            s.Write(std::get<DriverInfoMessage>(message));
-            break;
-        }
-        case Type::kAttributeInfo: {
-            s.Write(std::get<AttributeInfoMessage>(message));
-            break;
-        }
-        case Type::kObjectRefCount: {
-            s.Write(std::get<ObjectReferenceCountMessage>(message));
-            break;
-        }
-        case Type::kFileSpaceInfo: {
-            s.Write(std::get<FileSpaceInfoMessage>(message));
-            break;
-        }
-        default: {
-            throw std::logic_error("object header ty not implemented");
-        }
-    }
+    std::visit([&s](const auto& msg) { s.WriteComplex(msg); }, message);
 }
 
 ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {

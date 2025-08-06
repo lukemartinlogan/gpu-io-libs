@@ -547,61 +547,6 @@ public:
 };
 
 struct ObjectHeaderMessage {
-    // TODO: this can be stored in the variant
-    enum class Type : uint16_t {
-        // ignore message, variable length
-        kNil = 0x0000,
-        // exactly 1 req for datasets
-        // variable len based on num of dimensions
-        kDataspace = 0x0001,
-        // ?current state of links
-        kLinkInfo = 0x0002,
-        // exactly 1 req for datasets
-        // datatype for each elem of dataset
-        kDatatype = 0x0003,
-        // uninit value
-        kFillValueOld = 0x0004,
-        // uninit value, same datatype as dataset
-        kFillValue = 0x0005,
-        // info for link in group object header
-        kLink = 0x0006,
-        // indicated data for object stored out of file
-        kExternalDataFiles = 0x0007,
-        // how elems of multi dimensions array are stored
-        kDataLayout = 0x0008,
-        // for testing, should never appear
-        kBogus = 0x0009,
-        // info for constants defining group behavior
-        kGroupInfo = 0x000a,
-        //
-        kFilterPipeline = 0x000b,
-        //
-        kAttribute = 0x000c,
-        //
-        kObjectComment = 0x000d,
-        //
-        kObjectModificationTimeOld = 0x000e,
-        //
-        kSharedMessageTable = 0x000f,
-        // location containing more header messages for current data object
-        // can be used if header blocks are too large or likely to change over time
-        kObjectHeaderContinuation = 0x0010,
-        //
-        kSymbolTable = 0x0011,
-        //
-        kObjectModificationTime = 0x0012,
-        //
-        kBTreeKValues = 0x0013,
-        //
-        kDriverInfo = 0x0014,
-        //
-        kAttributeInfo = 0x0015,
-        //
-        kObjectRefCount = 0x0016,
-        //
-        kFileSpaceInfo = 0x0017,
-    } type{};
-
     // if this gets too large, put it on the heap
     std::variant<
         // ignore message, variable length
@@ -652,6 +597,7 @@ struct ObjectHeaderMessage {
         // file space info, used to manage free space in file
         FileSpaceInfoMessage // 0x17
     > message{};
+
     uint8_t flags{};
 
     [[nodiscard]] uint16_t MessageType() const;
