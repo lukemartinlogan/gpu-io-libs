@@ -684,7 +684,7 @@ uint16_t ObjectHeaderMessage::MessageType() const {
 
 void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(MessageType());
-    s.Write<uint16_t>(0); // FIXME: object header size!
+    s.Write(size);
 
     // FIXME: Serializer::WriteZero<size_t>
     s.Write<uint8_t>(0);
@@ -706,7 +706,7 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
         throw std::runtime_error("Not a valid message type");
     }
 
-    auto size = de.Read<uint16_t>();
+    msg.size = de.Read<uint16_t>();
     msg.flags_ = de.Read<uint8_t>();
     de.Skip<3>(); // reserved (0)
 
@@ -821,12 +821,12 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
 
     auto difference = de.GetPosition() - start;
 
-    if (difference > size) {
+    if (difference > msg.size) {
         throw std::runtime_error("read an incorrect number of bytes!");
     }
 
-    if (size > difference) {
-        auto padding_ct = size - difference;
+    if (msg.size > difference) {
+        auto padding_ct = msg.size - difference;
 
         if (padding_ct >= 8) {
             throw std::runtime_error("shouldn't be more than 8 bytes to pad to 8 bytes");

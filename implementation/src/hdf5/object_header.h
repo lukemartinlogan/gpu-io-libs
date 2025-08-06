@@ -598,6 +598,8 @@ struct ObjectHeaderMessage {
         FileSpaceInfoMessage // 0x17
     > message{};
 
+    uint16_t size{};
+
     [[nodiscard]] uint16_t MessageType() const;
 
     [[nodiscard]] bool DataConstant() const {
