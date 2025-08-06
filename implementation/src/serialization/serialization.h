@@ -1,10 +1,8 @@
 #pragma once
 
-#include <cstddef>
 #include <span>
 #include <array>
-
-using byte_t = std::byte;
+#include "types.h"
 
 template<typename T>
 constexpr bool is_trivially_serializable_v = std::is_trivially_copyable_v<T> && std::is_standard_layout_v<T>;
