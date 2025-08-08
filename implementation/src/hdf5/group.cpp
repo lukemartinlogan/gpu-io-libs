@@ -41,7 +41,7 @@ Group Group::GetGroup(std::string_view group_name) const {
     throw std::runtime_error(std::format("Group \"{}\" not found", group_name));
 }
 
-std::optional<ObjectHeader> Group::GetEntryWithName(std::string_view name) const {
+SymbolTableNode Group::GetSymbolTableNode() const {
     if (table_.level != 0) {
         throw std::logic_error("traversing tree not implemented");
     }
@@ -59,7 +59,11 @@ std::optional<ObjectHeader> Group::GetEntryWithName(std::string_view name) const
     offset_t sym_tbl_node = entries->child_pointers.front();
     read_->SetPosition(/* superblock_.base_addr + */ sym_tbl_node);
 
-    auto node = read_->ReadComplex<SymbolTableNode>();
+    return read_->ReadComplex<SymbolTableNode>();
+}
+
+std::optional<ObjectHeader> Group::GetEntryWithName(std::string_view name) const {
+    SymbolTableNode node = GetSymbolTableNode();
 
     for (const auto& entry : node.entries) {
         std::string entry_name = local_heap_.ReadString(entry.link_name_offset);

@@ -5,6 +5,7 @@
 #include "dataset.h"
 #include "local_heap.h"
 #include "object_header.h"
+#include "symbol_table.h"
 #include "tree.h"
 
 class Group {
@@ -18,6 +19,8 @@ public:
     Group GetGroup(std::string_view group_name) const;
 
 private:
+    SymbolTableNode GetSymbolTableNode() const;
+
     std::optional<ObjectHeader> GetEntryWithName(std::string_view name) const;
 
 private:
