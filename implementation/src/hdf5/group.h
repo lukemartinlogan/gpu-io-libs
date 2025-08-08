@@ -1,4 +1,7 @@
 #pragma once
+
+#include <optional>
+
 #include "dataset.h"
 #include "local_heap.h"
 #include "object_header.h"
@@ -9,6 +12,11 @@ public:
     explicit Group(const ObjectHeader& header, Deserializer& de);
 
     Dataset GetDataset(std::string_view dataset_name) const;
+
+    Group GetGroup(std::string_view group_name) const;
+
+private:
+    std::optional<ObjectHeader> GetEntryWithName(std::string_view name) const;
 
 private:
 public:

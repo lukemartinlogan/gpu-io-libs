@@ -24,6 +24,24 @@ Group::Group(const ObjectHeader& header, Deserializer& de): read_(&de) {
 }
 
 Dataset Group::GetDataset(std::string_view dataset_name) const {
+    if (const auto header = GetEntryWithName(dataset_name)) {
+        return Dataset(*header, *read_);
+    }
+
+    // TODO: better error handling
+    throw std::runtime_error(std::format("Dataset \"{}\" not found", dataset_name));
+}
+
+Group Group::GetGroup(std::string_view group_name) const {
+    if (const auto header = GetEntryWithName(group_name)) {
+        return Group(*header, *read_);
+    }
+
+    // TODO: better error handling
+    throw std::runtime_error(std::format("Group \"{}\" not found", group_name));
+}
+
+std::optional<ObjectHeader> Group::GetEntryWithName(std::string_view name) const {
     if (table_.level != 0) {
         throw std::logic_error("traversing tree not implemented");
     }
@@ -46,15 +64,12 @@ Dataset Group::GetDataset(std::string_view dataset_name) const {
     for (const auto& entry : node.entries) {
         std::string entry_name = local_heap_.ReadString(entry.link_name_offset);
 
-        if (entry_name == dataset_name) {
-            read_.SetPosition(/* superblock_.base_addr + */ entry.object_header_addr);
+        if (entry_name == name) {
+            read_->SetPosition(/* superblock_.base_addr + */ entry.object_header_addr);
 
-            auto header = read_.ReadComplex<ObjectHeader>();
-
-            return Dataset(header, this->read_);
+            return read_->ReadComplex<ObjectHeader>();
         }
     }
 
-    // TODO: better error handling
-    throw std::runtime_error(std::format("Dataset \"{}\" not found", dataset_name));
+    return std::nullopt;
 }
