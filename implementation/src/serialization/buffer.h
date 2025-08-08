@@ -2,7 +2,6 @@
 #include <algorithm>
 
 #include "serialization.h"
-#include "types.h"
 
 class BufferSerializer : public Serializer {
 public:

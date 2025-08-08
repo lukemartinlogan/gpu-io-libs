@@ -2,7 +2,7 @@
 
 #include <span>
 #include <array>
-#include "types.h"
+#include "../hdf5/types.h"
 
 template<typename T>
 constexpr bool is_trivially_serializable_v = std::is_trivially_copyable_v<T> && std::is_standard_layout_v<T>;
