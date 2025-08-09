@@ -6,7 +6,7 @@ Group::Group(const ObjectHeader& header, Deserializer& de): read_(&de) {
     auto symb_tbl_msg = std::ranges::find_if(
         header.messages,
         [](const auto& msg) {
-            return std::holds_alternative<SymbolTableMessage>(msg);
+            return std::holds_alternative<SymbolTableMessage>(msg.message);
         }
     );
 
