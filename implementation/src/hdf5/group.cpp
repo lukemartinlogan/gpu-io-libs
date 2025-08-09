@@ -32,7 +32,7 @@ Dataset Group::GetDataset(std::string_view dataset_name) const {
     throw std::runtime_error(std::format("Dataset \"{}\" not found", dataset_name));
 }
 
-Group Group::GetGroup(std::string_view group_name) const {
+Group Group::OpenGroup(std::string_view group_name) const {
     if (const auto header = GetEntryWithName(group_name)) {
         return Group(*header, *read_);
     }

@@ -16,7 +16,7 @@ public:
 
     Dataset GetDataset(std::string_view dataset_name) const;
 
-    Group GetGroup(std::string_view group_name) const;
+    [[nodiscard]] Group OpenGroup(std::string_view group_name) const;
 
 private:
     SymbolTableNode GetSymbolTableNode() const;
