@@ -33,6 +33,26 @@ public:
         return read_.ReadComplex<T>();
     }
 
+    // FIXME: implement datatype
+    void Read(std::span<byte_t> buffer, size_t start_index, size_t count) const;
+
+    // FIXME: impl datatype instead
+    template<typename T>
+    std::vector<T> Read(size_t start_index, size_t count) const {
+        std::vector<T> out(count);
+
+        Read(
+            std::span(
+                reinterpret_cast<byte_t*>(out.data()),
+                out.size() * sizeof(T)
+            ),
+            start_index,
+            count
+        );
+
+        return out;
+    }
+
 private:
     // TODO: handle references in a better way
     Deserializer& read_;
