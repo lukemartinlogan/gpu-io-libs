@@ -53,6 +53,19 @@ public:
         return out;
     }
 
+    void Write(std::span<const byte_t> data, size_t start_index) const;
+
+    template<typename T>
+    void Write(std::span<const T> data, size_t start_index) const {
+        Write(
+            std::span(
+                reinterpret_cast<const byte_t*>(data.data()),
+                data.size_bytes()
+            ),
+            start_index
+        );
+    }
+
 private:
     // TODO: handle references in a better way
     // TODO: make these nullable

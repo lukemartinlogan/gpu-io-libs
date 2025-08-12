@@ -73,3 +73,50 @@ void Dataset::Read(std::span<byte_t> buffer, size_t start_index, size_t count) c
         throw std::logic_error("unknown storage type in dataset");
     }
 }
+
+void Dataset::Write(std::span<const byte_t> data, size_t start_index) const {
+    if (data.size() % type_.Size() != 0) {
+        throw std::invalid_argument("Buffer size must be a multiple of the datatype size");
+    }
+
+    size_t count = data.size() / type_.Size();
+
+    if (start_index + count > space_.TotalElements()) {
+        throw std::out_of_range("Index range out of bounds for dataset");
+    }
+
+    size_t element_size = type_.Size();
+
+    if (type_.class_v == DatatypeMessage::Class::kVariableLength) {
+        throw std::logic_error("Variable length datatypes are not supported yet");
+    }
+
+    auto props = layout_.properties;
+
+    if (auto* compact = std::get_if<CompactStorageProperty>(&props)) {
+        auto start = compact->raw_data.begin() + static_cast<ptrdiff_t>(start_index * element_size);
+
+        if (start + static_cast<ptrdiff_t>(data.size()) > compact->raw_data.end()) {
+            throw std::out_of_range("Index range out of bounds for compact storage dataset");
+        }
+
+        std::copy_n(
+            data.begin(),
+            data.size(),
+            start
+        );
+
+    } else if (const auto* contiguous = std::get_if<ContiguousStorageProperty>(&props)) {
+        if ((start_index + count) * element_size > contiguous->size) {
+            throw std::out_of_range("Index range out of bounds for contiguous storage dataset");
+        }
+
+        file_.SetPosition(contiguous->address + start_index * element_size);
+        file_.WriteBuffer(data);
+
+    } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
+        throw std::logic_error("chunked write not implemented yet");
+    } else {
+        throw std::logic_error("unknown storage type in dataset");
+    }
+}
