@@ -79,3 +79,12 @@ public:
         Skip<sizeof(T)>();
     }
 };
+
+class ReaderWriter : public Serializer, public Deserializer {
+public:
+    bool WriteBuffer(std::span<const byte_t> data) override = 0;
+    bool ReadBuffer(std::span<byte_t> out) override = 0;
+    [[nodiscard]] offset_t GetPosition() override = 0;
+    void SetPosition(offset_t offset) override = 0;
+    ~ReaderWriter() override = default;
+};

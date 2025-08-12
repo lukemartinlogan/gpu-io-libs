@@ -10,9 +10,9 @@
 
 class Group {
 public:
-    Group() {}
+    Group() = default;
 
-    explicit Group(const ObjectHeader& header, Deserializer& de);
+    explicit Group(const ObjectHeader& header, ReaderWriter& file);
 
     Dataset GetDataset(std::string_view dataset_name) const;
 
@@ -25,7 +25,7 @@ private:
 
 private:
 public:
-    Deserializer* read_{};
+    ReaderWriter* file_{};
 
     BTreeNode table_{};
     LocalHeap local_heap_{};
