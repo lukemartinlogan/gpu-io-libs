@@ -10,7 +10,7 @@
 
 class Group {
 public:
-    Group() {}
+    Group() = default;
 
     explicit Group(const ObjectHeader& header, ReaderWriter& file);
 
