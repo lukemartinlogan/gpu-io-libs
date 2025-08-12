@@ -7,7 +7,7 @@
 
 class Dataset {
 public:
-    explicit Dataset(const ObjectHeader& header, /* temporary */ Deserializer& de);
+    explicit Dataset(const ObjectHeader& header, /* temporary */ ReaderWriter& file);
 
     // TODO: multidimensional coords
     template <typename T>
@@ -28,9 +28,9 @@ public:
 
         size_t size = type_.Size();
 
-        read_.SetPosition(/* superblock.base_addr + */ props->address + index * size);
+        file_.SetPosition(/* superblock.base_addr + */ props->address + index * size);
 
-        return read_.ReadComplex<T>();
+        return file_.ReadComplex<T>();
     }
 
     // FIXME: implement datatype
@@ -55,7 +55,8 @@ public:
 
 private:
     // TODO: handle references in a better way
-    Deserializer& read_;
+    // TODO: make these nullable
+    ReaderWriter& file_;
 
     DataLayoutMessage layout_{};
     DatatypeMessage type_{};

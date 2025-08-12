@@ -13,7 +13,7 @@ public:
     }
 
 private:
-    StdioReader read_;
+    StdioReaderWriter file_;
     SuperblockV0 superblock_;
 
     // root group

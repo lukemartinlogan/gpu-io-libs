@@ -1,7 +1,7 @@
 #include "dataset.h"
 
-Dataset::Dataset(const ObjectHeader& header, Deserializer& de)
-    : read_(de)
+Dataset::Dataset(const ObjectHeader& header, ReaderWriter& file)
+    : file_(file)
 {
     bool found_layout = false, found_type = false, found_space = false;
 
@@ -64,8 +64,8 @@ void Dataset::Read(std::span<byte_t> buffer, size_t start_index, size_t count) c
             throw std::out_of_range("Index range out of bounds for contiguous storage dataset");
         }
 
-        read_.SetPosition(contiguous->address + start_index * element_size);
-        read_.ReadBuffer(std::span(buffer.data(), total_bytes));
+        file_.SetPosition(contiguous->address + start_index * element_size);
+        file_.ReadBuffer(std::span(buffer.data(), total_bytes));
 
     } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
         throw std::logic_error("chunked read not implemented yet");
