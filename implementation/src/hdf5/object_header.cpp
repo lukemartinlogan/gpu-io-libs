@@ -855,7 +855,7 @@ void ObjectHeader::Serialize(Serializer& s) const {
     }
 }
 
-void ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& de, uint32_t size_limit, uint16_t total_message_ct) { // NOLINT(no-recursion)
+void ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& de, uint32_t size_limit, uint16_t total_message_ct) { // NOLINT(*-no-recursion)
     uint32_t bytes_read = 0;
 
     while (bytes_read < size_limit && hd.messages.size() < total_message_ct) {
