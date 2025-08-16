@@ -546,57 +546,59 @@ public:
     static constexpr uint16_t kType = 0x17;
 };
 
+using HeaderMessageVariant = std::variant<
+    // ignore message, variable length
+    NilMessage, // 0x00
+    // exactly 1 req for datasets
+    // variable len based on num of dimensions
+    DataspaceMessage, // 0x01
+    // ?current state of links
+    LinkInfoMessage, // 0x02
+    // exactly 1 req for datasets
+    // datatype for each elem of dataset
+    DatatypeMessage, // 0x03
+    // uninit value, same datatype as dataset
+    FillValueOldMessage, // 0x04
+    // uninit value, same datatype as dataset
+    FillValueMessage, // 0x05
+    // info for link in group object header, TODO
+    LinkMessage, // 0x06
+    // indicated data for object stored out of file
+    ExternalDataFilesMessage, // 0x07
+    // how elems of multi dimensions array are stored
+    DataLayoutMessage, // 0x08
+    // for testing, should never appear
+    BogusMessage, // 0x09
+    // info for constants defining group behavior
+    GroupInfoMessage, // 0x0a
+    // filter pipeline, TODO
+    FilterPipelineMessage, // 0x0b
+    AttributeMessage, // 0x0c
+    // short description about object
+    ObjectCommentMessage, // 0x0d
+    // old object modification time, deprecated
+    ObjectModificationTimeOldMessage, // 0x0e
+    // shared object header message indices
+    SharedMessageTableMessage, // 0x0f
+    ObjectHeaderContinuationMessage, // 0x10
+    SymbolTableMessage, // 0x11
+    ObjectModificationTimeMessage, // 0x12
+    // contains k values for b-trees, only found in superblock extension
+    BTreeKValuesMessage, // 0x13
+    // contains driver id and info
+    DriverInfoMessage, // 0x14
+    // infromation about attributes on an object
+    AttributeInfoMessage, // 0x15
+    // number of hard links to this object in the current file
+    // only present in v2+ of object headers; if not present, refct is assumed 1
+    ObjectReferenceCountMessage, // 0x16
+    // file space info, used to manage free space in file
+    FileSpaceInfoMessage // 0x17
+>;
+
 struct ObjectHeaderMessage {
     // if this gets too large, put it on the heap
-    std::variant<
-        // ignore message, variable length
-        NilMessage, // 0x00
-        // exactly 1 req for datasets
-        // variable len based on num of dimensions
-        DataspaceMessage, // 0x01
-        // ?current state of links
-        LinkInfoMessage, // 0x02
-        // exactly 1 req for datasets
-        // datatype for each elem of dataset
-        DatatypeMessage, // 0x03
-        // uninit value, same datatype as dataset
-        FillValueOldMessage, // 0x04
-        // uninit value, same datatype as dataset
-        FillValueMessage, // 0x05
-        // info for link in group object header, TODO
-        LinkMessage, // 0x06
-        // indicated data for object stored out of file
-        ExternalDataFilesMessage, // 0x07
-        // how elems of multi dimensions array are stored
-        DataLayoutMessage, // 0x08
-        // for testing, should never appear
-        BogusMessage, // 0x09
-        // info for constants defining group behavior
-        GroupInfoMessage, // 0x0a
-        // filter pipeline, TODO
-        FilterPipelineMessage, // 0x0b
-        AttributeMessage, // 0x0c
-        // short description about object
-        ObjectCommentMessage, // 0x0d
-        // old object modification time, deprecated
-        ObjectModificationTimeOldMessage, // 0x0e
-        // shared object header message indices
-        SharedMessageTableMessage, // 0x0f
-        ObjectHeaderContinuationMessage, // 0x10
-        SymbolTableMessage, // 0x11
-        ObjectModificationTimeMessage, // 0x12
-        // contains k values for b-trees, only found in superblock extension
-        BTreeKValuesMessage, // 0x13
-        // contains driver id and info
-        DriverInfoMessage, // 0x14
-        // infromation about attributes on an object
-        AttributeInfoMessage, // 0x15
-        // number of hard links to this object in the current file
-        // only present in v2+ of object headers; if not present, refct is assumed 1
-        ObjectReferenceCountMessage, // 0x16
-        // file space info, used to manage free space in file
-        FileSpaceInfoMessage // 0x17
-    > message{};
+    HeaderMessageVariant message{};
 
     uint16_t size{};
 
