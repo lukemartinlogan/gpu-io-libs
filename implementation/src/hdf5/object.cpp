@@ -1,6 +1,8 @@
 #include "object.h"
 
-std::optional<FreeSpace> FindFreeSpaceOfSizeRecursive(Deserializer& de, uint16_t& messages_read, uint16_t total_message_ct, uint32_t size_limit, uint32_t search_size) { // NOLINT(*-no-recursion)
+constexpr uint32_t kPrefixSize = 8;
+
+std::optional<FreeSpace> FindFreeSpaceOfSizeRecursive(Deserializer& de, uint16_t& messages_read, uint16_t total_message_ct, uint32_t size_limit, uint32_t search_size) { // NOLINT(*-no-recursion
     uint32_t bytes_read = 0;
 
     std::optional<FreeSpace> smallest_found{};
@@ -9,7 +11,7 @@ std::optional<FreeSpace> FindFreeSpaceOfSizeRecursive(Deserializer& de, uint16_t
         auto type = de.Read<uint16_t>();
         auto size_bytes = de.Read<uint16_t>();
 
-        bytes_read += size_bytes + 4;
+        bytes_read += size_bytes + kPrefixSize;
         ++messages_read;
 
         // flags + reserved
@@ -34,11 +36,12 @@ std::optional<FreeSpace> FindFreeSpaceOfSizeRecursive(Deserializer& de, uint16_t
         } else {
             if (type == NilMessage::kType) {
                 if (
-                    size_bytes >= search_size // FIXME: technically the second check is redundant
+                    // FIXME
+                    size_bytes + (kPrefixSize /* this nil prefix */) - (kPrefixSize /* for new nil prefix */) >= search_size
                     && ( !smallest_found.has_value() || size_bytes < smallest_found->size )
                 ) {
                     smallest_found = {
-                        .offset = de.GetPosition() - 4,
+                        .offset = de.GetPosition() - kPrefixSize,
                         .size = size_bytes,
                         .from_nil = true,
                     };
