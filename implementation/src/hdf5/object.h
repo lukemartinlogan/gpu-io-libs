@@ -7,6 +7,10 @@ struct Object {
     {
     }
 private:
+    void JumpToRelativeOffset(offset_t offset) const {
+        io_.SetPosition(file_pos_ + offset);
+    }
+
     ReaderWriter& io_;
     offset_t file_pos_{};
 };
