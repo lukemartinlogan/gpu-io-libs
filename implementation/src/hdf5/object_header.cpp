@@ -221,7 +221,7 @@ ExternalDataFilesMessage ExternalDataFilesMessage::Deserialize(Deserializer& de)
     auto used_slots = de.Read<uint16_t>();
 
     if (allocated_slots != used_slots) {
-        // "The current library simply uses the number of Used Slots for this message)"
+        // "The current library simply uses the number of Used Slots for this message"
         throw std::logic_error("ExternalDataFilesMessage: allocated slots does not match used slots");
     }
 
