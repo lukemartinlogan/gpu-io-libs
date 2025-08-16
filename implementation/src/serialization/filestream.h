@@ -8,10 +8,7 @@
 class FStreamWriter: public Serializer {
 public:
     explicit FStreamWriter(const std::filesystem::path& path)
-        : path_(path)
-    {
-        stream_ = std::ofstream(path, std::ofstream::out | std::ofstream::binary);
-    }
+        : path_(path), stream_(path, std::ofstream::out | std::ofstream::binary) {}
 
     bool WriteBuffer(std::span<const byte_t> data) final {
         stream_.write(reinterpret_cast<const char*>(data.data()), data.size());
@@ -26,10 +23,7 @@ private:
 class FStreamReader: public Deserializer {
 public:
     explicit FStreamReader(const std::filesystem::path& path)
-        : path_(path)
-    {
-        stream_ = std::ifstream(path, std::ofstream::in | std::ofstream::binary);
-    }
+        : path_(path), stream_(path, std::ofstream::in | std::ofstream::binary) {}
 
     bool ReadBuffer(std::span<byte_t> out) final {
         stream_.read(reinterpret_cast<char*>(out.data()), out.size());
