@@ -24,6 +24,7 @@ struct Object {
 
     [[nodiscard]] std::optional<FreeSpace> FindFreeSpaceOfSize(size_t size) const;
 
+    void WriteMessage(HeaderMessageVariant msg) const;
 private:
     void JumpToRelativeOffset(offset_t offset) const {
         io_.SetPosition(file_pos_ + offset);

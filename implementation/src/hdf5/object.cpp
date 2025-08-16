@@ -94,3 +94,63 @@ std::optional<FreeSpace> Object::FindFreeSpaceOfSize(size_t size) const {
 
     return FindFreeSpaceOfSizeRecursive(io_, messages_read, total_message_ct, header_size, size);
 }
+
+void WriteHeader(Serializer& s, uint16_t type, uint16_t size, uint8_t flags) {
+    s.Write(type);
+    s.Write(size);
+
+    s.Write(flags);
+    s.Write<std::array<byte_t, 3>>({});
+}
+
+void Object::WriteMessage(HeaderMessageVariant msg) const {
+    DynamicBufferSerializer msg_data;
+
+    // reserve eight bytes for prefix
+    msg_data.Write<std::array<byte_t, kPrefixSize>>({});
+
+    std::visit([&msg_data](const auto& m) { msg_data.WriteComplex(m); }, msg);
+
+    while (msg_data.buf.size() % 8 != 0) {
+        msg_data.Write<uint8_t>(0);
+    }
+
+    size_t msg_size = msg_data.buf.size();
+
+    {
+        BufferSerializer prefix_s(msg_data.buf);
+
+        uint16_t kType = std::visit([](const auto& m) { return m.kType; }, msg);
+        uint16_t size = msg_size - 8;
+
+        WriteHeader(prefix_s, kType, size, /* FIXME: support flags */ 0);
+
+        if (prefix_s.cursor != kPrefixSize) { // NOLINT: isn't actually always true
+            throw std::runtime_error("prefix size was not eight bytes");
+        }
+    }
+
+    // ReSharper disable once CppDFAUnreachableCode : for some reason, it thinks the cursor prefix size check always throws
+    std::optional<FreeSpace> space = FindFreeSpaceOfSize(msg_size);
+
+    if (space.has_value()) {
+        io_.SetPosition(space->offset);
+        io_.WriteBuffer(msg_data.buf);
+
+        // FIXME: make sure to read and write the extra eight bytes before the data
+        // FIXME: consume nil header, consecutive nil
+        if (space->from_nil) {
+            uint16_t nil_size = space->size - msg_size;
+
+            WriteHeader(io_, NilMessage::kType, nil_size, 0);
+            msg_data.Write(NilMessage { .size = nil_size, });
+        }
+
+        JumpToRelativeOffset(2);
+        auto ct = io_.Read<uint16_t>();
+        JumpToRelativeOffset(2);
+        io_.Write(ct + 1);
+    } else {
+        throw std::runtime_error("no free space found for message");
+    }
+}
