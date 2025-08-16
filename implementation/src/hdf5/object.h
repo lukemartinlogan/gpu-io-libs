@@ -1,5 +1,13 @@
 #pragma once
+#include <optional>
+
 #include "object_header.h"
+
+struct FreeSpace {
+    offset_t offset;
+    len_t size;
+    bool from_nil;
+};
 
 struct Object {
     explicit Object(ReaderWriter& io, offset_t pos_)
@@ -12,6 +20,8 @@ struct Object {
             throw std::runtime_error("Version number was invalid");
         }
     }
+
+    [[nodiscard]] std::optional<FreeSpace> FindFreeSpaceOfSize(size_t size) const;
 
 private:
     void JumpToRelativeOffset(offset_t offset) const {
