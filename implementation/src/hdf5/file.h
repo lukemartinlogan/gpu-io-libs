@@ -1,8 +1,8 @@
 #pragma once
+
 #include "dataset.h"
 #include "group.h"
-#include "superblock.h"
-#include "../serialization/stdio.h"
+#include "file_link.h"
 
 class File {
 public:
@@ -13,8 +13,7 @@ public:
     }
 
 private:
-    StdioReaderWriter file_;
-    SuperblockV0 superblock_;
+    std::shared_ptr<FileLink> file_link_{};
 
     // root group
     Group root_group_;

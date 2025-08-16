@@ -2,12 +2,13 @@
 
 #include <stdexcept>
 
+#include "file_link.h"
 #include "object_header.h"
 #include "../serialization/serialization.h"
 
 class Dataset {
 public:
-    explicit Dataset(const ObjectHeader& header, /* temporary */ ReaderWriter& file);
+    explicit Dataset(const ObjectHeader& header, const std::shared_ptr<FileLink>& file);
 
     // TODO: multidimensional coords
     template <typename T>
@@ -28,9 +29,9 @@ public:
 
         size_t size = type_.Size();
 
-        file_.SetPosition(/* superblock.base_addr + */ props->address + index * size);
+        file_->io.SetPosition(file_->superblock.base_addr + props->address + index * size);
 
-        return file_.ReadComplex<T>();
+        return file_->io.ReadComplex<T>();
     }
 
     // FIXME: implement datatype
@@ -67,9 +68,10 @@ public:
     }
 
 private:
-    // TODO: handle references in a better way
-    // TODO: make these nullable
-    ReaderWriter& file_;
+    Dataset() = default;
+
+private:
+    std::shared_ptr<FileLink> file_;
 
     DataLayoutMessage layout_{};
     DatatypeMessage type_{};

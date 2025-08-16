@@ -1,6 +1,6 @@
 #include "dataset.h"
 
-Dataset::Dataset(const ObjectHeader& header, ReaderWriter& file)
+Dataset::Dataset(const ObjectHeader& header, const std::shared_ptr<FileLink>& file)
     : file_(file)
 {
     bool found_layout = false, found_type = false, found_space = false;
@@ -64,8 +64,8 @@ void Dataset::Read(std::span<byte_t> buffer, size_t start_index, size_t count) c
             throw std::out_of_range("Index range out of bounds for contiguous storage dataset");
         }
 
-        file_.SetPosition(contiguous->address + start_index * element_size);
-        file_.ReadBuffer(std::span(buffer.data(), total_bytes));
+        file_->io.SetPosition(contiguous->address + start_index * element_size);
+        file_->io.ReadBuffer(std::span(buffer.data(), total_bytes));
 
     } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
         throw std::logic_error("chunked read not implemented yet");
@@ -111,8 +111,8 @@ void Dataset::Write(std::span<const byte_t> data, size_t start_index) const {
             throw std::out_of_range("Index range out of bounds for contiguous storage dataset");
         }
 
-        file_.SetPosition(contiguous->address + start_index * element_size);
-        file_.WriteBuffer(data);
+        file_->io.SetPosition(contiguous->address + start_index * element_size);
+        file_->io.WriteBuffer(data);
 
     } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
         throw std::logic_error("chunked write not implemented yet");
