@@ -42,7 +42,7 @@ public:
 
 class BufferDeserializer : public Deserializer {
 public:
-    BufferDeserializer(std::span<const byte_t> buf) // NOLINT
+    explicit BufferDeserializer(std::span<const byte_t> buf) // NOLINT
         : buf(buf), cursor(0) {}
 
     bool ReadBuffer(std::span<byte_t> out) final {
