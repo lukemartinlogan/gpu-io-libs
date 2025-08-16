@@ -2,7 +2,7 @@
 
 constexpr uint32_t kPrefixSize = 8;
 
-std::optional<FreeSpace> FindFreeSpaceOfSizeRecursive(Deserializer& de, uint16_t& messages_read, uint16_t total_message_ct, uint32_t size_limit, uint32_t search_size) { // NOLINT(*-no-recursion
+std::optional<Object::FreeSpace> Object::FindFreeSpaceOfSizeRecursive(Deserializer& de, uint16_t& messages_read, uint16_t total_message_ct, uint32_t size_limit, uint32_t search_size) { // NOLINT(*-no-recursion
     uint32_t bytes_read = 0;
 
     std::optional<FreeSpace> smallest_found{};
@@ -76,7 +76,7 @@ std::optional<FreeSpace> FindFreeSpaceOfSizeRecursive(Deserializer& de, uint16_t
     return smallest_found;
 }
 
-std::optional<FreeSpace> Object::FindFreeSpaceOfSize(size_t size) const {
+std::optional<Object::FreeSpace> Object::FindFreeSpaceOfSize(size_t size) const {
     JumpToRelativeOffset(0);
 
     io_.Skip<2>();
