@@ -13,16 +13,16 @@ class Group {
 public:
     explicit Group(const ObjectHeader& header, const std::shared_ptr<FileLink>& file);
 
-    Dataset GetDataset(std::string_view dataset_name) const;
+    [[nodiscard]] Dataset GetDataset(std::string_view dataset_name) const;
 
     [[nodiscard]] Group OpenGroup(std::string_view group_name) const;
 
 private:
     Group() = default;
 
-    SymbolTableNode GetSymbolTableNode() const;
+    [[nodiscard]] SymbolTableNode GetSymbolTableNode() const;
 
-    std::optional<ObjectHeader> GetEntryWithName(std::string_view name) const;
+    [[nodiscard]] std::optional<ObjectHeader> GetEntryWithName(std::string_view name) const;
 
 private:
 public:

@@ -13,10 +13,10 @@ struct LocalHeap {
     // FIXME: don't store this?
     std::vector<byte_t> data_segment;
 
-    std::string ReadString(offset_t offset) const;
+    [[nodiscard]] std::string ReadString(offset_t offset) const;
 
     // Read raw data at the given offset
-    std::span<const byte_t> ReadData(len_t offset, len_t size) const;
+    [[nodiscard]] std::span<const byte_t> ReadData(len_t offset, len_t size) const;
 
     void Serialize(Serializer& s) const;
 
