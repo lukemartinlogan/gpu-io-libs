@@ -33,6 +33,8 @@ add_executable(hdf5_implementation
     src/hdf5/group.cpp
     src/hdf5/dataset.h
     src/hdf5/dataset.cpp
+    src/hdf5/object.h
+    src/hdf5/object.cpp
 )
 
 #target_link_libraries(hdf5_implementation PRIVATE MPI::MPI_CXX)
