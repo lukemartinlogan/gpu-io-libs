@@ -38,7 +38,7 @@ std::span<const byte_t> LocalHeap::ReadData(len_t offset, len_t size) const {
     if (offset + size > data_segment.size()) {
         throw std::runtime_error("LocalHeap: read beyond heap bounds");
     }
-    return std::span(data_segment.data() + offset, size);
+    return { data_segment.data() + offset, size };
 }
 
 void LocalHeap::Serialize(Serializer& s) const {
