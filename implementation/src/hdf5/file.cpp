@@ -24,5 +24,5 @@ File::File(const std::filesystem::path& path) {
         throw std::runtime_error("Root group must have exactly one message");
     }
 
-    root_group_ = Group(root_header, file_link_->io);
+    root_group_ = Group(root_header, file_link_);
 }

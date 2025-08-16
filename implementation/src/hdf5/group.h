@@ -7,25 +7,26 @@
 #include "object_header.h"
 #include "symbol_table.h"
 #include "tree.h"
+#include "file_link.h"
 
 class Group {
 public:
-    Group() = default;
-
-    explicit Group(const ObjectHeader& header, ReaderWriter& file);
+    explicit Group(const ObjectHeader& header, const std::shared_ptr<FileLink>& file);
 
     Dataset GetDataset(std::string_view dataset_name) const;
 
     [[nodiscard]] Group OpenGroup(std::string_view group_name) const;
 
 private:
+    Group() = default;
+
     SymbolTableNode GetSymbolTableNode() const;
 
     std::optional<ObjectHeader> GetEntryWithName(std::string_view name) const;
 
 private:
 public:
-    ReaderWriter* file_{};
+    std::shared_ptr<FileLink> file_;
 
     BTreeNode table_{};
     LocalHeap local_heap_{};

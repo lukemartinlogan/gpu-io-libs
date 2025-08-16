@@ -2,7 +2,9 @@
 
 #include "symbol_table.h"
 
-Group::Group(const ObjectHeader& header, ReaderWriter& file): file_(&file) {
+Group::Group(const ObjectHeader& header, const std::shared_ptr<FileLink>& file)
+    : file_(file)
+{
     auto symb_tbl_msg = std::ranges::find_if(
         header.messages,
         [](const auto& msg) {
@@ -16,16 +18,16 @@ Group::Group(const ObjectHeader& header, ReaderWriter& file): file_(&file) {
 
     auto symb_tbl = std::get<SymbolTableMessage>(symb_tbl_msg->message);
 
-    file_->SetPosition(/* superblock_.base_addr + */ symb_tbl.b_tree_addr);
-    table_ = file_->ReadComplex<BTreeNode>();
+    file_->io.SetPosition(file_->superblock.base_addr + symb_tbl.b_tree_addr);
+    table_ = file_->io.ReadComplex<BTreeNode>();
 
-    file_->SetPosition(/* superblock_.base_addr + */ symb_tbl.local_heap_addr);
-    local_heap_ = file_->ReadComplex<LocalHeap>();
+    file_->io.SetPosition(file_->superblock.base_addr + symb_tbl.local_heap_addr);
+    local_heap_ = file_->io.ReadComplex<LocalHeap>();
 }
 
 Dataset Group::GetDataset(std::string_view dataset_name) const {
     if (const auto header = GetEntryWithName(dataset_name)) {
-        return Dataset(*header, *file_);
+        return Dataset(*header, file_);
     }
 
     // TODO: better error handling
@@ -34,7 +36,7 @@ Dataset Group::GetDataset(std::string_view dataset_name) const {
 
 Group Group::OpenGroup(std::string_view group_name) const {
     if (const auto header = GetEntryWithName(group_name)) {
-        return Group(*header, *file_);
+        return Group(*header, file_);
     }
 
     // TODO: better error handling
@@ -57,9 +59,9 @@ SymbolTableNode Group::GetSymbolTableNode() const {
     }
 
     offset_t sym_tbl_node = entries->child_pointers.front();
-    file_->SetPosition(/* superblock_.base_addr + */ sym_tbl_node);
+    file_->io.SetPosition(file_->superblock.base_addr + sym_tbl_node);
 
-    return file_->ReadComplex<SymbolTableNode>();
+    return file_->io.ReadComplex<SymbolTableNode>();
 }
 
 std::optional<ObjectHeader> Group::GetEntryWithName(std::string_view name) const {
@@ -69,9 +71,9 @@ std::optional<ObjectHeader> Group::GetEntryWithName(std::string_view name) const
         std::string entry_name = local_heap_.ReadString(entry.link_name_offset);
 
         if (entry_name == name) {
-            file_->SetPosition(/* superblock_.base_addr + */ entry.object_header_addr);
+            file_->io.SetPosition(file_->superblock.base_addr + entry.object_header_addr);
 
-            return file_->ReadComplex<ObjectHeader>();
+            return file_->io.ReadComplex<ObjectHeader>();
         }
     }
 
