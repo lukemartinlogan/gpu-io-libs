@@ -290,7 +290,6 @@ void CompoundMember::Serialize(Serializer& s) const {
 
 std::string ReadPaddedString(Deserializer& de) {
     std::string name;
-    size_t read = 0;
 
     for (;;) {
         // 8 byte blocks
@@ -299,8 +298,6 @@ std::string ReadPaddedString(Deserializer& de) {
         if (!de.ReadBuffer(buf)) {
             throw std::runtime_error("failed to read string block");
         }
-
-        read += buf.size();
 
         auto nul_pos = std::ranges::find(buf, static_cast<byte_t>('\0'));
 
