@@ -51,8 +51,7 @@ public:
             return false;
         }
 
-        // FIXME: correctly cast size
-        std::copy_n(buf.begin() + cursor, out.size(), out.begin());
+        std::copy_n(buf.begin() + static_cast<std::ptrdiff_t>(cursor), out.size(), out.begin());
 
         cursor += out.size();
 
