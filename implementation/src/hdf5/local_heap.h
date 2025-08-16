@@ -24,7 +24,7 @@ struct LocalHeap {
 
 private:
     offset_t data_segment_address{};
-private:
+
     static constexpr std::array<uint8_t, 4> kSignature = { 'H', 'E', 'A', 'P' };
     static constexpr uint8_t kVersionNumber = 0x00;
 };
