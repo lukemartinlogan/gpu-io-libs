@@ -124,7 +124,7 @@ void Object::WriteMessage(HeaderMessageVariant msg) const {
             uint16_t nil_size = space->size - msg_size;
 
             WriteHeader(file_->io, NilMessage::kType, nil_size, 0);
-            msg_data.Write(NilMessage { .size = nil_size, });
+            file_->io.Write(NilMessage { .size = nil_size, });
         }
 
         JumpToRelativeOffset(2);
