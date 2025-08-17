@@ -1,6 +1,8 @@
 #include "file.h"
 
-File::File(const std::filesystem::path& path) {
+File::File(const std::filesystem::path& path)
+    : root_group_({}) // FIXME: get rid of this temp ctor?
+{
     // scope since file_io and superblock are invalid after make_shared
     {
         StdioReaderWriter file_io(path);
@@ -15,14 +17,12 @@ File::File(const std::filesystem::path& path) {
     }
 
     // read the root group
-    offset_t root_group_header_addr = file_link_->superblock.root_group_symbol_table_entry_addr.object_header_addr;
-    file_link_->io.SetPosition(file_link_->superblock.base_addr + root_group_header_addr);
+    offset_t root_group_header_addr = file_link_->superblock.base_addr + file_link_->superblock.root_group_symbol_table_entry_addr.object_header_addr;
 
-    auto root_header = file_link_->io.ReadComplex<ObjectHeader>();
+    // FIXME: bring back this check?
+    // if (root_header.messages.size() != 1) {
+    //     throw std::runtime_error("Root group must have exactly one message");
+    // }
 
-    if (root_header.messages.size() != 1) {
-        throw std::runtime_error("Root group must have exactly one message");
-    }
-
-    root_group_ = Group(root_header, file_link_);
+    root_group_ = Group(Object(file_link_, root_group_header_addr));
 }

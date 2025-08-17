@@ -4,19 +4,34 @@
 #include "file_link.h"
 #include "object_header.h"
 
+// TODO: create iterator over messages
 struct Object {
+    // FIXME: get rid of this ctor
+    Object() = default;
+
     explicit Object(const std::shared_ptr<FileLink>& file, offset_t pos_)
-        : file_(file), file_pos_(pos_)
+        : file(file), file_pos_(pos_)
     {
         JumpToRelativeOffset(0);
 
         // FIXME: hardcoded constant
-        if (file_->io.Read<uint8_t>() != 0x01) {
+        if (file->io.Read<uint8_t>() != 0x01) {
             throw std::runtime_error("Version number was invalid");
         }
     }
 
+    ObjectHeader GetHeader() const {
+        JumpToRelativeOffset(0);
+
+        return file->io.Read<ObjectHeader>();
+    }
+
+    // TODO: should this mutate an internally held object as well?
+    // TODO: add a 'dirty' field to header messages
     void WriteMessage(const HeaderMessageVariant& msg) const;
+
+public:
+    std::shared_ptr<FileLink> file;
 
 private:
     struct Space {
@@ -37,10 +52,9 @@ private:
     );
 
     void JumpToRelativeOffset(offset_t offset) const {
-        file_->io.SetPosition(file_pos_ + offset);
+        file->io.SetPosition(file_pos_ + offset);
     }
 
 private:
-    std::shared_ptr<FileLink> file_;
     offset_t file_pos_{};
 };

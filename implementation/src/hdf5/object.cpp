@@ -69,20 +69,20 @@ std::optional<Object::Space> Object::FindSpaceRecursive(  // NOLINT(*-no-recursi
 std::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) const {
     JumpToRelativeOffset(0);
 
-    file_->io.Skip<2>();
+    file->io.Skip<2>();
 
-    auto total_message_ct = file_->io.Read<uint16_t>();
+    auto total_message_ct = file->io.Read<uint16_t>();
 
-    file_->io.Skip<4>();
+    file->io.Skip<4>();
 
-    auto header_size = file_->io.Read<uint32_t>();
+    auto header_size = file->io.Read<uint32_t>();
 
     // reserved
-    file_->io.Skip<4>();
+    file->io.Skip<4>();
 
     uint16_t messages_read = 0;
 
-    return FindSpaceRecursive(file_->io, file_->superblock.base_addr, messages_read, total_message_ct, header_size, size, must_be_nil);
+    return FindSpaceRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, size, must_be_nil);
 }
 
 void WriteHeader(Serializer& s, uint16_t type, uint16_t size, uint8_t flags) {
@@ -128,14 +128,14 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     std::optional<Space> nil_space = FindSpace(msg_bytes.size(), true);
 
     JumpToRelativeOffset(2);
-    auto written_ct = file_->io.Read<uint16_t>();
+    auto written_ct = file->io.Read<uint16_t>();
 
     if (nil_space.has_value()) {
         // overwriting existing nil message
         written_ct -= 1;
 
-        file_->io.SetPosition(nil_space->offset);
-        file_->io.WriteBuffer(msg_bytes);
+        file->io.SetPosition(nil_space->offset);
+        file->io.WriteBuffer(msg_bytes);
 
         // writing this message
         written_ct += 1;
@@ -149,8 +149,8 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
             uint16_t nil_size = total_nil_size - kPrefixSize;
 
-            WriteHeader(file_->io, NilMessage::kType, nil_size, 0);
-            file_->io.Write(NilMessage { .size = nil_size, });
+            WriteHeader(file->io, NilMessage::kType, nil_size, 0);
+            file->io.Write(NilMessage { .size = nil_size, });
 
             // wrote a nil header
             written_ct += 1;
@@ -169,7 +169,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
             // put continuation here, allocate new block
             size_t alloc_space = msg_bytes.size() + cont_size;
-            offset_t offset = file_->AllocateAtEOF(alloc_space);
+            offset_t offset = file->AllocateAtEOF(alloc_space);
 
             ObjectHeaderContinuationMessage cont {
                 .offset = offset,
@@ -177,9 +177,9 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             };
 
             // write object header
-            file_->io.SetPosition(space_cont->offset);
-            WriteHeader(file_->io, ObjectHeaderContinuationMessage::kType, sizeof(ObjectHeaderContinuationMessage), /* FIXME(flags) */0);
-            file_->io.WriteComplex(cont);
+            file->io.SetPosition(space_cont->offset);
+            WriteHeader(file->io, ObjectHeaderContinuationMessage::kType, sizeof(ObjectHeaderContinuationMessage), /* FIXME(flags) */0);
+            file->io.WriteComplex(cont);
 
             // write cont msg
             written_ct += 1;
@@ -193,16 +193,16 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
-                WriteHeader(file_->io, NilMessage::kType, nil_size, 0);
-                file_->io.Write(NilMessage { .size = nil_size, });
+                WriteHeader(file->io, NilMessage::kType, nil_size, 0);
+                file->io.Write(NilMessage { .size = nil_size, });
 
                 // writing nil message
                 written_ct += 1;
             }
 
             // write actual data
-            file_->io.SetPosition(cont.offset);
-            file_->io.WriteBuffer(msg_bytes);
+            file->io.SetPosition(cont.offset);
+            file->io.WriteBuffer(msg_bytes);
 
             // writing data message
             written_ct += 1;
@@ -216,8 +216,8 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
-                WriteHeader(file_->io, NilMessage::kType, nil_size, 0);
-                file_->io.WriteComplex(NilMessage { .size = nil_size, });
+                WriteHeader(file->io, NilMessage::kType, nil_size, 0);
+                file->io.WriteComplex(NilMessage { .size = nil_size, });
 
                 // writing nil message
                 written_ct += 1;
@@ -234,14 +234,14 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
             // move the bytes into write buffer
             std::vector<byte_t> moving(space->size);
-            file_->io.SetPosition(space->offset);
-            file_->io.ReadBuffer(moving);
+            file->io.SetPosition(space->offset);
+            file->io.ReadBuffer(moving);
 
             msg_bytes.insert(msg_bytes.end(), moving.begin(), moving.end());
 
             // new allocation
             size_t alloc_space = msg_bytes.size() + cont_size;
-            offset_t offset = file_->AllocateAtEOF(alloc_space);
+            offset_t offset = file->AllocateAtEOF(alloc_space);
 
             ObjectHeaderContinuationMessage cont {
                 .offset = offset,
@@ -249,9 +249,9 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             };
 
             // write object header
-            file_->io.SetPosition(space->offset);
-            WriteHeader(file_->io, ObjectHeaderContinuationMessage::kType, sizeof(ObjectHeaderContinuationMessage), /* FIXME(flags) */0);
-            file_->io.WriteComplex(cont);
+            file->io.SetPosition(space->offset);
+            WriteHeader(file->io, ObjectHeaderContinuationMessage::kType, sizeof(ObjectHeaderContinuationMessage), /* FIXME(flags) */0);
+            file->io.WriteComplex(cont);
 
             // writing cont
             written_ct += 1;
@@ -265,16 +265,16 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
-                WriteHeader(file_->io, NilMessage::kType, nil_size, 0);
-                file_->io.WriteComplex(NilMessage { .size = nil_size, });
+                WriteHeader(file->io, NilMessage::kType, nil_size, 0);
+                file->io.WriteComplex(NilMessage { .size = nil_size, });
 
                 // writing nil
                 written_ct += 1;
             }
 
             // write actual data
-            file_->io.SetPosition(cont.offset);
-            file_->io.WriteBuffer(msg_bytes);
+            file->io.SetPosition(cont.offset);
+            file->io.WriteBuffer(msg_bytes);
 
             // writing data + moved message
             written_ct += 2;
@@ -288,8 +288,8 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
-                WriteHeader(file_->io, NilMessage::kType, nil_size, 0);
-                file_->io.WriteComplex(NilMessage { .size = nil_size, });
+                WriteHeader(file->io, NilMessage::kType, nil_size, 0);
+                file->io.WriteComplex(NilMessage { .size = nil_size, });
 
                 // writing nil
                 written_ct += 1;
@@ -298,5 +298,5 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     }
 
     JumpToRelativeOffset(2);
-    file_->io.Write(written_ct);
+    file->io.Write(written_ct);
 }
