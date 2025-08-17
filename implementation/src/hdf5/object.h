@@ -25,9 +25,9 @@ private:
         bool from_nil;
     };
 
-    [[nodiscard]] std::optional<FreeSpace> FindFreeSpaceOfSize(size_t size) const;
+    [[nodiscard]] std::optional<FreeSpace> FindFreeSpace(size_t size) const;
 
-    [[nodiscard]] static std::optional<FreeSpace> FindFreeSpaceOfSizeRecursive(
+    [[nodiscard]] static std::optional<FreeSpace> FindFreeSpaceRecursive(
         Deserializer& de,
         uint16_t& messages_read,
         uint16_t total_message_ct,

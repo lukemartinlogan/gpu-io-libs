@@ -2,7 +2,7 @@
 
 constexpr uint32_t kPrefixSize = 8;
 
-std::optional<Object::FreeSpace> Object::FindFreeSpaceOfSizeRecursive(Deserializer& de, uint16_t& messages_read, uint16_t total_message_ct, uint32_t size_limit, uint32_t search_size) { // NOLINT(*-no-recursion
+std::optional<Object::FreeSpace> Object::FindFreeSpaceRecursive(Deserializer& de, uint16_t& messages_read, uint16_t total_message_ct, uint32_t size_limit, uint32_t search_size) { // NOLINT(*-no-recursion
     uint32_t bytes_read = 0;
 
     std::optional<FreeSpace> smallest_found{};
@@ -23,7 +23,7 @@ std::optional<Object::FreeSpace> Object::FindFreeSpaceOfSizeRecursive(Deserializ
             offset_t return_pos = de.GetPosition();
             de.SetPosition(/* TODO: sb.base_addr + */ cont.offset);
 
-            std::optional<FreeSpace> res = FindFreeSpaceOfSizeRecursive(de, messages_read, total_message_ct, cont.length, search_size);
+            std::optional<FreeSpace> res = FindFreeSpaceRecursive(de, messages_read, total_message_ct, cont.length, search_size);
 
             if (
                 res.has_value() && res->size >= search_size // FIXME: technically the second check is redundant
@@ -57,7 +57,7 @@ std::optional<Object::FreeSpace> Object::FindFreeSpaceOfSizeRecursive(Deserializ
     return smallest_found;
 }
 
-std::optional<Object::FreeSpace> Object::FindFreeSpaceOfSize(size_t size) const {
+std::optional<Object::FreeSpace> Object::FindFreeSpace(size_t size) const {
     JumpToRelativeOffset(0);
 
     io_.Skip<2>();
@@ -73,7 +73,7 @@ std::optional<Object::FreeSpace> Object::FindFreeSpaceOfSize(size_t size) const 
 
     uint16_t messages_read = 0;
 
-    return FindFreeSpaceOfSizeRecursive(io_, messages_read, total_message_ct, header_size, size);
+    return FindFreeSpaceRecursive(io_, messages_read, total_message_ct, header_size, size);
 }
 
 void WriteHeader(Serializer& s, uint16_t type, uint16_t size, uint8_t flags) {
@@ -112,7 +112,7 @@ void Object::WriteMessage(HeaderMessageVariant msg) const {
     }
 
     // ReSharper disable once CppDFAUnreachableCode : for some reason, it thinks the cursor prefix size check always throws
-    std::optional<FreeSpace> space = FindFreeSpaceOfSize(msg_size);
+    std::optional<FreeSpace> space = FindFreeSpace(msg_size);
 
     if (space.has_value()) {
         io_.SetPosition(space->offset);
