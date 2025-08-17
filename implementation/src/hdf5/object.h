@@ -4,6 +4,7 @@
 #include "file_link.h"
 #include "object_header.h"
 
+// TODO: create iterator over messages
 struct Object {
     explicit Object(const std::shared_ptr<FileLink>& file, offset_t pos_)
         : file_(file), file_pos_(pos_)
@@ -22,6 +23,8 @@ struct Object {
         return file_->io.Read<ObjectHeader>();
     }
 
+    // TODO: should this mutate an internally held object as well?
+    // TODO: add a 'dirty' field to header messages
     void WriteMessage(const HeaderMessageVariant& msg) const;
 
 private:
