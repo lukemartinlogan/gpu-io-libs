@@ -8,10 +8,11 @@
 #include "symbol_table.h"
 #include "tree.h"
 #include "file_link.h"
+#include "object.h"
 
 class Group {
 public:
-    explicit Group(const ObjectHeader& header, const std::shared_ptr<FileLink>& file);
+    explicit Group(const Object& object);
 
     [[nodiscard]] Dataset GetDataset(std::string_view dataset_name) const;
 
@@ -22,11 +23,11 @@ private:
 
     [[nodiscard]] SymbolTableNode GetSymbolTableNode() const;
 
-    [[nodiscard]] std::optional<ObjectHeader> GetEntryWithName(std::string_view name) const;
+    [[nodiscard]] std::optional<Object> GetEntryWithName(std::string_view name) const;
 
 private:
 public:
-    std::shared_ptr<FileLink> file_;
+    Object object_;
 
     BTreeNode table_{};
     LocalHeap local_heap_{};
