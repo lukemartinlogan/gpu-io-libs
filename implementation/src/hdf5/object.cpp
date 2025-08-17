@@ -144,6 +144,17 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
         JumpToRelativeOffset(2);
         file_->io.Write(ct + 1);
     } else {
-        throw std::runtime_error("no free space found for message");
+        size_t cont_size = sizeof(ObjectHeaderContinuationMessage);
+        std::optional<FreeSpace> space_cont;
+
+        if (cont_size < msg_size) {
+            space_cont = FindFreeSpace(cont_size);
+        }
+
+        if (space_cont.has_value()) {
+            // put continuation here, allocate new block
+        } else {
+            // find message to move, allocate new block and move message
+        }
     }
 }
