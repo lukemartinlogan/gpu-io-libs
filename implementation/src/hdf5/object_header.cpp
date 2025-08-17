@@ -686,12 +686,12 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write(MessageType());
     s.Write(size);
 
+    s.Write<uint8_t>(flags_.to_ulong());
+
     // FIXME: Serializer::WriteZero<size_t>
     s.Write<uint8_t>(0);
     s.Write<uint8_t>(0);
     s.Write<uint8_t>(0);
-
-    s.Write<uint8_t>(flags_.to_ulong());
 
     std::visit([&s](const auto& msg) { s.WriteComplex(msg); }, message);
 }
@@ -855,7 +855,7 @@ void ObjectHeader::Serialize(Serializer& s) const {
     }
 }
 
-void ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& de, uint32_t size_limit, uint16_t total_message_ct) { // NOLINT(no-recursion)
+void ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& de, uint32_t size_limit, uint16_t total_message_ct) { // NOLINT(*-no-recursion)
     uint32_t bytes_read = 0;
 
     while (bytes_read < size_limit && hd.messages.size() < total_message_ct) {
