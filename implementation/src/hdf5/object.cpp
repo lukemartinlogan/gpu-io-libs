@@ -153,8 +153,105 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
         if (space_cont.has_value()) {
             // put continuation here, allocate new block
+            size_t alloc_space = msg_bytes.size() + cont_size;
+            offset_t offset = file_->AllocateAtEOF(alloc_space);
+
+            ObjectHeaderContinuationMessage cont {
+                .offset = offset,
+                .length = alloc_space
+            };
+
+            // write object header
+            file_->io.SetPosition(space_cont->offset);
+            WriteHeader(file_->io, ObjectHeaderContinuationMessage::kType, sizeof(ObjectHeaderContinuationMessage), /* FIXME(flags) */0);
+            file_->io.WriteComplex(cont);
+
+            if (space_cont->size > cont_size) {
+                uint16_t total_nil_size = space_cont->size - cont_size;
+
+                if (total_nil_size < kPrefixSize) {
+                    throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+                }
+
+                uint16_t nil_size = total_nil_size - kPrefixSize;
+
+                WriteHeader(file_->io, NilMessage::kType, nil_size, 0);
+                file_->io.Write(NilMessage { .size = nil_size, });
+            }
+
+            // write actual data
+            file_->io.SetPosition(cont.offset);
+            file_->io.WriteBuffer(msg_bytes);
+
+            if (cont.length > msg_bytes.size()) {
+                uint16_t total_nil_size = cont.length - msg_bytes.size();
+
+                if (total_nil_size < kPrefixSize) {
+                    throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+                }
+
+                uint16_t nil_size = total_nil_size - kPrefixSize;
+
+                WriteHeader(file_->io, NilMessage::kType, nil_size, 0);
+                file_->io.Write(NilMessage { .size = nil_size, });
+            }
         } else {
-            // find message to move, allocate new block and move message
+            std::optional<Space> space = FindSpace(cont_size, false);
+
+            if (!space.has_value()) {
+                throw std::logic_error("there should always be an object header message that can be moved");
+            }
+
+            // move the bytes into write buffer
+            std::vector<byte_t> moving(space->size);
+            file_->io.SetPosition(space->offset);
+            file_->io.ReadBuffer(moving);
+
+            msg_bytes.insert(msg_bytes.end(), moving.begin(), moving.end());
+
+            // new allocation
+            size_t alloc_space = msg_bytes.size() + cont_size;
+            offset_t offset = file_->AllocateAtEOF(alloc_space);
+
+            ObjectHeaderContinuationMessage cont {
+                .offset = offset,
+                .length = alloc_space
+            };
+
+            // write object header
+            file_->io.SetPosition(space->offset);
+            WriteHeader(file_->io, ObjectHeaderContinuationMessage::kType, sizeof(ObjectHeaderContinuationMessage), /* FIXME(flags) */0);
+            file_->io.WriteComplex(cont);
+
+            if (space->size > cont_size) {
+                uint16_t total_nil_size = space->size - cont_size;
+
+                if (total_nil_size < kPrefixSize) {
+                    throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+                }
+
+                uint16_t nil_size = total_nil_size - kPrefixSize;
+
+                WriteHeader(file_->io, NilMessage::kType, nil_size, 0);
+                file_->io.Write(NilMessage { .size = nil_size, });
+            }
+
+            // write actual data
+            file_->io.SetPosition(cont.offset);
+            file_->io.WriteBuffer(msg_bytes);
+
+            if (cont.length > msg_bytes.size()) {
+                uint16_t total_nil_size = cont.length - msg_bytes.size();
+
+                if (total_nil_size < kPrefixSize) {
+                    throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+                }
+
+                uint16_t nil_size = total_nil_size - kPrefixSize;
+
+                WriteHeader(file_->io, NilMessage::kType, nil_size, 0);
+                file_->io.Write(NilMessage { .size = nil_size, });
+            }
         }
     }
 
