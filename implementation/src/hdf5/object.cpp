@@ -143,11 +143,6 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             WriteHeader(file_->io, NilMessage::kType, nil_size, 0);
             file_->io.Write(NilMessage { .size = nil_size, });
         }
-
-        JumpToRelativeOffset(2);
-        auto ct = file_->io.Read<uint16_t>();
-        JumpToRelativeOffset(2);
-        file_->io.Write(ct + 1);
     } else {
         size_t cont_size = sizeof(ObjectHeaderContinuationMessage);
         std::optional<Space> space_cont;
@@ -162,4 +157,9 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             // find message to move, allocate new block and move message
         }
     }
+
+    JumpToRelativeOffset(2);
+    auto ct = file_->io.Read<uint16_t>();
+    JumpToRelativeOffset(2);
+    file_->io.Write(ct + 1);
 }
