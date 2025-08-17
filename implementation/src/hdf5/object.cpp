@@ -144,7 +144,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             file_->io.Write(NilMessage { .size = nil_size, });
         }
     } else {
-        size_t cont_size = sizeof(ObjectHeaderContinuationMessage);
+        size_t cont_size = sizeof(ObjectHeaderContinuationMessage) + kPrefixSize;
         std::optional<Space> space_cont;
 
         if (cont_size < msg_bytes.size()) {
