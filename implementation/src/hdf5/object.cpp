@@ -123,16 +123,15 @@ std::vector<byte_t> WriteMessageToBuffer(const HeaderMessageVariant& msg) {
 
 void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     std::vector<byte_t> msg_bytes = WriteMessageToBuffer(msg);
-    size_t msg_size = msg_bytes.size();
 
-    std::optional<Space> nil_space = FindSpace(msg_size, true);
+    std::optional<Space> nil_space = FindSpace(msg_bytes.size(), true);
 
     if (nil_space.has_value()) {
         file_->io.SetPosition(nil_space->offset);
         file_->io.WriteBuffer(msg_bytes);
 
-        if (nil_space->size > msg_size) {
-            uint16_t total_nil_size = nil_space->size - msg_size;
+        if (nil_space->size > msg_bytes.size()) {
+            uint16_t total_nil_size = nil_space->size - msg_bytes.size();
 
             if (total_nil_size < kPrefixSize) {
                 throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
@@ -152,7 +151,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
         size_t cont_size = sizeof(ObjectHeaderContinuationMessage);
         std::optional<Space> space_cont;
 
-        if (cont_size < msg_size) {
+        if (cont_size < msg_bytes.size()) {
             space_cont = FindSpace(cont_size, true);
         }
 
