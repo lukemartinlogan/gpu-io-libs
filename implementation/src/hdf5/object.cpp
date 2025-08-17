@@ -122,6 +122,7 @@ std::vector<byte_t> WriteMessageToBuffer(const HeaderMessageVariant& msg) {
 }
 
 void Object::WriteMessage(const HeaderMessageVariant& msg) const {
+    // TODO: chunk message writes
     std::vector<byte_t> msg_bytes = WriteMessageToBuffer(msg);
 
     std::optional<Space> nil_space = FindSpace(msg_bytes.size(), true);
