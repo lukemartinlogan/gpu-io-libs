@@ -2,10 +2,18 @@
 
 constexpr uint32_t kPrefixSize = 8;
 
-std::optional<Object::FreeSpace> Object::FindFreeSpaceRecursive(Deserializer& de, offset_t sb_base_addr, uint16_t& messages_read, uint16_t total_message_ct, uint32_t size_limit, uint32_t search_size) { // NOLINT(*-no-recursion
+std::optional<Object::Space> Object::FindSpaceRecursive(  // NOLINT(*-no-recursion
+    Deserializer& de,
+    offset_t sb_base_addr,
+    uint16_t& messages_read,
+    uint16_t total_message_ct,
+    uint32_t size_limit,
+    uint32_t search_size,
+    bool must_be_nil
+) {
     uint32_t bytes_read = 0;
 
-    std::optional<FreeSpace> smallest_found{};
+    std::optional<Space> smallest_found{};
 
     while (bytes_read < size_limit && messages_read < total_message_ct) {
         auto type = de.Read<uint16_t>();
@@ -23,7 +31,7 @@ std::optional<Object::FreeSpace> Object::FindFreeSpaceRecursive(Deserializer& de
             offset_t return_pos = de.GetPosition();
             de.SetPosition(sb_base_addr + cont.offset);
 
-            std::optional<FreeSpace> res = FindFreeSpaceRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, search_size);
+            std::optional<Space> res = FindSpaceRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, search_size, must_be_nil);
 
             if (
                 res.has_value() && res->size >= search_size // FIXME: technically the second check is redundant
@@ -34,7 +42,7 @@ std::optional<Object::FreeSpace> Object::FindFreeSpaceRecursive(Deserializer& de
 
             de.SetPosition(return_pos);
         } else {
-            if (type == NilMessage::kType) {
+            if (!must_be_nil || type == NilMessage::kType) {
                 uint16_t total_size = size_bytes + kPrefixSize;
 
                 if (
@@ -58,7 +66,7 @@ std::optional<Object::FreeSpace> Object::FindFreeSpaceRecursive(Deserializer& de
     return smallest_found;
 }
 
-std::optional<Object::FreeSpace> Object::FindFreeSpace(size_t size) const {
+std::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) const {
     JumpToRelativeOffset(0);
 
     file_->io.Skip<2>();
@@ -74,7 +82,7 @@ std::optional<Object::FreeSpace> Object::FindFreeSpace(size_t size) const {
 
     uint16_t messages_read = 0;
 
-    return FindFreeSpaceRecursive(file_->io, file_->superblock.base_addr, messages_read, total_message_ct, header_size, size);
+    return FindSpaceRecursive(file_->io, file_->superblock.base_addr, messages_read, total_message_ct, header_size, size, must_be_nil);
 }
 
 void WriteHeader(Serializer& s, uint16_t type, uint16_t size, uint8_t flags) {
@@ -120,14 +128,14 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     std::vector<byte_t> msg_bytes = WriteMessageToBuffer(msg);
     size_t msg_size = msg_bytes.size();
 
-    std::optional<FreeSpace> space = FindFreeSpace(msg_size);
+    std::optional<Space> nil_space = FindSpace(msg_size, true);
 
-    if (space.has_value()) {
-        file_->io.SetPosition(space->offset);
+    if (nil_space.has_value()) {
+        file_->io.SetPosition(nil_space->offset);
         file_->io.WriteBuffer(msg_bytes);
 
-        if (space->size > msg_size) {
-            uint16_t total_nil_size = space->size - msg_size;
+        if (nil_space->size > msg_size) {
+            uint16_t total_nil_size = nil_space->size - msg_size;
 
             if (total_nil_size < kPrefixSize) {
                 throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
@@ -145,10 +153,10 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
         file_->io.Write(ct + 1);
     } else {
         size_t cont_size = sizeof(ObjectHeaderContinuationMessage);
-        std::optional<FreeSpace> space_cont;
+        std::optional<Space> space_cont;
 
         if (cont_size < msg_size) {
-            space_cont = FindFreeSpace(cont_size);
+            space_cont = FindSpace(cont_size, true);
         }
 
         if (space_cont.has_value()) {

@@ -19,20 +19,21 @@ struct Object {
     void WriteMessage(const HeaderMessageVariant& msg) const;
 
 private:
-    struct FreeSpace {
+    struct Space {
         offset_t offset;
         len_t size;
     };
 
-    [[nodiscard]] std::optional<FreeSpace> FindFreeSpace(size_t size) const;
+    [[nodiscard]] std::optional<Space> FindSpace(size_t size, bool must_be_nil) const;
 
-    [[nodiscard]] static std::optional<FreeSpace> FindFreeSpaceRecursive(
+    [[nodiscard]] static std::optional<Space> FindSpaceRecursive(
         Deserializer& de,
         offset_t sb_base_addr,
         uint16_t& messages_read,
         uint16_t total_message_ct,
         uint32_t size_limit,
-        uint32_t search_size
+        uint32_t search_size,
+        bool must_be_nil
     );
 
     void JumpToRelativeOffset(offset_t offset) const {
