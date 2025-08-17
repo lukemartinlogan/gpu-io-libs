@@ -16,7 +16,7 @@ struct Object {
         }
     }
 
-    void WriteMessage(HeaderMessageVariant msg) const;
+    void WriteMessage(const HeaderMessageVariant& msg) const;
 
 private:
     struct FreeSpace {

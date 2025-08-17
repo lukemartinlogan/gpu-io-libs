@@ -84,7 +84,7 @@ void WriteHeader(Serializer& s, uint16_t type, uint16_t size, uint8_t flags) {
     s.Write<std::array<byte_t, 3>>({});
 }
 
-std::vector<byte_t> WriteMessageToBuffer(HeaderMessageVariant msg) {
+std::vector<byte_t> WriteMessageToBuffer(const HeaderMessageVariant& msg) {
     DynamicBufferSerializer msg_data;
 
     // reserve eight bytes for prefix
@@ -115,7 +115,7 @@ std::vector<byte_t> WriteMessageToBuffer(HeaderMessageVariant msg) {
     return msg_data.buf;
 }
 
-void Object::WriteMessage(HeaderMessageVariant msg) const {
+void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     std::vector<byte_t> msg_bytes = WriteMessageToBuffer(msg);
     size_t msg_size = msg_bytes.size();
 
