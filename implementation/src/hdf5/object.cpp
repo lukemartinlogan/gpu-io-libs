@@ -2,7 +2,7 @@
 
 constexpr uint32_t kPrefixSize = 8;
 
-std::optional<Object::FreeSpace> Object::FindFreeSpaceRecursive(Deserializer& de, uint16_t& messages_read, uint16_t total_message_ct, uint32_t size_limit, uint32_t search_size) { // NOLINT(*-no-recursion
+std::optional<Object::FreeSpace> Object::FindFreeSpaceRecursive(Deserializer& de, offset_t sb_base_addr, uint16_t& messages_read, uint16_t total_message_ct, uint32_t size_limit, uint32_t search_size) { // NOLINT(*-no-recursion
     uint32_t bytes_read = 0;
 
     std::optional<FreeSpace> smallest_found{};
@@ -21,9 +21,9 @@ std::optional<Object::FreeSpace> Object::FindFreeSpaceRecursive(Deserializer& de
             auto cont = de.Read<ObjectHeaderContinuationMessage>();
 
             offset_t return_pos = de.GetPosition();
-            de.SetPosition(/* TODO: sb.base_addr + */ cont.offset);
+            de.SetPosition(sb_base_addr + cont.offset);
 
-            std::optional<FreeSpace> res = FindFreeSpaceRecursive(de, messages_read, total_message_ct, cont.length, search_size);
+            std::optional<FreeSpace> res = FindFreeSpaceRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, search_size);
 
             if (
                 res.has_value() && res->size >= search_size // FIXME: technically the second check is redundant
@@ -60,20 +60,20 @@ std::optional<Object::FreeSpace> Object::FindFreeSpaceRecursive(Deserializer& de
 std::optional<Object::FreeSpace> Object::FindFreeSpace(size_t size) const {
     JumpToRelativeOffset(0);
 
-    io_.Skip<2>();
+    file_->io.Skip<2>();
 
-    auto total_message_ct = io_.Read<uint16_t>();
+    auto total_message_ct = file_->io.Read<uint16_t>();
 
-    io_.Skip<4>();
+    file_->io.Skip<4>();
 
-    auto header_size = io_.Read<uint32_t>();
+    auto header_size = file_->io.Read<uint32_t>();
 
     // reserved
-    io_.Skip<4>();
+    file_->io.Skip<4>();
 
     uint16_t messages_read = 0;
 
-    return FindFreeSpaceRecursive(io_, messages_read, total_message_ct, header_size, size);
+    return FindFreeSpaceRecursive(file_->io, file_->superblock.base_addr, messages_read, total_message_ct, header_size, size);
 }
 
 void WriteHeader(Serializer& s, uint16_t type, uint16_t size, uint8_t flags) {
@@ -115,22 +115,22 @@ void Object::WriteMessage(HeaderMessageVariant msg) const {
     std::optional<FreeSpace> space = FindFreeSpace(msg_size);
 
     if (space.has_value()) {
-        io_.SetPosition(space->offset);
-        io_.WriteBuffer(msg_data.buf);
+        file_->io.SetPosition(space->offset);
+        file_->io.WriteBuffer(msg_data.buf);
 
         // FIXME: make sure to read and write the extra eight bytes before the data
         // FIXME: consume nil header, consecutive nil
         if (space->from_nil) {
             uint16_t nil_size = space->size - msg_size;
 
-            WriteHeader(io_, NilMessage::kType, nil_size, 0);
+            WriteHeader(file_->io, NilMessage::kType, nil_size, 0);
             msg_data.Write(NilMessage { .size = nil_size, });
         }
 
         JumpToRelativeOffset(2);
-        auto ct = io_.Read<uint16_t>();
+        auto ct = file_->io.Read<uint16_t>();
         JumpToRelativeOffset(2);
-        io_.Write(ct + 1);
+        file_->io.Write(ct + 1);
     } else {
         throw std::runtime_error("no free space found for message");
     }
