@@ -22,8 +22,6 @@ private:
     struct FreeSpace {
         offset_t offset;
         len_t size;
-        // if this is true, the four byte header of the nil is not counted in size, since it needs to be forwarded
-        bool from_nil;
     };
 
     [[nodiscard]] std::optional<FreeSpace> FindFreeSpace(size_t size) const;

@@ -35,15 +35,16 @@ std::optional<Object::FreeSpace> Object::FindFreeSpaceRecursive(Deserializer& de
             de.SetPosition(return_pos);
         } else {
             if (type == NilMessage::kType) {
+                uint16_t total_size = size_bytes + kPrefixSize;
+
                 if (
-                    // FIXME
-                    size_bytes + (kPrefixSize /* this nil prefix */) - (kPrefixSize /* for new nil prefix */) >= search_size
-                    && ( !smallest_found.has_value() || size_bytes < smallest_found->size )
+                    // no new nil header needed || nil header needed
+                    total_size == search_size || total_size >= search_size + kPrefixSize
+                    && ( !smallest_found.has_value() || total_size < smallest_found->size )
                 ) {
                     smallest_found = {
                         .offset = de.GetPosition() - kPrefixSize,
-                        .size = size_bytes,
-                        .from_nil = true,
+                        .size = total_size,
                     };
                 }
             }
@@ -125,10 +126,14 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
         file_->io.SetPosition(space->offset);
         file_->io.WriteBuffer(msg_bytes);
 
-        // FIXME: make sure to read and write the extra eight bytes before the data
-        // FIXME: consume nil header, consecutive nil
-        if (space->from_nil) {
-            uint16_t nil_size = space->size - msg_size;
+        if (space->size > msg_size) {
+            uint16_t total_nil_size = space->size - msg_size;
+
+            if (total_nil_size < kPrefixSize) {
+                throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+            }
+
+            uint16_t nil_size = total_nil_size - kPrefixSize;
 
             WriteHeader(file_->io, NilMessage::kType, nil_size, 0);
             file_->io.Write(NilMessage { .size = nil_size, });
