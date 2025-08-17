@@ -107,17 +107,14 @@ std::vector<byte_t> WriteMessageToBuffer(const HeaderMessageVariant& msg) {
 
     size_t msg_size = msg_data.buf.size();
 
-    {
-        BufferSerializer prefix_s(msg_data.buf);
+    BufferSerializer prefix_s(msg_data.buf);
 
-        uint16_t kType = std::visit([](const auto& m) { return m.kType; }, msg);
-        uint16_t size = msg_size - 8;
+    uint16_t kType = std::visit([](const auto& m) { return m.kType; }, msg);
 
-        WriteHeader(prefix_s, kType, size, /* FIXME: support flags */ 0);
+    WriteHeader(prefix_s, kType, msg_size - kPrefixSize, /* FIXME: support flags */ 0);
 
-        if (prefix_s.cursor != kPrefixSize) { // NOLINT: isn't actually always true
-            throw std::runtime_error("prefix size was not eight bytes");
-        }
+    if (prefix_s.cursor != kPrefixSize) { // NOLINT: isn't actually always true
+        throw std::runtime_error("prefix size was not eight bytes");
     }
 
     // ReSharper disable once CppDFAUnreachableCode : for some reason, it thinks the cursor prefix size check always throws
