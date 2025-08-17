@@ -16,6 +16,12 @@ struct Object {
         }
     }
 
+    ObjectHeader GetHeader() const {
+        JumpToRelativeOffset(0);
+
+        return file_->io.Read<ObjectHeader>();
+    }
+
     void WriteMessage(const HeaderMessageVariant& msg) const;
 
 private:
