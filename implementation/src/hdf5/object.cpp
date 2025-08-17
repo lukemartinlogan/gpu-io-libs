@@ -54,25 +54,6 @@ std::optional<Object::FreeSpace> Object::FindFreeSpaceOfSizeRecursive(Deserializ
         }
     }
 
-    if (bytes_read < size_limit) {
-        if (messages_read < total_message_ct) {
-            throw std::runtime_error("redundant check");
-        }
-
-        uint32_t remaining_bytes = size_limit - bytes_read;
-
-        if (
-            remaining_bytes >= search_size
-            && ( !smallest_found.has_value() || remaining_bytes < smallest_found->size )
-        ) {
-            smallest_found = {
-                .offset = de.GetPosition(),
-                .size = remaining_bytes,
-                .from_nil = false,
-            };
-        }
-    }
-
     return smallest_found;
 }
 
