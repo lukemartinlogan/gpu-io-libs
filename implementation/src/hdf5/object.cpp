@@ -84,7 +84,7 @@ void WriteHeader(Serializer& s, uint16_t type, uint16_t size, uint8_t flags) {
     s.Write<std::array<byte_t, 3>>({});
 }
 
-void Object::WriteMessage(HeaderMessageVariant msg) const {
+std::vector<byte_t> WriteMessageToBuffer(HeaderMessageVariant msg) {
     DynamicBufferSerializer msg_data;
 
     // reserve eight bytes for prefix
@@ -112,11 +112,18 @@ void Object::WriteMessage(HeaderMessageVariant msg) const {
     }
 
     // ReSharper disable once CppDFAUnreachableCode : for some reason, it thinks the cursor prefix size check always throws
+    return msg_data.buf;
+}
+
+void Object::WriteMessage(HeaderMessageVariant msg) const {
+    std::vector<byte_t> msg_bytes = WriteMessageToBuffer(msg);
+    size_t msg_size = msg_bytes.size();
+
     std::optional<FreeSpace> space = FindFreeSpace(msg_size);
 
     if (space.has_value()) {
         file_->io.SetPosition(space->offset);
-        file_->io.WriteBuffer(msg_data.buf);
+        file_->io.WriteBuffer(msg_bytes);
 
         // FIXME: make sure to read and write the extra eight bytes before the data
         // FIXME: consume nil header, consecutive nil
