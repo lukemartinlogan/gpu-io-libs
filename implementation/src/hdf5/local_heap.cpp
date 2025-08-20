@@ -46,7 +46,7 @@ void LocalHeap::Serialize(Serializer& s) const {
     s.Write(kVersionNumber);
 
     // reserved (zero)
-    s.Write<uint8_t>(0);
+    s.Write<std::array<byte_t, 3>>({});
 
     s.Write<len_t>(data_segment.size());
     s.Write(free_list_head_offset);
