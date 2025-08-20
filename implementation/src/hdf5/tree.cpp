@@ -50,14 +50,15 @@ std::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, co
     const auto& group_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
 
     // find correct child pointer
-    size_t child_index = 0;
+    size_t child_index = group_entries.child_pointers.size() - 1; // Start with rightmost pointer
+
     for (size_t i = 0; i < group_entries.keys.size() - 1; ++i) {
         std::string node_name = heap.ReadString(group_entries.keys[i].first_object_name);
 
         if (name < node_name) {
+            child_index = i;
             break;
         }
-        child_index = i + 1;
     }
 
     // leaf node, search for the exact entry
