@@ -28,7 +28,7 @@ Group::Group(const Object& object)
 }
 
 Dataset Group::GetDataset(std::string_view dataset_name) const {
-    if (const auto object = GetEntryWithName(dataset_name)) {
+    if (const auto object = Get(dataset_name)) {
         return Dataset(*object);
     }
 
@@ -37,12 +37,33 @@ Dataset Group::GetDataset(std::string_view dataset_name) const {
 }
 
 Group Group::OpenGroup(std::string_view group_name) const {
-    if (const auto object = GetEntryWithName(group_name)) {
+    if (const auto object = Get(group_name)) {
         return Group(*object);
     }
 
     // TODO: better error handling
     throw std::runtime_error(std::format("Group \"{}\" not found", group_name));
+}
+
+std::optional<Object> Group::Get(std::string_view name) const {
+    std::optional<offset_t> sym_table_node_ptr = table_.Get(name, *object_.file, local_heap_);
+
+    if (!sym_table_node_ptr) {
+        return std::nullopt;
+    }
+
+    offset_t base_addr = object_.file->superblock.base_addr;
+
+    object_.file->io.SetPosition(base_addr + *sym_table_node_ptr);
+    auto symbol_table_node = object_.file->io.ReadComplex<SymbolTableNode>();
+
+    std::optional<offset_t> entry_addr = symbol_table_node.FindEntry(name, local_heap_);
+
+    if (!entry_addr) {
+        return std::nullopt;
+    }
+
+    return Object(object_.file, base_addr + *entry_addr);
 }
 
 SymbolTableNode Group::GetSymbolTableNode() const {
