@@ -1,8 +1,11 @@
 #pragma once
 #include <array>
+#include <optional>
 #include <variant>
 #include <vector>
 
+#include "file_link.h"
+#include "local_heap.h"
 #include "types.h"
 #include "../serialization/serialization.h"
 
@@ -64,6 +67,8 @@ struct BTreeNode {
     // all nodes have same max degree (max entries used) but
     // most nodes point to less than that
     [[nodiscard]] uint16_t EntriesUsed() const;
+
+    [[nodiscard]] std::optional<offset_t> Get(std::string_view name, FileLink& file, const LocalHeap& heap) const;
 
     void Serialize(Serializer& s) const;
 

@@ -1,6 +1,7 @@
-#include "tree.h"
-
 #include <stdexcept>
+
+#include "tree.h"
+#include "local_heap.h"
 
 void BTreeChunkedRawDataNodeKey::Serialize(Serializer& s) const {
     s.Write(chunk_size);
@@ -39,6 +40,48 @@ uint16_t BTreeNode::EntriesUsed() const {
     return std::visit([](const auto& entries) {
         return entries.EntriesUsed();
     }, entries);
+}
+
+std::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, const LocalHeap& heap) const { // NOLINT(*-no-recursion
+    if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+        return std::nullopt;
+    }
+
+    const auto& group_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+
+    // find correct child pointer
+    size_t child_index = 0;
+    for (size_t i = 0; i < group_entries.keys.size() - 1; ++i) {
+        std::string node_name = heap.ReadString(group_entries.keys[i].first_object_name);
+
+        if (name < node_name) {
+            break;
+        }
+        child_index = i + 1;
+    }
+
+    // leaf node, search for the exact entry
+    // pointers point to symbol table entries
+    if (level == 0) {
+        if (child_index < group_entries.child_pointers.size()) {
+            return group_entries.child_pointers[child_index];
+        }
+
+        return std::nullopt;
+    }
+
+
+    // recursively search the tree
+    if (child_index < group_entries.child_pointers.size()) {
+        offset_t child_addr = group_entries.child_pointers[child_index];
+
+        file.io.SetPosition(child_addr);
+        auto child_node = file.io.ReadComplex<BTreeNode>();
+
+        return child_node.Get(name, file, heap);
+    }
+
+    return std::nullopt;
 }
 
 template<typename K>
