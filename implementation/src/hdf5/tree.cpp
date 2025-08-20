@@ -43,7 +43,7 @@ uint16_t BTreeNode::EntriesUsed() const {
 }
 
 std::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, const LocalHeap& heap) const { // NOLINT(*-no-recursion
-    std::optional<uint16_t> child_index = FindIndex(name, heap);
+    std::optional<uint16_t> child_index = FindIndex(name, heap, file.io);
 
     if (!child_index) {
         return std::nullopt;
@@ -82,7 +82,7 @@ void WriteEntries(const BTreeEntries<K>& entries, Serializer& s) {
     s.Write(entries.keys.back());
 }
 
-std::optional<uint16_t> BTreeNode::FindIndex(std::string_view key, const LocalHeap& heap) const {
+std::optional<uint16_t> BTreeNode::FindIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
     if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         return std::nullopt;
     }
@@ -99,10 +99,10 @@ std::optional<uint16_t> BTreeNode::FindIndex(std::string_view key, const LocalHe
     // find correct child pointer
     uint16_t child_index = entries_ct + 1;
 
-    std::string prev = heap.ReadString(group_entries.keys.front().first_object_name);
+    std::string prev = heap.ReadString(group_entries.keys.front().first_object_name, de);
 
     for (size_t i = 1; i < group_entries.keys.size(); ++i) {
-        std::string next = heap.ReadString(group_entries.keys[i].first_object_name);
+        std::string next = heap.ReadString(group_entries.keys[i].first_object_name, de);
 
         if (prev < key && key <= next) {
             child_index = i - 1;

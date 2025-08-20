@@ -9,14 +9,7 @@
 
 struct LocalHeap {
     len_t free_list_head_offset{};
-
-    // FIXME: don't store this?
-    std::vector<byte_t> data_segment;
-
-    [[nodiscard]] std::string ReadString(offset_t offset) const;
-
-    // Read raw data at the given offset
-    [[nodiscard]] std::span<const byte_t> ReadData(len_t offset, len_t size) const;
+    [[nodiscard]] std::string ReadString(offset_t offset, Deserializer& de) const;
 
     void Serialize(Serializer& s) const;
 
@@ -24,6 +17,7 @@ struct LocalHeap {
 
 private:
     offset_t data_segment_address{};
+    len_t data_segment_size{};
 
     static constexpr std::array<uint8_t, 4> kSignature = { 'H', 'E', 'A', 'P' };
     static constexpr uint8_t kVersionNumber = 0x00;

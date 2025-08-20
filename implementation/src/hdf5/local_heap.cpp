@@ -22,23 +22,16 @@ std::string ReadNullTerminatedString(Deserializer& de, std::optional<size_t> max
     return { reinterpret_cast<const char*>(buf.data()), buf.size() };
 }
 
-std::string LocalHeap::ReadString(offset_t offset) const {
-    if (offset >= data_segment.size()) {
+std::string LocalHeap::ReadString(offset_t offset, Deserializer& de) const {
+    if (offset >= data_segment_size) {
         throw std::runtime_error("LocalHeap: offset out of bounds");
     }
 
-    auto rem_size = data_segment.size() - offset;
+    auto rem_size = data_segment_size - offset;
 
-    BufferDeserializer buf_de(std::span(data_segment.data() + offset, rem_size));
+    de.SetPosition(data_segment_address + offset);
 
-    return ReadNullTerminatedString(buf_de, rem_size);
-}
-
-std::span<const byte_t> LocalHeap::ReadData(len_t offset, len_t size) const {
-    if (offset + size > data_segment.size()) {
-        throw std::runtime_error("LocalHeap: read beyond heap bounds");
-    }
-    return { data_segment.data() + offset, size };
+    return ReadNullTerminatedString(de, rem_size);
 }
 
 void LocalHeap::Serialize(Serializer& s) const {
@@ -48,7 +41,7 @@ void LocalHeap::Serialize(Serializer& s) const {
     // reserved (zero)
     s.Write<std::array<byte_t, 3>>({});
 
-    s.Write<len_t>(data_segment.size());
+    s.Write<len_t>(data_segment_size);
     s.Write(free_list_head_offset);
     s.Write(data_segment_address);
 }
@@ -66,21 +59,11 @@ LocalHeap LocalHeap::Deserialize(Deserializer& de) {
     de.Skip<uint8_t>();
     de.Skip<uint8_t>();
 
-    auto data_segment_size = de.Read<len_t>();
 
     LocalHeap heap{};
+    heap.data_segment_size = de.Read<len_t>();
     heap.free_list_head_offset = de.Read<len_t>();
     heap.data_segment_address = de.Read<offset_t>();
-
-    heap.data_segment.resize(data_segment_size);
-
-    // read local heap
-    auto current_pos = de.GetPosition();
-
-    de.SetPosition(heap.data_segment_address);
-    de.ReadBuffer(heap.data_segment);
-
-    de.SetPosition(current_pos);
 
     return heap;
 }
