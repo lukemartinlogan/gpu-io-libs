@@ -2,7 +2,6 @@
 #include <optional>
 #include <stdexcept>
 
-#include "../serialization/buffer.h"
 #include "local_heap.h"
 
 

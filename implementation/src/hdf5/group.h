@@ -4,7 +4,6 @@
 
 #include "dataset.h"
 #include "local_heap.h"
-#include "object_header.h"
 #include "symbol_table.h"
 #include "tree.h"
 #include "file_link.h"
