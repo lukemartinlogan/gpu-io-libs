@@ -18,12 +18,13 @@ public:
 
     [[nodiscard]] Group OpenGroup(std::string_view group_name) const;
 
+    [[nodiscard]] std::optional<Object> Get(std::string_view name) const;
+
 private:
     Group() = default;
 
+    // FIXME: get rid of this method
     [[nodiscard]] SymbolTableNode GetSymbolTableNode() const;
-
-    [[nodiscard]] std::optional<Object> GetEntryWithName(std::string_view name) const;
 
 private:
 public:

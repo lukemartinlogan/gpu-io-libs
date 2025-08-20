@@ -1,8 +1,11 @@
 #pragma once
 
 #include <array>
+#include <optional>
+#include <string>
 #include <vector>
 
+#include "local_heap.h"
 #include "types.h"
 #include "../serialization/serialization.h"
 
@@ -36,6 +39,8 @@ struct SymbolTableEntry {
 
 struct SymbolTableNode {
     std::vector<SymbolTableEntry> entries;
+
+    [[nodiscard]] std::optional<offset_t> FindEntry(std::string_view name, const LocalHeap& heap) const;
 
     void Serialize(Serializer& s) const;
 
