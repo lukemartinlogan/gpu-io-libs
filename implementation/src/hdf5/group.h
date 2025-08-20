@@ -26,9 +26,6 @@ private:
     // FIXME: get rid of this method
     [[nodiscard]] SymbolTableNode GetSymbolTableNode() const;
 
-    // FIXME: get rid of this method
-    [[nodiscard]] std::optional<Object> GetEntryWithName(std::string_view name) const;
-
 private:
 public:
     Object object_;

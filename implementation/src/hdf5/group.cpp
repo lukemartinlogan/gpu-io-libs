@@ -86,17 +86,3 @@ SymbolTableNode Group::GetSymbolTableNode() const {
 
     return object_.file->io.ReadComplex<SymbolTableNode>();
 }
-
-std::optional<Object> Group::GetEntryWithName(std::string_view name) const {
-    SymbolTableNode node = GetSymbolTableNode();
-
-    for (const auto& entry : node.entries) {
-        std::string entry_name = local_heap_.ReadString(entry.link_name_offset);
-
-        if (entry_name == name) {
-            return Object(object_.file, object_.file->superblock.base_addr + entry.object_header_addr);
-        }
-    }
-
-    return std::nullopt;
-}
