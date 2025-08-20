@@ -42,8 +42,6 @@ std::optional<offset_t> LocalHeap::FindFreeSpace(len_t required_size, Deserializ
 
     offset_t current_offset = free_list_head_offset;
 
-    constexpr offset_t kLastFreeBlock = 1;
-
     while (current_offset != kLastFreeBlock) {
         if (current_offset + sizeof(FreeListBlock) > data_segment_size) {
             throw std::runtime_error("LocalHeap: free list offset out of bounds");
