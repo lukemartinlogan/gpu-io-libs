@@ -33,6 +33,33 @@ std::string LocalHeap::ReadString(offset_t offset, Deserializer& de) const {
     return ReadNullTerminatedString(de, rem_size);
 }
 
+std::optional<offset_t> LocalHeap::FindFreeSpace(len_t required_size, Deserializer& de) const {
+    static_assert(sizeof(FreeListBlock) == 2 * sizeof(len_t), "mismatch between spec");
+
+    if (free_list_head_offset == kUndefinedOffset) {
+        return std::nullopt;
+    }
+
+    offset_t current_offset = free_list_head_offset;
+
+    constexpr offset_t kLastFreeBlock = 1;
+
+    while (current_offset != kLastFreeBlock) {
+        if (current_offset + sizeof(FreeListBlock) > data_segment_size) {
+            throw std::runtime_error("LocalHeap: free list offset out of bounds");
+        }
+
+        de.SetPosition(data_segment_address + current_offset);
+        auto block = de.ReadRaw<FreeListBlock>();
+
+        if (block.size >= required_size) {
+            return current_offset;
+        }
+    }
+
+    return std::nullopt;
+}
+
 void LocalHeap::Serialize(Serializer& s) const {
     s.Write(kSignature);
     s.Write(kVersionNumber);

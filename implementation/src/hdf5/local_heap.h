@@ -8,11 +8,20 @@
 
 struct LocalHeap {
     len_t free_list_head_offset{};
+
     [[nodiscard]] std::string ReadString(offset_t offset, Deserializer& de) const;
 
     void Serialize(Serializer& s) const;
 
     static LocalHeap Deserialize(Deserializer& de);
+
+private:
+    struct FreeListBlock {
+        len_t next_free_list_offset;
+        len_t size;
+    };
+
+    std::optional<offset_t> FindFreeSpace(len_t required_size, Deserializer& de) const;
 
 private:
     offset_t data_segment_address{};
