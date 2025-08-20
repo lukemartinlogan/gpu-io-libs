@@ -75,6 +75,9 @@ struct BTreeNode {
     static BTreeNode Deserialize(Deserializer& de);
 
 private:
+    std::optional<uint16_t> FindIndex(std::string_view key, const LocalHeap& heap) const;
+
+private:
     static constexpr uint8_t kGroupNodeTy = 0, kRawDataChunkNodeTy = 1;
     static constexpr std::array<uint8_t, 4> kSignature = { 'T', 'R', 'E', 'E' };
 };

@@ -43,48 +43,22 @@ uint16_t BTreeNode::EntriesUsed() const {
 }
 
 std::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, const LocalHeap& heap) const { // NOLINT(*-no-recursion
-    if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+    std::optional<uint16_t> child_index = FindIndex(name, heap);
+
+    if (!child_index) {
         return std::nullopt;
     }
-
-    uint16_t entries_ct = EntriesUsed();
 
     const auto& group_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
-
-    if (entries_ct == 0) {
-        // empty node, no entries
-        return std::nullopt;
-    }
-
-    // find correct child pointer
-    size_t child_index = entries_ct + 1;
-
-    std::string prev = heap.ReadString(group_entries.keys.front().first_object_name);
-
-    for (size_t i = 1; i < group_entries.keys.size(); ++i) {
-        std::string node_name = heap.ReadString(group_entries.keys[i].first_object_name);
-
-        if (prev < name && name <= node_name) {
-            child_index = i - 1;
-            break;
-        }
-
-        prev = std::move(node_name);
-    }
-
-    if (child_index == entries_ct + 1) {
-        // name is greater than all keys
-        return std::nullopt;
-    }
 
     // leaf node, search for the exact entry
     // pointers point to symbol table entries
     if (level == 0) {
-        return group_entries.child_pointers[child_index];
+        return group_entries.child_pointers.at(*child_index);
     }
 
     // recursively search the tree
-    offset_t child_addr = group_entries.child_pointers.at(child_index);
+    offset_t child_addr = group_entries.child_pointers.at(*child_index);
 
     file.io.SetPosition(child_addr);
     auto child_node = file.io.ReadComplex<BTreeNode>();
@@ -106,6 +80,44 @@ void WriteEntries(const BTreeEntries<K>& entries, Serializer& s) {
     }
 
     s.Write(entries.keys.back());
+}
+
+std::optional<uint16_t> BTreeNode::FindIndex(std::string_view key, const LocalHeap& heap) const {
+    if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+        return std::nullopt;
+    }
+
+    const auto& group_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+
+    uint16_t entries_ct = EntriesUsed();
+
+    if (entries_ct == 0) {
+        // empty node, no entries
+        return std::nullopt;
+    }
+
+    // find correct child pointer
+    uint16_t child_index = entries_ct + 1;
+
+    std::string prev = heap.ReadString(group_entries.keys.front().first_object_name);
+
+    for (size_t i = 1; i < group_entries.keys.size(); ++i) {
+        std::string next = heap.ReadString(group_entries.keys[i].first_object_name);
+
+        if (prev < key && key <= next) {
+            child_index = i - 1;
+            break;
+        }
+
+        prev = std::move(next);
+    }
+
+    if (child_index == entries_ct + 1) {
+        // name is greater than all keys
+        return std::nullopt;
+    }
+
+    return child_index;
 }
 
 void BTreeNode::Serialize(Serializer& s) const {
