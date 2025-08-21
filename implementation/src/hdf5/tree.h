@@ -75,7 +75,7 @@ struct BTreeNode {
     static BTreeNode Deserialize(Deserializer& de);
 
 private:
-    std::optional<uint16_t> FindIndex(std::string_view key, const LocalHeap& heap) const;
+    std::optional<uint16_t> FindIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
 private:
     static constexpr uint8_t kGroupNodeTy = 0, kRawDataChunkNodeTy = 1;

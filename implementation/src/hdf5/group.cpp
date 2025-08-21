@@ -57,7 +57,7 @@ std::optional<Object> Group::Get(std::string_view name) const {
     object_.file->io.SetPosition(base_addr + *sym_table_node_ptr);
     auto symbol_table_node = object_.file->io.ReadComplex<SymbolTableNode>();
 
-    std::optional<offset_t> entry_addr = symbol_table_node.FindEntry(name, local_heap_);
+    std::optional<offset_t> entry_addr = symbol_table_node.FindEntry(name, local_heap_, object_.file->io);
 
     if (!entry_addr) {
         return std::nullopt;

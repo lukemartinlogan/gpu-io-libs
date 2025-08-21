@@ -40,7 +40,7 @@ struct SymbolTableEntry {
 struct SymbolTableNode {
     std::vector<SymbolTableEntry> entries;
 
-    [[nodiscard]] std::optional<offset_t> FindEntry(std::string_view name, const LocalHeap& heap) const;
+    [[nodiscard]] std::optional<offset_t> FindEntry(std::string_view name, const LocalHeap& heap, Deserializer& de) const;
 
     void Serialize(Serializer& s) const;
 
