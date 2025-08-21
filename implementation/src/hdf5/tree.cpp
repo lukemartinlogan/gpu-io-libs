@@ -87,6 +87,8 @@ std::optional<uint16_t> BTreeNode::FindIndex(std::string_view key, const LocalHe
         return std::nullopt;
     }
 
+    // TODO: can we binary search here?
+
     const auto& group_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
 
     uint16_t entries_ct = EntriesUsed();
