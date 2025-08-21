@@ -6,6 +6,8 @@
 #include "types.h"
 #include "../serialization/serialization.h"
 
+struct FileLink;
+
 struct LocalHeap {
     len_t free_list_head_offset{};
 
@@ -22,6 +24,8 @@ private:
     };
 
     std::optional<offset_t> FindFreeSpace(len_t required_size, Deserializer& de) const;
+
+    void ReserveAdditional(FileLink& file, size_t additional_bytes);
 
 private:
     offset_t data_segment_address{};

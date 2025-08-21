@@ -4,6 +4,8 @@
 
 #include "local_heap.h"
 
+#include "file_link.h"
+
 template<typename T>
 T EightBytesAlignedSize(T val) {
     return val + 7 & ~7;
@@ -61,6 +63,51 @@ std::optional<offset_t> LocalHeap::FindFreeSpace(len_t required_size, Deserializ
     }
 
     return std::nullopt;
+}
+
+void LocalHeap::ReserveAdditional(FileLink& file, size_t additional_bytes) {
+    // 1. determine new size + alloc
+    size_t new_size = std::max(
+        data_segment_size * 2,
+        data_segment_size + additional_bytes
+    );
+
+    new_size = EightBytesAlignedSize(new_size);
+
+    offset_t alloc = file.AllocateAtEOF(new_size);
+
+    // 2. move data
+    std::vector<byte_t> buffer(data_segment_size);
+
+    file.io.SetPosition(data_segment_address);
+    file.io.ReadBuffer(buffer);
+
+    file.io.SetPosition(alloc);
+    file.io.WriteBuffer(buffer);
+
+    // additional bytes are already zeroed since writing to EOF?
+    for (len_t i = 0; i < new_size - data_segment_size; ++i) {
+        file.io.WriteRaw<byte_t>({});
+    }
+
+    // 4. update free list
+    FreeListBlock block{};
+    block.size = new_size - data_segment_size;
+
+    if (free_list_head_offset == kUndefinedOffset) {
+        block.next_free_list_offset = kLastFreeBlock;
+    } else {
+        block.next_free_list_offset = free_list_head_offset;
+    }
+
+    file.io.SetPosition(alloc + data_segment_size);
+    file.io.WriteRaw(block);
+
+    free_list_head_offset = data_segment_size;
+
+    // 3. update struct
+    data_segment_address = alloc;
+    data_segment_size = new_size;
 }
 
 void LocalHeap::Serialize(Serializer& s) const {
