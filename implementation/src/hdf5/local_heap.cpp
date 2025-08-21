@@ -73,6 +73,83 @@ std::optional<LocalHeap::SuitableFreeSpace> LocalHeap::FindFreeSpace(len_t requi
     return std::nullopt;
 }
 
+offset_t LocalHeap::WriteBytes(std::span<const byte_t> data, FileLink& file) {
+    len_t aligned_size = EightBytesAlignedSize(data.size());
+
+    auto free = FindFreeSpace(aligned_size, file.io);
+
+    if (!free) {
+        ReserveAdditional(file, aligned_size);
+
+        free = FindFreeSpace(aligned_size, file.io);
+
+        if (!free) {
+            throw std::logic_error("LocalHeap: failed to allocate space after reserving more");
+        }
+    }
+
+    if (
+        free->block.size > aligned_size &&
+        free->block.size - aligned_size >= sizeof(FreeListBlock)
+    ) {
+        len_t remaining_size = free->block.size - aligned_size;
+
+        FreeListBlock new_block {
+            .next_free_list_offset = free->block.next_free_list_offset,
+            .size = remaining_size,
+        };
+
+        offset_t new_block_offset = free->this_offset + aligned_size;
+        file.io.SetPosition(data_segment_address + new_block_offset);
+        file.io.WriteRaw(new_block);
+
+        if (free->prev_block_offset.has_value()) {
+            file.io.SetPosition(data_segment_address + *free->prev_block_offset);
+            auto block = file.io.ReadRaw<FreeListBlock>();
+
+            block.next_free_list_offset = new_block_offset;
+            file.io.SetPosition(data_segment_address + *free->prev_block_offset);
+            file.io.WriteRaw(block);
+        } else {
+            free_list_head_offset = new_block_offset;
+        }
+    } else {
+        if (free->prev_block_offset.has_value()) {
+            file.io.SetPosition(data_segment_address + *free->prev_block_offset);
+            auto block = file.io.ReadRaw<FreeListBlock>();
+
+            block.next_free_list_offset = free->block.next_free_list_offset;
+            file.io.SetPosition(data_segment_address + *free->prev_block_offset);
+            file.io.WriteRaw(block);
+        } else {
+            if (free->block.next_free_list_offset == kLastFreeBlock) {
+                free_list_head_offset = kUndefinedOffset;
+            } else {
+                free_list_head_offset = free->block.next_free_list_offset;
+            }
+        }
+    }
+
+    file.io.SetPosition(data_segment_address + free->this_offset);
+    file.io.WriteBuffer(data);
+
+    for (len_t i = 0; i < aligned_size - data.size(); ++i) {
+        file.io.WriteRaw<byte_t>({});
+    }
+
+    return free->this_offset;
+}
+
+offset_t LocalHeap::WriteString(const std::string& string, FileLink& file) {
+    return WriteBytes(
+        std::span(
+            reinterpret_cast<const byte_t*>(string.c_str()),
+            string.size() + 1
+        ),
+        file
+    );
+}
+
 void LocalHeap::ReserveAdditional(FileLink& file, size_t additional_bytes) {
     // 1. determine new size + alloc
     size_t new_size = std::max(

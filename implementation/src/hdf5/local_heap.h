@@ -31,6 +31,9 @@ private:
 
     std::optional<SuitableFreeSpace> FindFreeSpace(len_t required_size, Deserializer& de) const;
 
+    offset_t WriteBytes(std::span<const byte_t> data, FileLink& file);
+    offset_t WriteString(const std::string& string, FileLink& file);
+
     void ReserveAdditional(FileLink& file, size_t additional_bytes);
 
 private:
