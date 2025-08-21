@@ -23,7 +23,13 @@ private:
         len_t size;
     };
 
-    std::optional<offset_t> FindFreeSpace(len_t required_size, Deserializer& de) const;
+    struct SuitableFreeSpace {
+        std::optional<offset_t> prev_block_offset;
+        offset_t this_offset;
+        FreeListBlock block;
+    };
+
+    std::optional<SuitableFreeSpace> FindFreeSpace(len_t required_size, Deserializer& de) const;
 
     void ReserveAdditional(FileLink& file, size_t additional_bytes);
 

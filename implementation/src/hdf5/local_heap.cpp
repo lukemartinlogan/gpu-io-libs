@@ -40,7 +40,7 @@ std::string LocalHeap::ReadString(offset_t offset, Deserializer& de) const {
     return ReadNullTerminatedString(de, rem_size);
 }
 
-std::optional<offset_t> LocalHeap::FindFreeSpace(len_t required_size, Deserializer& de) const {
+std::optional<LocalHeap::SuitableFreeSpace> LocalHeap::FindFreeSpace(len_t required_size, Deserializer& de) const {
     static_assert(sizeof(FreeListBlock) == 2 * sizeof(len_t), "mismatch between spec");
 
     if (free_list_head_offset == kUndefinedOffset) {
@@ -48,6 +48,7 @@ std::optional<offset_t> LocalHeap::FindFreeSpace(len_t required_size, Deserializ
     }
 
     offset_t current_offset = free_list_head_offset;
+    std::optional<offset_t> prev_block_offset = std::nullopt;
 
     while (current_offset != kLastFreeBlock) {
         if (current_offset + sizeof(FreeListBlock) > data_segment_size) {
@@ -58,8 +59,15 @@ std::optional<offset_t> LocalHeap::FindFreeSpace(len_t required_size, Deserializ
         auto block = de.ReadRaw<FreeListBlock>();
 
         if (block.size >= required_size) {
-            return current_offset;
+            return SuitableFreeSpace {
+                .prev_block_offset = prev_block_offset,
+                .this_offset = current_offset,
+                .block = block,
+            };
         }
+
+        prev_block_offset = current_offset;
+        current_offset = block.next_free_list_offset;
     }
 
     return std::nullopt;
