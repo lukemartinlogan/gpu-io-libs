@@ -195,3 +195,24 @@ BTreeNode BTreeNode::Deserialize(Deserializer& de) {
 bool BTreeNode::AtCapacity(KValues k) const {
     return EntriesUsed() == k.Get(level) * 2;
 }
+
+BTreeNode BTreeNode::Split(KValues k) const {
+    auto l_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+
+    BTreeEntries<BTreeGroupNodeKey> r_entries{};
+    uint16_t mid = k.Get(level);
+
+    // 1. move keys to right node
+    r_entries.keys.assign(l_entries.keys.begin() + mid, l_entries.keys.end());
+    // + 1 to keep key
+    l_entries.keys.erase(l_entries.keys.begin() + mid + 1, l_entries.keys.end());
+
+    // 2. move pointers
+    r_entries.child_pointers.assign(l_entries.child_pointers.begin() + mid, l_entries.child_pointers.end());
+    l_entries.child_pointers.erase(l_entries.child_pointers.begin() + mid, l_entries.child_pointers.end());
+
+    return {
+        .level = level,
+        .entries = r_entries,
+    };
+}

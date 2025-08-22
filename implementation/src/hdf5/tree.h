@@ -83,6 +83,8 @@ struct BTreeNode {
         }
     };
 
+    [[nodiscard]] BTreeNode Split(KValues k) const;
+
 private:
     std::optional<uint16_t> FindIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
