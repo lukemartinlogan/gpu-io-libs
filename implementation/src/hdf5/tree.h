@@ -90,6 +90,8 @@ private:
 
     [[nodiscard]] bool AtCapacity(KValues k) const;
 
+    uint16_t InsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
+
 private:
     static constexpr uint8_t kGroupNodeTy = 0, kRawDataChunkNodeTy = 1;
     static constexpr std::array<uint8_t, 4> kSignature = { 'T', 'R', 'E', 'E' };

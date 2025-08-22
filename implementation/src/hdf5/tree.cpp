@@ -122,6 +122,36 @@ std::optional<uint16_t> BTreeNode::FindIndex(std::string_view key, const LocalHe
     return child_index;
 }
 
+uint16_t BTreeNode::InsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
+    if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+        throw std::logic_error("InsertionPosition only supported for group nodes");
+    }
+
+    // TODO: can we binary search here?
+
+    const auto& group_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+
+    uint16_t entries_ct = EntriesUsed();
+
+    if (entries_ct == 0) {
+        return 0;
+    }
+
+    // find correct child pointer
+    uint16_t child_index = entries_ct;
+
+    for (size_t i = 0; i < entries_ct; ++i) {
+        std::string next = heap.ReadString(group_entries.keys.at(i + 1).first_object_name, de);
+
+        if (key <= next) {
+            child_index = i;
+            break;
+        }
+    }
+
+    return child_index;
+}
+
 void BTreeNode::Serialize(Serializer& s) const {
     uint8_t type;
     if (std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
