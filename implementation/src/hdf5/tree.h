@@ -74,6 +74,15 @@ struct BTreeNode {
 
     static BTreeNode Deserialize(Deserializer& de);
 
+    struct KValues {
+        uint16_t leaf;
+        uint16_t internal;
+
+        [[nodiscard]] uint16_t Get(uint16_t level) const {
+            return (level == 0) ? leaf : internal;
+        }
+    };
+
 private:
     std::optional<uint16_t> FindIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
