@@ -191,3 +191,7 @@ BTreeNode BTreeNode::Deserialize(Deserializer& de) {
 
     return node;
 }
+
+bool BTreeNode::AtCapacity(KValues k) const {
+    return EntriesUsed() == k.Get(level) * 2;
+}
