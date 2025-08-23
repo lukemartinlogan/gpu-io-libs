@@ -122,10 +122,14 @@ struct BTree {
     void Insert(const std::string& name, offset_t object_header_ptr);
 
 private:
+    friend class Group;
+
+    BTree() = default;
+
     [[nodiscard]] BTreeNode ReadRoot() const;
 
 private:
-    std::shared_ptr<FileLink> file_;
-    LocalHeap heap_;
-    offset_t addr_;
+    std::shared_ptr<FileLink> file_{};
+    LocalHeap heap_{};
+    offset_t addr_{};
 };
