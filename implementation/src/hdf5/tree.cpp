@@ -358,7 +358,7 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
             RawInsert(*this, { name_offset }, obj_header_ptr);
         }
 
-        // fixme: write this node changes to file
+        WriteNode(this_offset, *this);
     } else {
         std::optional<uint16_t> child_idx = FindIndex(name_str, heap, file.io);
 
@@ -398,6 +398,8 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
             } else {
                 RawInsert(*this, child_ins->promoted_key, child_ins->new_node_offset);
             }
+
+            WriteNode(this_offset, *this);
         }
     }
 
