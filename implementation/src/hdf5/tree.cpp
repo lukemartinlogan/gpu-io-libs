@@ -297,14 +297,11 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
         );
     };
 
-    auto AllocateWriteNode = [&file, k](BTreeNode& node) -> offset_t {
-        len_t alloc_size = node.AllocationSize(k);
-        offset_t alloc_start = file.AllocateAtEOF(alloc_size);
-
-        file.io.SetPosition(alloc_start);
+    auto WriteNode = [&file, k](offset_t offset, const BTreeNode& node) -> len_t {
+        file.io.SetPosition(offset);
         file.io.WriteComplex(node);
 
-        len_t written_bytes = file.io.GetPosition() - alloc_start;
+        len_t written_bytes = file.io.GetPosition() - offset;
 
         uint16_t max_entries = 2 * k.Get(node.level);
 
@@ -317,7 +314,17 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
         // fixme: this only works for group nodes, but it's fine since it would've thrown earlier
         len_t key_ptr_size = /* key: */ sizeof(len_t) + /* ptr: */ sizeof(offset_t);
 
-        if (alloc_size != written_bytes + unused_entries * key_ptr_size) {
+        // intended allocation size
+        return written_bytes + unused_entries * key_ptr_size;
+    };
+
+    auto AllocateWriteNode = [&file, k, &WriteNode](const BTreeNode& node) -> offset_t {
+        len_t alloc_size = node.AllocationSize(k);
+        offset_t alloc_start = file.AllocateAtEOF(alloc_size);
+
+        len_t intended_alloc_size = WriteNode(alloc_start, node);
+
+        if (alloc_size != intended_alloc_size) {
             throw std::logic_error("AllocateWriteNewNode: size mismatch");
         }
 
