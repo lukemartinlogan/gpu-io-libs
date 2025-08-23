@@ -396,3 +396,9 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
 
     return res;
 }
+
+BTreeNode BTree::ReadRoot() const {
+    file_->io.SetPosition(addr_);
+
+    return file_->io.ReadComplex<BTreeNode>();
+}

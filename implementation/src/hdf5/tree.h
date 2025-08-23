@@ -1,11 +1,13 @@
 #pragma once
 #include <array>
 #include <optional>
+#include <utility>
 #include <variant>
 #include <vector>
 
 #include "file_link.h"
 #include "local_heap.h"
+#include "object.h"
 #include "types.h"
 #include "../serialization/serialization.h"
 
@@ -106,4 +108,16 @@ private:
 struct SplitResult {
     BTreeGroupNodeKey promoted_key;
     offset_t new_node_offset;
+};
+
+struct BTree {
+    explicit BTree(offset_t addr, std::shared_ptr<FileLink> file)
+        : file_(std::move(file)), addr_(addr) {}
+
+private:
+    [[nodiscard]] BTreeNode ReadRoot() const;
+
+private:
+    std::shared_ptr<FileLink> file_;
+    offset_t addr_;
 };
