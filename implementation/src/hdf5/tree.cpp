@@ -152,6 +152,27 @@ uint16_t BTreeNode::InsertionPosition(std::string_view key, const LocalHeap& hea
     return child_index;
 }
 
+len_t BTreeNode::AllocationSize(KValues k_val) const {
+    const uint16_t k = k_val.Get(level);
+
+    if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+        throw std::logic_error("AllocationSize not impl for chunk nodes");
+    }
+
+    uint16_t key_size = sizeof(len_t);
+
+    return
+        + 4 // Signature
+        + 1 // Node Type
+        + 2 // Entries Used
+        + 4 // Left Sibling Address
+        + 4 // Right Sibling Address
+
+        + (2 * k + 1) *  key_size // keys
+        + (2 * k) * sizeof(offset_t) // child pointers
+    ;
+}
+
 void BTreeNode::Serialize(Serializer& s) const {
     uint8_t type;
     if (std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
