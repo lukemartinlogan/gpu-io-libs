@@ -246,3 +246,56 @@ BTreeNode BTreeNode::Split(KValues k) const {
         .entries = r_entries,
     };
 }
+
+InsertResult BTreeNode::Insert(std::string_view name, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
+    InsertResult res{};
+
+    const KValues k {
+        .leaf = file.superblock.group_leaf_node_k,
+        .internal = file.superblock.group_internal_node_k,
+    };
+
+    auto& g_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+
+    if (level == 0) {
+        auto InsertIntoLeaf = [&file, &heap, &name, &name_offset, &obj_header_ptr](BTreeNode& node) -> void {
+            auto& ins_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(node.entries);
+            uint16_t ins_pos = node.InsertionPosition(name, heap, file.io);
+
+            ins_entries.child_pointers.insert(
+                ins_entries.child_pointers.begin() + ins_pos,
+                obj_header_ptr
+            );
+
+            ins_entries.keys.insert( // keys are offset by one
+                ins_entries.keys.begin() + ins_pos + 1,
+                BTreeGroupNodeKey { name_offset }
+            );
+        };
+
+        if (AtCapacity(k)) {
+            res.split_occurred = true;
+            // do we alloc a new string?
+            uint16_t mid_index = k.leaf;
+            res.promoted_key = g_entries.keys.at(mid_index);
+            res.new_node = Split(k);
+
+            std::string promoted_key = heap.ReadString(res.promoted_key.first_object_name, file.io);
+
+            // TODO: is < or <= ?
+            if (name <= promoted_key) {
+                InsertIntoLeaf(*this);
+            } else {
+                InsertIntoLeaf(res.new_node);
+            }
+
+            // fixme: write new node changes to file
+        } else {
+            InsertIntoLeaf(*this);
+        }
+
+        // fixme: write this node changes to file
+    }
+
+    return res;
+}
