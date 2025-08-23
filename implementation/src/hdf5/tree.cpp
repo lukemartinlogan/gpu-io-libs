@@ -295,6 +295,57 @@ InsertResult BTreeNode::Insert(std::string_view name, offset_t name_offset, offs
         }
 
         // fixme: write this node changes to file
+    } else {
+        auto InsertIntoInternal = [&file, &heap, &name, &name_offset](BTreeNode& node, offset_t node_alloc) -> void {
+            auto& ins_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(node.entries);
+            uint16_t ins_pos = node.InsertionPosition(name, heap, file.io);
+
+            ins_entries.child_pointers.insert(
+                ins_entries.child_pointers.begin() + ins_pos,
+                node_alloc
+            );
+
+            ins_entries.keys.insert( // keys are offset by one
+                ins_entries.keys.begin() + ins_pos + 1,
+                BTreeGroupNodeKey { name_offset }
+            );
+        };
+
+        std::optional<uint16_t> child_idx = FindIndex(name, heap, file.io);
+
+        if (!child_idx) {
+            throw std::runtime_error("BTreeNode::Insert: could not find child index");
+        }
+
+        offset_t child_offset = g_entries.child_pointers.at(*child_idx);
+
+        file.io.SetPosition(child_offset);
+        auto child = file.io.ReadComplex<BTreeNode>();
+
+        InsertResult child_ins = child.Insert(name, name_offset, obj_header_ptr, file, heap);
+
+        if (child_ins.split_occurred) {
+            // fixme: alloc new  / get alloc from child result
+            offset_t alloc = 0;
+
+            if (AtCapacity(k)) {
+                res.split_occurred = true;
+                uint16_t mid_index = k.internal;
+                res.promoted_key = g_entries.keys.at(mid_index);
+                res.new_node = Split(k);
+
+                std::string promoted_key = heap.ReadString(res.promoted_key.first_object_name, file.io);
+
+                // TODO: is < or <= ?
+                if (name <= promoted_key) {
+                    InsertIntoInternal(*this, alloc);
+                } else {
+                    InsertIntoInternal(res.new_node, alloc);
+                }
+            } else {
+                InsertIntoInternal(*this, alloc);
+            }
+        }
     }
 
     return res;
