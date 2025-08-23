@@ -13,7 +13,7 @@ struct LocalHeap {
 
     [[nodiscard]] std::string ReadString(offset_t offset, Deserializer& de) const;
 
-    offset_t WriteString(const std::string& string, FileLink& file);
+    offset_t WriteString(std::string_view string, FileLink& file);
 
     void Serialize(Serializer& s) const;
 

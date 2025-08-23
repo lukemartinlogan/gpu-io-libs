@@ -140,11 +140,13 @@ offset_t LocalHeap::WriteBytes(std::span<const byte_t> data, FileLink& file) {
     return free->this_offset;
 }
 
-offset_t LocalHeap::WriteString(const std::string& string, FileLink& file) {
+offset_t LocalHeap::WriteString(std::string_view string, FileLink& file) {
+    std::string null_terminated(string);
+
     return WriteBytes(
         std::span(
-            reinterpret_cast<const byte_t*>(string.c_str()),
-            string.size() + 1
+            reinterpret_cast<const byte_t*>(null_terminated.c_str()),
+            null_terminated.size() + 1
         ),
         file
     );
