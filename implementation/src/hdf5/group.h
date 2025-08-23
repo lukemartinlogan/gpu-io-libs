@@ -23,12 +23,16 @@ private:
     Group() = default;
 
     // FIXME: get rid of this method
+    const LocalHeap& GetLocalHeap() const {
+        return table_.heap_;
+    }
+
+    // FIXME: get rid of this method
     [[nodiscard]] SymbolTableNode GetSymbolTableNode() const;
 
 private:
 public:
     Object object_;
 
-    BTreeNode table_{};
-    LocalHeap local_heap_{};
+    BTree table_{};
 };

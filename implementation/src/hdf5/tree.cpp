@@ -60,7 +60,7 @@ std::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, co
     // recursively search the tree
     offset_t child_addr = group_entries.child_pointers.at(*child_index);
 
-    file.io.SetPosition(child_addr);
+    file.io.SetPosition(file.superblock.base_addr + child_addr);
     auto child_node = file.io.ReadComplex<BTreeNode>();
 
     return child_node.Get(name, file, heap);
@@ -395,4 +395,26 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
     }
 
     return res;
+}
+
+std::optional<offset_t> BTree::Get(std::string_view name) const {
+    return ReadRoot().Get(name, *file_, heap_);
+}
+
+void BTree::Insert(offset_t name_offset, offset_t object_header_ptr) {
+    BTreeNode root = ReadRoot();
+
+    auto fixme_split = root.Insert(addr_, name_offset, object_header_ptr, *file_, heap_);
+}
+
+void BTree::Insert(const std::string& name, offset_t object_header_ptr) {
+    offset_t name_offset = heap_.WriteString(name, *file_);
+
+    return Insert(name_offset, object_header_ptr);
+}
+
+BTreeNode BTree::ReadRoot() const {
+    file_->io.SetPosition(addr_);
+
+    return file_->io.ReadComplex<BTreeNode>();
 }

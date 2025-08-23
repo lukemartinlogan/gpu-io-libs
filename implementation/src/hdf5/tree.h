@@ -1,11 +1,13 @@
 #pragma once
 #include <array>
 #include <optional>
+#include <utility>
 #include <variant>
 #include <vector>
 
 #include "file_link.h"
 #include "local_heap.h"
+#include "object.h"
 #include "types.h"
 #include "../serialization/serialization.h"
 
@@ -77,6 +79,8 @@ struct BTreeNode {
     static BTreeNode Deserialize(Deserializer& de);
 
 private:
+    friend struct BTree;
+
     struct KValues {
         uint16_t leaf;
         uint16_t internal;
@@ -106,4 +110,26 @@ private:
 struct SplitResult {
     BTreeGroupNodeKey promoted_key;
     offset_t new_node_offset;
+};
+
+struct BTree {
+    explicit BTree(offset_t addr, std::shared_ptr<FileLink> file, const LocalHeap& heap)
+        : file_(std::move(file)), heap_(heap), addr_(addr) {}
+
+    [[nodiscard]] std::optional<offset_t> Get(std::string_view name) const;
+
+    void Insert(offset_t name_offset, offset_t object_header_ptr);
+    void Insert(const std::string& name, offset_t object_header_ptr);
+
+private:
+    friend class Group;
+
+    BTree() = default;
+
+    [[nodiscard]] BTreeNode ReadRoot() const;
+
+private:
+    std::shared_ptr<FileLink> file_{};
+    LocalHeap heap_{};
+    offset_t addr_{};
 };
