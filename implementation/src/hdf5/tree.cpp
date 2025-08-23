@@ -297,7 +297,6 @@ std::optional<SplitResult> BTreeNode::Insert(std::string_view name, offset_t nam
             res = {
                 .promoted_key = promoted_key,
                 .new_node_offset = new_node_alloc,
-                .new_node = new_node
             };
         } else {
             RawInsert(*this, { name_offset }, obj_header_ptr);
@@ -340,7 +339,6 @@ std::optional<SplitResult> BTreeNode::Insert(std::string_view name, offset_t nam
                 res = {
                     .promoted_key = promoted_key,
                     .new_node_offset = new_node_alloc,
-                    .new_node = new_node
                 };
             } else {
                 RawInsert(*this, child_ins->promoted_key, child_ins->new_node_offset);

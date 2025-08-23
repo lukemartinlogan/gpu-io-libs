@@ -104,5 +104,4 @@ private:
 struct SplitResult {
     BTreeGroupNodeKey promoted_key;
     offset_t new_node_offset;
-    BTreeNode new_node;
 };
