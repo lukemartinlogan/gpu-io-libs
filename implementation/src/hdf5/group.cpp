@@ -66,7 +66,7 @@ std::optional<Object> Group::Get(std::string_view name) const {
 }
 
 SymbolTableNode Group::GetSymbolTableNode() const {
-    BTreeNode table = table_.ReadRoot();
+    BTreeNode table = table_.ReadRoot().value();
 
     if (!table.IsLeaf()) {
         throw std::logic_error("traversing tree not implemented");

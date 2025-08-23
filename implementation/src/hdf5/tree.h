@@ -138,10 +138,10 @@ private:
 
     BTree() = default;
 
-    [[nodiscard]] BTreeNode ReadRoot() const;
+    [[nodiscard]] std::optional<BTreeNode> ReadRoot() const;
 
 private:
     std::shared_ptr<FileLink> file_{};
     LocalHeap heap_{};
-    offset_t addr_{};
+    std::optional<offset_t> addr_{};
 };

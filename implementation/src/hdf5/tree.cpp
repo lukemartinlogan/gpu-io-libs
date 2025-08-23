@@ -446,37 +446,62 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
 }
 
 std::optional<offset_t> BTree::Get(std::string_view name) const {
-    return ReadRoot().Get(name, *file_, heap_);
+    std::optional<BTreeNode> root = ReadRoot();
+
+    if (!root.has_value()) {
+        return std::nullopt;
+    }
+
+    return ReadRoot()->Get(name, *file_, heap_);
 }
 
 void BTree::Insert(offset_t name_offset, offset_t object_header_ptr) {
-    BTreeNode root = ReadRoot();
+    const BTreeNode::KValues k {
+        .leaf = file_->superblock.group_leaf_node_k,
+        .internal = file_->superblock.group_internal_node_k
+    };
 
-    std::optional<SplitResult> split = root.Insert(addr_, name_offset, object_header_ptr, *file_, heap_);
+    std::optional<BTreeNode> root = ReadRoot();
+
+    if (!root.has_value()) {
+        BTreeEntries<BTreeGroupNodeKey> entries{};
+
+        offset_t empty_str_offset = heap_.WriteString("", *file_);
+
+        entries.keys.push_back({ empty_str_offset });
+        entries.child_pointers.push_back(/* root: */ object_header_ptr);
+        entries.keys.push_back({ name_offset });
+
+        BTreeNode new_root {
+            .level = 1,
+            .entries = entries,
+        };
+
+        addr_ = new_root.AllocateAndWrite(*file_, k);
+
+        return;
+    }
+
+    std::optional<SplitResult> split = root->Insert(*addr_, name_offset, object_header_ptr, *file_, heap_);
 
     if (split.has_value()) {
         BTreeEntries<BTreeGroupNodeKey> entries{};
 
-        BTreeGroupNodeKey min = root.GetMinKey(), max = root.GetMaxKey(*file_);
+        BTreeGroupNodeKey min = root->GetMinKey(), max = root->GetMaxKey(*file_);
 
         entries.keys.push_back(min);
-        entries.child_pointers.push_back(/* root: */ addr_);
+        entries.child_pointers.push_back(/* root: */ *addr_);
         entries.keys.push_back(split->promoted_key);
         entries.child_pointers.push_back(split->new_node_offset);
         entries.keys.push_back(max);
 
-        if (root.level == std::numeric_limits<uint8_t>::max()) {
+        if (root->level == std::numeric_limits<uint8_t>::max()) {
             throw std::runtime_error("BTree level overflow");
         }
 
         BTreeNode new_root {
-            .level = static_cast<uint8_t>(root.level + 1),
+            .level = static_cast<uint8_t>(root->level + 1),
             .entries = entries,
-        };
-
-        const BTreeNode::KValues k {
-            .leaf = file_->superblock.group_leaf_node_k,
-            .internal = file_->superblock.group_internal_node_k
         };
 
         addr_ = new_root.AllocateAndWrite(*file_, k);
@@ -489,8 +514,12 @@ void BTree::Insert(const std::string& name, offset_t object_header_ptr) {
     return Insert(name_offset, object_header_ptr);
 }
 
-BTreeNode BTree::ReadRoot() const {
-    file_->io.SetPosition(addr_);
+std::optional<BTreeNode> BTree::ReadRoot() const {
+    if (!addr_.has_value()) {
+        return std::nullopt;
+    }
+
+    file_->io.SetPosition(*addr_);
 
     return file_->io.ReadComplex<BTreeNode>();
 }
