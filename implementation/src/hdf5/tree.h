@@ -76,6 +76,7 @@ struct BTreeNode {
 
     static BTreeNode Deserialize(Deserializer& de);
 
+private:
     struct KValues {
         uint16_t leaf;
         uint16_t internal;
@@ -89,7 +90,6 @@ struct BTreeNode {
 
     std::optional<SplitResult> Insert(std::string_view name, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
 
-private:
     std::optional<uint16_t> FindIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
     [[nodiscard]] bool AtCapacity(KValues k) const;
