@@ -114,6 +114,7 @@ struct BTree {
     explicit BTree(offset_t addr, std::shared_ptr<FileLink> file, const LocalHeap& heap)
         : file_(std::move(file)), heap_(heap), addr_(addr) {}
 
+    [[nodiscard]] std::optional<offset_t> Get(std::string_view name) const;
 private:
     [[nodiscard]] BTreeNode ReadRoot() const;
 

@@ -397,6 +397,10 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
     return res;
 }
 
+std::optional<offset_t> BTree::Get(std::string_view name) const {
+    return ReadRoot().Get(name, *file_, heap_);
+}
+
 BTreeNode BTree::ReadRoot() const {
     file_->io.SetPosition(addr_);
 
