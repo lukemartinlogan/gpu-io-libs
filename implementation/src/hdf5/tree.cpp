@@ -268,8 +268,10 @@ BTreeNode BTreeNode::Split(KValues k) const {
     };
 }
 
-std::optional<SplitResult> BTreeNode::Insert(std::string_view name, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
+std::optional<SplitResult> BTreeNode::Insert(offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
     std::optional<SplitResult> res{};
+
+    std::string name_str = heap.ReadString(name_offset, file.io);
 
     const KValues k {
         .leaf = file.superblock.group_leaf_node_k,
@@ -333,7 +335,7 @@ std::optional<SplitResult> BTreeNode::Insert(std::string_view name, offset_t nam
             std::string promoted_key_str = heap.ReadString(promoted_key.first_object_name, file.io);
 
             // TODO: is < or <= ?
-            if (name <= promoted_key_str) {
+            if (name_str <= promoted_key_str) {
                 RawInsert(*this, { name_offset }, obj_header_ptr);
             } else {
                 RawInsert(new_node, { name_offset }, obj_header_ptr);
@@ -351,7 +353,7 @@ std::optional<SplitResult> BTreeNode::Insert(std::string_view name, offset_t nam
 
         // fixme: write this node changes to file
     } else {
-        std::optional<uint16_t> child_idx = FindIndex(name, heap, file.io);
+        std::optional<uint16_t> child_idx = FindIndex(name_str, heap, file.io);
 
         if (!child_idx) {
             throw std::runtime_error("BTreeNode::Insert: could not find child index");
@@ -362,7 +364,7 @@ std::optional<SplitResult> BTreeNode::Insert(std::string_view name, offset_t nam
         file.io.SetPosition(child_offset);
         auto child = file.io.ReadComplex<BTreeNode>();
 
-        std::optional<SplitResult> child_ins = child.Insert(name, name_offset, obj_header_ptr, file, heap);
+        std::optional<SplitResult> child_ins = child.Insert(name_offset, obj_header_ptr, file, heap);
 
         if (child_ins.has_value()) {
             if (AtCapacity(k)) {
@@ -374,7 +376,7 @@ std::optional<SplitResult> BTreeNode::Insert(std::string_view name, offset_t nam
                 std::string promoted_key_str = heap.ReadString(promoted_key.first_object_name, file.io);
 
                 // TODO: is < or <= ?
-                if (name <= promoted_key_str) {
+                if (name_str <= promoted_key_str) {
                     RawInsert(*this, child_ins->promoted_key, child_ins->new_node_offset);
                 } else {
                     RawInsert(new_node, child_ins->promoted_key, child_ins->new_node_offset);
