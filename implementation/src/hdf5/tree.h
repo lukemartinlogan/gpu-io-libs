@@ -111,13 +111,14 @@ struct SplitResult {
 };
 
 struct BTree {
-    explicit BTree(offset_t addr, std::shared_ptr<FileLink> file)
-        : file_(std::move(file)), addr_(addr) {}
+    explicit BTree(offset_t addr, std::shared_ptr<FileLink> file, const LocalHeap& heap)
+        : file_(std::move(file)), heap_(heap), addr_(addr) {}
 
 private:
     [[nodiscard]] BTreeNode ReadRoot() const;
 
 private:
     std::shared_ptr<FileLink> file_;
+    LocalHeap heap_;
     offset_t addr_;
 };
