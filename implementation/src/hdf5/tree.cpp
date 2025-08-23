@@ -60,7 +60,7 @@ std::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, co
     // recursively search the tree
     offset_t child_addr = group_entries.child_pointers.at(*child_index);
 
-    file.io.SetPosition(child_addr);
+    file.io.SetPosition(file.superblock.base_addr + child_addr);
     auto child_node = file.io.ReadComplex<BTreeNode>();
 
     return child_node.Get(name, file, heap);
