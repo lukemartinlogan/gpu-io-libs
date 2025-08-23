@@ -257,22 +257,24 @@ InsertResult BTreeNode::Insert(std::string_view name, offset_t name_offset, offs
 
     auto& g_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
 
+    auto RawInsert = [&file, &heap](BTreeNode& node, BTreeGroupNodeKey key, offset_t child_ptr) -> void {
+        std::string key_str = heap.ReadString(key.first_object_name, file.io);
+
+        auto& ins_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(node.entries);
+        uint16_t ins_pos = node.InsertionPosition(key_str, heap, file.io);
+
+        ins_entries.child_pointers.insert(
+            ins_entries.child_pointers.begin() + ins_pos,
+            child_ptr
+        );
+
+        ins_entries.keys.insert( // keys are offset by one
+            ins_entries.keys.begin() + ins_pos + 1,
+            key
+        );
+    };
+
     if (level == 0) {
-        auto InsertIntoLeaf = [&file, &heap, &name, &name_offset, &obj_header_ptr](BTreeNode& node) -> void {
-            auto& ins_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(node.entries);
-            uint16_t ins_pos = node.InsertionPosition(name, heap, file.io);
-
-            ins_entries.child_pointers.insert(
-                ins_entries.child_pointers.begin() + ins_pos,
-                obj_header_ptr
-            );
-
-            ins_entries.keys.insert( // keys are offset by one
-                ins_entries.keys.begin() + ins_pos + 1,
-                BTreeGroupNodeKey { name_offset }
-            );
-        };
-
         if (AtCapacity(k)) {
             res.split_occurred = true;
             // do we alloc a new string?
@@ -284,33 +286,18 @@ InsertResult BTreeNode::Insert(std::string_view name, offset_t name_offset, offs
 
             // TODO: is < or <= ?
             if (name <= promoted_key) {
-                InsertIntoLeaf(*this);
+                RawInsert(*this, { name_offset }, obj_header_ptr);
             } else {
-                InsertIntoLeaf(res.new_node);
+                RawInsert(res.new_node, { name_offset }, obj_header_ptr);
             }
 
             // fixme: write new node changes to file
         } else {
-            InsertIntoLeaf(*this);
+            RawInsert(*this, { name_offset }, obj_header_ptr);
         }
 
         // fixme: write this node changes to file
     } else {
-        auto InsertIntoInternal = [&file, &heap, &name, &name_offset](BTreeNode& node, offset_t node_alloc) -> void {
-            auto& ins_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(node.entries);
-            uint16_t ins_pos = node.InsertionPosition(name, heap, file.io);
-
-            ins_entries.child_pointers.insert(
-                ins_entries.child_pointers.begin() + ins_pos,
-                node_alloc
-            );
-
-            ins_entries.keys.insert( // keys are offset by one
-                ins_entries.keys.begin() + ins_pos + 1,
-                BTreeGroupNodeKey { name_offset }
-            );
-        };
-
         std::optional<uint16_t> child_idx = FindIndex(name, heap, file.io);
 
         if (!child_idx) {
@@ -338,12 +325,12 @@ InsertResult BTreeNode::Insert(std::string_view name, offset_t name_offset, offs
 
                 // TODO: is < or <= ?
                 if (name <= promoted_key) {
-                    InsertIntoInternal(*this, alloc);
+                    RawInsert(*this, child_ins.promoted_key, alloc);
                 } else {
-                    InsertIntoInternal(res.new_node, alloc);
+                    RawInsert(res.new_node, child_ins.promoted_key, alloc);
                 }
             } else {
-                InsertIntoInternal(*this, alloc);
+                RawInsert(*this, child_ins.promoted_key, alloc);
             }
         }
     }
