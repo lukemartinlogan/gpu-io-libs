@@ -88,7 +88,7 @@ private:
 
     [[nodiscard]] BTreeNode Split(KValues k) const;
 
-    std::optional<SplitResult> Insert(offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
+    std::optional<SplitResult> Insert(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
 
     std::optional<uint16_t> FindIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 

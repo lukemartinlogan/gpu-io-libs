@@ -268,7 +268,7 @@ BTreeNode BTreeNode::Split(KValues k) const {
     };
 }
 
-std::optional<SplitResult> BTreeNode::Insert(offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
+std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
     std::optional<SplitResult> res{};
 
     std::string name_str = heap.ReadString(name_offset, file.io);
@@ -364,7 +364,7 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t name_offset, offset_t obj_
         file.io.SetPosition(child_offset);
         auto child = file.io.ReadComplex<BTreeNode>();
 
-        std::optional<SplitResult> child_ins = child.Insert(name_offset, obj_header_ptr, file, heap);
+        std::optional<SplitResult> child_ins = child.Insert(child_offset, name_offset, obj_header_ptr, file, heap);
 
         if (child_ins.has_value()) {
             if (AtCapacity(k)) {
