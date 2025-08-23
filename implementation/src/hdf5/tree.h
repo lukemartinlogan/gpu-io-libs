@@ -44,7 +44,7 @@ struct BTreeEntries {
     [[nodiscard]] uint16_t EntriesUsed() const;
 };
 
-struct InsertResult;
+struct SplitResult;
 
 struct BTreeNode {
     // type: (not stored, check variant)
@@ -87,7 +87,7 @@ struct BTreeNode {
 
     [[nodiscard]] BTreeNode Split(KValues k) const;
 
-    InsertResult Insert(std::string_view name, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
+    std::optional<SplitResult> Insert(std::string_view name, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
 
 private:
     std::optional<uint16_t> FindIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
@@ -101,8 +101,8 @@ private:
     static constexpr std::array<uint8_t, 4> kSignature = { 'T', 'R', 'E', 'E' };
 };
 
-struct InsertResult {
-    bool split_occurred;
+struct SplitResult {
     BTreeGroupNodeKey promoted_key;
+    offset_t new_node_offset;
     BTreeNode new_node;
 };

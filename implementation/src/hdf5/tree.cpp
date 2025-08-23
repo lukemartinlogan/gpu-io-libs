@@ -247,8 +247,8 @@ BTreeNode BTreeNode::Split(KValues k) const {
     };
 }
 
-InsertResult BTreeNode::Insert(std::string_view name, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
-    InsertResult res{};
+std::optional<SplitResult> BTreeNode::Insert(std::string_view name, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
+    std::optional<SplitResult> res{};
 
     const KValues k {
         .leaf = file.superblock.group_leaf_node_k,
@@ -276,22 +276,29 @@ InsertResult BTreeNode::Insert(std::string_view name, offset_t name_offset, offs
 
     if (level == 0) {
         if (AtCapacity(k)) {
-            res.split_occurred = true;
             // do we alloc a new string?
             uint16_t mid_index = k.leaf;
-            res.promoted_key = g_entries.keys.at(mid_index);
-            res.new_node = Split(k);
 
-            std::string promoted_key = heap.ReadString(res.promoted_key.first_object_name, file.io);
+            BTreeGroupNodeKey promoted_key = g_entries.keys.at(mid_index);
+            BTreeNode new_node = Split(k);
+
+            std::string promoted_key_str = heap.ReadString(promoted_key.first_object_name, file.io);
 
             // TODO: is < or <= ?
-            if (name <= promoted_key) {
+            if (name <= promoted_key_str) {
                 RawInsert(*this, { name_offset }, obj_header_ptr);
             } else {
-                RawInsert(res.new_node, { name_offset }, obj_header_ptr);
+                RawInsert(new_node, { name_offset }, obj_header_ptr);
             }
 
-            // fixme: write new node changes to file
+            // FIXME: alloc newly created node & write to file
+            offset_t new_node_alloc = 0;
+
+            res = {
+                .promoted_key = promoted_key,
+                .new_node_offset = new_node_alloc,
+                .new_node = new_node
+            };
         } else {
             RawInsert(*this, { name_offset }, obj_header_ptr);
         }
@@ -309,28 +316,34 @@ InsertResult BTreeNode::Insert(std::string_view name, offset_t name_offset, offs
         file.io.SetPosition(child_offset);
         auto child = file.io.ReadComplex<BTreeNode>();
 
-        InsertResult child_ins = child.Insert(name, name_offset, obj_header_ptr, file, heap);
+        std::optional<SplitResult> child_ins = child.Insert(name, name_offset, obj_header_ptr, file, heap);
 
-        if (child_ins.split_occurred) {
-            // fixme: alloc new  / get alloc from child result
-            offset_t alloc = 0;
-
+        if (child_ins.has_value()) {
             if (AtCapacity(k)) {
-                res.split_occurred = true;
                 uint16_t mid_index = k.internal;
-                res.promoted_key = g_entries.keys.at(mid_index);
-                res.new_node = Split(k);
 
-                std::string promoted_key = heap.ReadString(res.promoted_key.first_object_name, file.io);
+                BTreeGroupNodeKey promoted_key = g_entries.keys.at(mid_index);
+                BTreeNode new_node = Split(k);
+
+                std::string promoted_key_str = heap.ReadString(promoted_key.first_object_name, file.io);
 
                 // TODO: is < or <= ?
-                if (name <= promoted_key) {
-                    RawInsert(*this, child_ins.promoted_key, alloc);
+                if (name <= promoted_key_str) {
+                    RawInsert(*this, child_ins->promoted_key, child_ins->new_node_offset);
                 } else {
-                    RawInsert(res.new_node, child_ins.promoted_key, alloc);
+                    RawInsert(new_node, child_ins->promoted_key, child_ins->new_node_offset);
                 }
+
+                // FIXME: alloc newly created node & write to file
+                offset_t new_node_alloc = 0;
+
+                res = {
+                    .promoted_key = promoted_key,
+                    .new_node_offset = new_node_alloc,
+                    .new_node = new_node
+                };
             } else {
-                RawInsert(*this, child_ins.promoted_key, alloc);
+                RawInsert(*this, child_ins->promoted_key, child_ins->new_node_offset);
             }
         }
     }
