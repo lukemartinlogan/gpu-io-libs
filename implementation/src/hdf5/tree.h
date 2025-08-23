@@ -72,6 +72,10 @@ struct BTreeNode {
     // most nodes point to less than that
     [[nodiscard]] uint16_t EntriesUsed() const;
 
+    [[nodiscard]] bool IsLeaf() const {
+        return level == 0;
+    }
+
     [[nodiscard]] std::optional<offset_t> Get(std::string_view name, FileLink& file, const LocalHeap& heap) const;
 
     void Serialize(Serializer& s) const;
@@ -85,8 +89,8 @@ private:
         uint16_t leaf;
         uint16_t internal;
 
-        [[nodiscard]] uint16_t Get(uint16_t level) const {
-            return (level == 0) ? leaf : internal;
+        [[nodiscard]] uint16_t Get(bool is_leaf) const {
+            return is_leaf ? leaf : internal;
         }
     };
 

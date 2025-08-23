@@ -53,7 +53,7 @@ std::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, co
 
     // leaf node, search for the exact entry
     // pointers point to symbol table entries
-    if (level == 0) {
+    if (IsLeaf()) {
         return group_entries.child_pointers.at(*child_index);
     }
 
@@ -153,7 +153,7 @@ uint16_t BTreeNode::InsertionPosition(std::string_view key, const LocalHeap& hea
 }
 
 len_t BTreeNode::AllocationSize(KValues k_val) const {
-    const uint16_t k = k_val.Get(level);
+    const uint16_t k = k_val.Get(IsLeaf());
 
     if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         throw std::logic_error("AllocationSize not impl for chunk nodes");
@@ -244,14 +244,14 @@ BTreeNode BTreeNode::Deserialize(Deserializer& de) {
 }
 
 bool BTreeNode::AtCapacity(KValues k) const {
-    return EntriesUsed() == k.Get(level) * 2;
+    return EntriesUsed() == k.Get(IsLeaf()) * 2;
 }
 
 BTreeNode BTreeNode::Split(KValues k) const {
     auto l_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
 
     BTreeEntries<BTreeGroupNodeKey> r_entries{};
-    uint16_t mid = k.Get(level);
+    uint16_t mid = k.Get(IsLeaf());
 
     // 1. move keys to right node
     r_entries.keys.assign(l_entries.keys.begin() + mid, l_entries.keys.end());
@@ -303,13 +303,13 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
 
         len_t written_bytes = file.io.GetPosition() - offset;
 
-        uint16_t max_entries = 2 * k.Get(node.level);
+        uint16_t max_entries = 2 * k.Get(node.IsLeaf());
 
         if (node.EntriesUsed() > max_entries) {
             throw std::logic_error("AllocateWriteNewNode called on over-capacity node");
         }
 
-        len_t unused_entries = 2 * k.Get(node.level) - node.EntriesUsed();
+        len_t unused_entries = 2 * k.Get(node.IsLeaf()) - node.EntriesUsed();
 
         // fixme: this only works for group nodes, but it's fine since it would've thrown earlier
         len_t key_ptr_size = /* key: */ sizeof(len_t) + /* ptr: */ sizeof(offset_t);
@@ -331,7 +331,7 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
         return alloc_start;
     };
 
-    if (level == 0) {
+    if (IsLeaf()) {
         if (AtCapacity(k)) {
             // do we alloc a new string?
             uint16_t mid_index = k.leaf;
