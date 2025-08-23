@@ -175,6 +175,22 @@ BTreeGroupNodeKey BTreeNode::GetMaxKey(FileLink& file) const {
     }
 }
 
+BTreeGroupNodeKey BTreeNode::GetMinKey() const {
+    using GroupEntries = BTreeEntries<BTreeGroupNodeKey>;
+
+    if (!std::holds_alternative<GroupEntries>(entries)) {
+        throw std::logic_error("GetMaxKey only supported for group nodes");
+    }
+
+    auto g_entries = std::get<GroupEntries>(entries);
+
+    if (g_entries.EntriesUsed() == 0) {
+        throw std::logic_error("GetMaxKey called on empty node");
+    }
+
+    return g_entries.keys.front();
+}
+
 len_t BTreeNode::AllocationSize(KValues k_val) const {
     const uint16_t k = k_val.Get(IsLeaf());
 

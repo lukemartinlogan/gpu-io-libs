@@ -106,6 +106,8 @@ private:
 
     [[nodiscard]] BTreeGroupNodeKey GetMaxKey(FileLink& file) const;
 
+    [[nodiscard]] BTreeGroupNodeKey GetMinKey() const;
+
     [[nodiscard]] len_t AllocationSize(KValues k) const;
 
 private:
