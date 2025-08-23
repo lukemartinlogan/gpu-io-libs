@@ -104,6 +104,8 @@ private:
 
     uint16_t InsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
+    [[nodiscard]] BTreeGroupNodeKey GetMaxKey(FileLink& file) const;
+
     [[nodiscard]] len_t AllocationSize(KValues k) const;
 
 private:

@@ -152,6 +152,29 @@ uint16_t BTreeNode::InsertionPosition(std::string_view key, const LocalHeap& hea
     return child_index;
 }
 
+BTreeGroupNodeKey BTreeNode::GetMaxKey(FileLink& file) const {
+    using GroupEntries = BTreeEntries<BTreeGroupNodeKey>;
+
+    if (!std::holds_alternative<GroupEntries>(entries)) {
+        throw std::logic_error("GetMaxKey only supported for group nodes");
+    }
+
+    auto g_entries = std::get<GroupEntries>(entries);
+
+    if (g_entries.EntriesUsed() == 0) {
+        throw std::logic_error("GetMaxKey called on empty node");
+    }
+
+    if (IsLeaf()) {
+        return g_entries.keys.back();
+    } else {
+        file.io.SetPosition(file.superblock.base_addr + g_entries.child_pointers.back());
+        auto child = file.io.ReadComplex<BTreeNode>();
+
+        return child.GetMaxKey(file);
+    }
+}
+
 len_t BTreeNode::AllocationSize(KValues k_val) const {
     const uint16_t k = k_val.Get(IsLeaf());
 
