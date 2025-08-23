@@ -295,6 +295,33 @@ std::optional<SplitResult> BTreeNode::Insert(std::string_view name, offset_t nam
         );
     };
 
+    auto AllocateWriteNode = [&file, k](BTreeNode& node) -> offset_t {
+        len_t alloc_size = node.AllocationSize(k);
+        offset_t alloc_start = file.AllocateAtEOF(alloc_size);
+
+        file.io.SetPosition(alloc_start);
+        file.io.WriteComplex(node);
+
+        len_t written_bytes = file.io.GetPosition() - alloc_start;
+
+        uint16_t max_entries = 2 * k.Get(node.level);
+
+        if (node.EntriesUsed() > max_entries) {
+            throw std::logic_error("AllocateWriteNewNode called on over-capacity node");
+        }
+
+        len_t unused_entries = 2 * k.Get(node.level) - node.EntriesUsed();
+
+        // fixme: this only works for group nodes, but it's fine since it would've thrown earlier
+        len_t key_ptr_size = /* key: */ sizeof(len_t) + /* ptr: */ sizeof(offset_t);
+
+        if (alloc_size != written_bytes + unused_entries * key_ptr_size) {
+            throw std::logic_error("AllocateWriteNewNode: size mismatch");
+        }
+
+        return alloc_start;
+    };
+
     if (level == 0) {
         if (AtCapacity(k)) {
             // do we alloc a new string?
@@ -312,8 +339,7 @@ std::optional<SplitResult> BTreeNode::Insert(std::string_view name, offset_t nam
                 RawInsert(new_node, { name_offset }, obj_header_ptr);
             }
 
-            // FIXME: alloc newly created node & write to file
-            offset_t new_node_alloc = 0;
+            offset_t new_node_alloc = AllocateWriteNode(new_node);
 
             res = {
                 .promoted_key = promoted_key,
@@ -354,8 +380,7 @@ std::optional<SplitResult> BTreeNode::Insert(std::string_view name, offset_t nam
                     RawInsert(new_node, child_ins->promoted_key, child_ins->new_node_offset);
                 }
 
-                // FIXME: alloc newly created node & write to file
-                offset_t new_node_alloc = 0;
+                offset_t new_node_alloc = AllocateWriteNode(new_node);
 
                 res = {
                     .promoted_key = promoted_key,
