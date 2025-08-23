@@ -79,6 +79,8 @@ struct BTreeNode {
     static BTreeNode Deserialize(Deserializer& de);
 
 private:
+    friend struct BTree;
+
     struct KValues {
         uint16_t leaf;
         uint16_t internal;
@@ -115,6 +117,10 @@ struct BTree {
         : file_(std::move(file)), heap_(heap), addr_(addr) {}
 
     [[nodiscard]] std::optional<offset_t> Get(std::string_view name) const;
+
+    void Insert(offset_t name_offset, offset_t object_header_ptr);
+    void Insert(const std::string& name, offset_t object_header_ptr);
+
 private:
     [[nodiscard]] BTreeNode ReadRoot() const;
 

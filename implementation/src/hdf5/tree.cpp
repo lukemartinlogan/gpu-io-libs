@@ -401,6 +401,18 @@ std::optional<offset_t> BTree::Get(std::string_view name) const {
     return ReadRoot().Get(name, *file_, heap_);
 }
 
+void BTree::Insert(offset_t name_offset, offset_t object_header_ptr) {
+    BTreeNode root = ReadRoot();
+
+    auto fixme_split = root.Insert(addr_, name_offset, object_header_ptr, *file_, heap_);
+}
+
+void BTree::Insert(const std::string& name, offset_t object_header_ptr) {
+    offset_t name_offset = heap_.WriteString(name, *file_);
+
+    return Insert(name_offset, object_header_ptr);
+}
+
 BTreeNode BTree::ReadRoot() const {
     file_->io.SetPosition(addr_);
 
