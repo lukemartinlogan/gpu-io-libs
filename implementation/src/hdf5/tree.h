@@ -110,6 +110,10 @@ private:
 
     [[nodiscard]] len_t AllocationSize(KValues k) const;
 
+    len_t WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues k) const;
+
+    offset_t AllocateAndWrite(FileLink& file, KValues k) const;
+
 private:
     static constexpr uint8_t kGroupNodeTy = 0, kRawDataChunkNodeTy = 1;
     static constexpr std::array<uint8_t, 4> kSignature = { 'T', 'R', 'E', 'E' };

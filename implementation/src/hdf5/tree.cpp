@@ -307,6 +307,40 @@ BTreeNode BTreeNode::Split(KValues k) const {
     };
 }
 
+len_t BTreeNode::WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues k) const {
+    file.io.SetPosition(offset);
+    file.io.WriteComplex(*this);
+
+    len_t written_bytes = file.io.GetPosition() - offset;
+
+    uint16_t max_entries = 2 * k.Get(IsLeaf());
+
+    if (EntriesUsed() > max_entries) {
+        throw std::logic_error("AllocateWriteNewNode called on over-capacity node");
+    }
+
+    len_t unused_entries = 2 * k.Get(IsLeaf()) - EntriesUsed();
+
+    // fixme: this only works for group nodes, but it's fine since it would've thrown earlier
+    len_t key_ptr_size = /* key: */ sizeof(len_t) + /* ptr: */ sizeof(offset_t);
+
+    // intended allocation size
+    return written_bytes + unused_entries * key_ptr_size;
+};
+
+offset_t BTreeNode::AllocateAndWrite(FileLink& file, KValues k) const {
+    len_t alloc_size = AllocationSize(k);
+    offset_t alloc_start = file.AllocateAtEOF(alloc_size);
+
+    len_t intended_alloc_size = WriteNodeGetAllocSize(alloc_start, file, k);
+
+    if (alloc_size != intended_alloc_size) {
+        throw std::logic_error("AllocateWriteNewNode: size mismatch");
+    }
+
+    return alloc_start;
+};
+
 std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
     std::optional<SplitResult> res{};
 
@@ -336,40 +370,6 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
         );
     };
 
-    auto WriteNode = [&file, k](offset_t offset, const BTreeNode& node) -> len_t {
-        file.io.SetPosition(offset);
-        file.io.WriteComplex(node);
-
-        len_t written_bytes = file.io.GetPosition() - offset;
-
-        uint16_t max_entries = 2 * k.Get(node.IsLeaf());
-
-        if (node.EntriesUsed() > max_entries) {
-            throw std::logic_error("AllocateWriteNewNode called on over-capacity node");
-        }
-
-        len_t unused_entries = 2 * k.Get(node.IsLeaf()) - node.EntriesUsed();
-
-        // fixme: this only works for group nodes, but it's fine since it would've thrown earlier
-        len_t key_ptr_size = /* key: */ sizeof(len_t) + /* ptr: */ sizeof(offset_t);
-
-        // intended allocation size
-        return written_bytes + unused_entries * key_ptr_size;
-    };
-
-    auto AllocateWriteNode = [&file, k, &WriteNode](const BTreeNode& node) -> offset_t {
-        len_t alloc_size = node.AllocationSize(k);
-        offset_t alloc_start = file.AllocateAtEOF(alloc_size);
-
-        len_t intended_alloc_size = WriteNode(alloc_start, node);
-
-        if (alloc_size != intended_alloc_size) {
-            throw std::logic_error("AllocateWriteNewNode: size mismatch");
-        }
-
-        return alloc_start;
-    };
-
     if (IsLeaf()) {
         if (AtCapacity(k)) {
             // do we alloc a new string?
@@ -387,7 +387,7 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
                 RawInsert(new_node, { name_offset }, obj_header_ptr);
             }
 
-            offset_t new_node_alloc = AllocateWriteNode(new_node);
+            offset_t new_node_alloc = new_node.AllocateAndWrite(file, k);
 
             res = {
                 .promoted_key = promoted_key,
@@ -397,7 +397,7 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
             RawInsert(*this, { name_offset }, obj_header_ptr);
         }
 
-        WriteNode(this_offset, *this);
+        WriteNodeGetAllocSize(this_offset, file, k);
     } else {
         std::optional<uint16_t> child_idx = FindIndex(name_str, heap, file.io);
 
@@ -428,7 +428,7 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
                     RawInsert(new_node, child_ins->promoted_key, child_ins->new_node_offset);
                 }
 
-                offset_t new_node_alloc = AllocateWriteNode(new_node);
+                offset_t new_node_alloc = new_node.AllocateAndWrite(file, k);
 
                 res = {
                     .promoted_key = promoted_key,
@@ -438,7 +438,7 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
                 RawInsert(*this, child_ins->promoted_key, child_ins->new_node_offset);
             }
 
-            WriteNode(this_offset, *this);
+            WriteNodeGetAllocSize(this_offset, file, k);
         }
     }
 
