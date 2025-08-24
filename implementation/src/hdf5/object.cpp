@@ -331,7 +331,7 @@ void Object::WriteEmpty(len_t min_size, Serializer& s) {
     uint16_t nil_size = min_size - 8;
 
     WriteHeader(s, NilMessage::kType, nil_size, 0);
-    s.Write(NilMessage { .size = nil_size });
+    s.WriteComplex(NilMessage { .size = nil_size });
 }
 
 Object Object::AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file) {
