@@ -4,12 +4,8 @@
 
 #include "local_heap.h"
 
+#include "../util/align.h"
 #include "file_link.h"
-
-template<typename T>
-T EightBytesAlignedSize(T val) {
-    return val + 7 & ~7;
-}
 
 
 std::string ReadNullTerminatedString(Deserializer& de, std::optional<size_t> max_size) {
