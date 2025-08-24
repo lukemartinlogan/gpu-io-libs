@@ -136,6 +136,8 @@ struct BTree {
     void Insert(offset_t name_offset, offset_t object_header_ptr);
     void Insert(const std::string& name, offset_t object_header_ptr);
 
+    [[nodiscard]] size_t Size() const;
+
 private:
     friend class Group;
 

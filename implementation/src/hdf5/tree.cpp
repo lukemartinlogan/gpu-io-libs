@@ -537,6 +537,20 @@ void BTree::Insert(const std::string& name, offset_t object_header_ptr) {
     return Insert(name_offset, object_header_ptr);
 }
 
+size_t BTree::Size() const {
+    std::optional<BTreeNode> root = ReadRoot();
+
+    if (!root.has_value()) {
+        return 0;
+    }
+
+    size_t size = 0;
+
+    root->Recurse([&size](const std::string&, offset_t) { ++size; }, *file_);
+
+    return size;
+}
+
 std::optional<BTreeNode> BTree::ReadRoot() const {
     if (!addr_.has_value()) {
         return std::nullopt;
