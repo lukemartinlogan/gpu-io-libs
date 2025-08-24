@@ -670,5 +670,7 @@ struct ObjectHeader {
     // FIXME: ignore unknown messages
     static ObjectHeader Deserialize(Deserializer& de);
 private:
+    friend class Object;
+
     static constexpr uint8_t kVersionNumber = 0x01;
 };

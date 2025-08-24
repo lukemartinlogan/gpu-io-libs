@@ -1,5 +1,7 @@
 #include "object.h"
 
+#include "../util/align.h"
+
 constexpr uint32_t kPrefixSize = 8;
 
 std::optional<Object::Space> Object::FindSpaceRecursive(  // NOLINT(*-no-recursion
@@ -299,4 +301,51 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
     JumpToRelativeOffset(2);
     file->io.Write(written_ct);
+}
+
+inline len_t EmptyHeaderMessagesSize(len_t min_size) {
+    return EightBytesAlignedSize(std::max(
+        min_size,
+        sizeof(ObjectHeaderContinuationMessage) + kPrefixSize
+    ));
+}
+
+void Object::WriteEmpty(len_t min_size, Serializer& s) {
+    len_t aligned_size = EmptyHeaderMessagesSize(min_size);
+
+    s.Write(ObjectHeader::kVersionNumber);
+    // reserved
+    s.Write<uint8_t>(0);
+    // total num of messages (one nil message)
+    s.Write<uint16_t>(1);
+
+    // object ref count
+    s.Write<uint32_t>(0);
+    // header size
+    s.Write<uint32_t>(min_size);
+
+    // reserved
+    s.Write<uint32_t>(0);
+
+    // TODO: fix size overflow?
+    uint16_t nil_size = min_size - 8;
+
+    WriteHeader(s, NilMessage::kType, nil_size, 0);
+    s.WriteComplex(NilMessage { .size = nil_size });
+}
+
+Object Object::AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file) {
+    len_t alloc_size = EmptyHeaderMessagesSize(min_size) + 16;
+
+    offset_t alloc_start = file->AllocateAtEOF(alloc_size);
+    file->io.SetPosition(alloc_start);
+    WriteEmpty(min_size, file->io);
+
+    len_t bytes_written = file->io.GetPosition() - alloc_start;
+
+    if (bytes_written != alloc_size) {
+        throw std::logic_error("AllocateEmptyAtEOF: size mismatch");
+    }
+
+    return Object(file, alloc_start);
 }

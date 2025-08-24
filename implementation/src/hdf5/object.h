@@ -30,6 +30,10 @@ struct Object {
     // TODO: add a 'dirty' field to header messages
     void WriteMessage(const HeaderMessageVariant& msg) const;
 
+    static void WriteEmpty(len_t min_size, Serializer& s);
+
+    static Object AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file);
+
 public:
     std::shared_ptr<FileLink> file;
 
