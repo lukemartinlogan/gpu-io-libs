@@ -339,7 +339,30 @@ offset_t BTreeNode::AllocateAndWrite(FileLink& file, KValues k) const {
     }
 
     return alloc_start;
-};
+}
+
+void BTreeNode::Recurse(const std::function<void(std::string, offset_t)>& visitor, FileLink& file) const {
+    if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+        throw std::logic_error("Recurse only supported for group nodes");
+    }
+
+    auto g_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+
+    for (size_t i = 0; i < g_entries.EntriesUsed(); ++i) {
+        offset_t ptr = g_entries.child_pointers.at(i);
+
+        if (IsLeaf()) {
+            std::string name = std::to_string(g_entries.keys.at(i).first_object_name);
+
+            visitor(std::move(name), ptr);
+        } else {
+            file.io.SetPosition(file.superblock.base_addr + ptr);
+            auto child = file.io.ReadComplex<BTreeNode>();
+
+            child.Recurse(visitor, file);
+        }
+    }
+}
 
 std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
     std::optional<SplitResult> res{};

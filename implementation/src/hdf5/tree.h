@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <functional>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -113,6 +114,8 @@ private:
     len_t WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues k) const;
 
     offset_t AllocateAndWrite(FileLink& file, KValues k) const;
+
+    void Recurse(const std::function<void(std::string, offset_t)>& visitor, FileLink& file) const;
 
 private:
     static constexpr uint8_t kGroupNodeTy = 0, kRawDataChunkNodeTy = 1;
