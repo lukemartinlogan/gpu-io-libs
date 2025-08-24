@@ -32,6 +32,8 @@ struct Object {
 
     static void WriteEmpty(len_t min_size, Serializer& s);
 
+    static Object AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file);
+
 public:
     std::shared_ptr<FileLink> file;
 

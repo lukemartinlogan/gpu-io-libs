@@ -303,8 +303,15 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     file->io.Write(written_ct);
 }
 
+inline len_t EmptyHeaderMessagesSize(len_t min_size) {
+    return EightBytesAlignedSize(std::max(
+        min_size,
+        sizeof(ObjectHeaderContinuationMessage) + kPrefixSize
+    ));
+}
+
 void Object::WriteEmpty(len_t min_size, Serializer& s) {
-    len_t aligned_size = EightBytesAlignedSize(std::max(min_size, static_cast<len_t>(24)));
+    len_t aligned_size = EmptyHeaderMessagesSize(min_size);
 
     s.Write(ObjectHeader::kVersionNumber);
     // reserved
@@ -325,4 +332,20 @@ void Object::WriteEmpty(len_t min_size, Serializer& s) {
 
     WriteHeader(s, NilMessage::kType, nil_size, 0);
     s.Write(NilMessage { .size = nil_size });
+}
+
+Object Object::AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file) {
+    len_t alloc_size = EmptyHeaderMessagesSize(min_size) + 16;
+
+    offset_t alloc_start = file->AllocateAtEOF(alloc_size);
+    file->io.SetPosition(alloc_start);
+    WriteEmpty(min_size, file->io);
+
+    len_t bytes_written = file->io.GetPosition() - alloc_start;
+
+    if (bytes_written != alloc_size) {
+        throw std::logic_error("AllocateEmptyAtEOF: size mismatch");
+    }
+
+    return Object(file, alloc_start);
 }
