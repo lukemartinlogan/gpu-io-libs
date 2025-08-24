@@ -1,5 +1,7 @@
 #include "object.h"
 
+#include "../util/align.h"
+
 constexpr uint32_t kPrefixSize = 8;
 
 std::optional<Object::Space> Object::FindSpaceRecursive(  // NOLINT(*-no-recursion
@@ -299,4 +301,28 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
     JumpToRelativeOffset(2);
     file->io.Write(written_ct);
+}
+
+void Object::WriteEmpty(len_t min_size, Serializer& s) {
+    len_t aligned_size = EightBytesAlignedSize(std::max(min_size, static_cast<len_t>(24)));
+
+    s.Write(ObjectHeader::kVersionNumber);
+    // reserved
+    s.Write<uint8_t>(0);
+    // total num of messages (one nil message)
+    s.Write<uint16_t>(1);
+
+    // object ref count
+    s.Write<uint32_t>(0);
+    // header size
+    s.Write<uint32_t>(min_size);
+
+    // reserved
+    s.Write<uint32_t>(0);
+
+    // TODO: fix size overflow?
+    uint16_t nil_size = min_size - 8;
+
+    WriteHeader(s, NilMessage::kType, nil_size, 0);
+    s.Write(NilMessage { .size = nil_size });
 }
