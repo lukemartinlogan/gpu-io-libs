@@ -551,6 +551,20 @@ size_t BTree::Size() const {
     return size;
 }
 
+std::vector<offset_t> BTree::Elements() const {
+    std::optional<BTreeNode> root = ReadRoot();
+
+    if (!root.has_value()) {
+        return {};
+    }
+
+    std::vector<offset_t> elems;
+
+    root->Recurse([&elems](const std::string&, offset_t ptr) { elems.push_back(ptr); }, *file_);
+
+    return elems;
+}
+
 std::optional<BTreeNode> BTree::ReadRoot() const {
     if (!addr_.has_value()) {
         return std::nullopt;

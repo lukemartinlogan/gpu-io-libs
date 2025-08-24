@@ -138,6 +138,7 @@ struct BTree {
 
     [[nodiscard]] size_t Size() const;
 
+    [[nodiscard]] std::vector<offset_t> Elements() const;
 private:
     friend class Group;
 
