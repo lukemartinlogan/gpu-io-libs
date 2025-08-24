@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <functional>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -114,6 +115,8 @@ private:
 
     offset_t AllocateAndWrite(FileLink& file, KValues k) const;
 
+    void Recurse(const std::function<void(std::string, offset_t)>& visitor, FileLink& file) const;
+
 private:
     static constexpr uint8_t kGroupNodeTy = 0, kRawDataChunkNodeTy = 1;
     static constexpr std::array<uint8_t, 4> kSignature = { 'T', 'R', 'E', 'E' };
@@ -133,6 +136,9 @@ struct BTree {
     void Insert(offset_t name_offset, offset_t object_header_ptr);
     void Insert(const std::string& name, offset_t object_header_ptr);
 
+    [[nodiscard]] size_t Size() const;
+
+    [[nodiscard]] std::vector<offset_t> Elements() const;
 private:
     friend class Group;
 
