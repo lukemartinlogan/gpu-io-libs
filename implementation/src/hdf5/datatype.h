@@ -59,7 +59,7 @@ struct FloatingPoint {
 
     enum class ByteOrder : uint8_t { kLittleEndian, kBigEndian, kVAXEndian };
 
-    [[nodiscard]] ByteOrder ByteOrder() const {
+    [[nodiscard]] ByteOrder GetByteOrder() const {
         const bool _0 = bitset_.test(0);
         const bool _6 = bitset_.test(6);
 
@@ -90,7 +90,7 @@ struct FloatingPoint {
 
     enum class MantissaNormalization : uint8_t { kNone, kMSBSet, kMSBImpliedSet };
 
-    [[nodiscard]] MantissaNormalization MantissaNormalization() const {
+    [[nodiscard]] MantissaNormalization GetMantissaNormalization() const {
         // get bits 4 & 5
         switch ((bitset_.to_ulong() >> 4) & 0b11) {
             case 0: return MantissaNormalization::kNone;
@@ -103,6 +103,19 @@ struct FloatingPoint {
     void Serialize(Serializer& s) const;
 
     static FloatingPoint Deserialize(Deserializer& de);
+
+    static const FloatingPoint f32_t;
+
+    FloatingPoint() = default;
+
+private:
+    FloatingPoint(
+        uint32_t size, uint8_t sign_location, uint16_t bit_offset,
+        uint16_t bit_precision, uint8_t exponent_location, uint8_t exponent_size,
+        uint8_t mantissa_location, uint8_t mantissa_size, uint32_t exponent_bias,
+        ByteOrder byte_order, MantissaNormalization norm,
+        bool low_padding, bool high_padding, bool internal_padding
+    );
 
 private:
     std::bitset<7> bitset_{};
@@ -211,5 +224,9 @@ struct DatatypeMessage {
 
     static DatatypeMessage Deserialize(Deserializer& de);
 
+public:
+    static const DatatypeMessage f32_t;
+
+public:
     static constexpr uint16_t kType = 0x03;
 };
