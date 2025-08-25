@@ -180,6 +180,7 @@ struct DatatypeMessage {
         kComplexNumber = 5,
     } version;
 
+    // TODO: eventually store this field in the variant
     enum class Class : uint8_t {
         kFixedPoint = 0,
         kFloatingPoint = 1,
