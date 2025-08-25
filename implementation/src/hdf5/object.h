@@ -26,6 +26,10 @@ struct Object {
         return file->io.Read<ObjectHeader>();
     }
 
+    [[nodiscard]] offset_t GetAddress() const {
+        return file_pos_;
+    }
+
     // TODO: should this mutate an internally held object as well?
     // TODO: add a 'dirty' field to header messages
     void WriteMessage(const HeaderMessageVariant& msg) const;
