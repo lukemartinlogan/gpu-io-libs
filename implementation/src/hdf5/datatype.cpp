@@ -4,7 +4,7 @@
 
 void FixedPoint::Serialize(Serializer& s) const {
     // first four bits are used
-    s.Write(static_cast<uint8_t>(bitset_.to_ulong()) & 0x0f);
+    s.Write(static_cast<uint8_t>(bitset_.to_ulong() & 0x0f));
     // reserved (zero)
     s.Write<uint16_t>(0);
 
@@ -29,7 +29,7 @@ FixedPoint FixedPoint::Deserialize(Deserializer& de) {
 }
 
 void FloatingPoint::Serialize(Serializer& s) const {
-    s.Write(static_cast<uint8_t>(bitset_.to_ulong()) & 0x7f);
+    s.Write(static_cast<uint8_t>(bitset_.to_ulong() & 0x7f));
     s.Write(sign_location);
     // reserved (zero)
     s.Write<uint8_t>(0);
@@ -180,7 +180,7 @@ void VariableLength::Serialize(Serializer& s) const {
     s.Write(bitset_1);
 
     // Write charset in lower 4 bits, upper 4 bits zero
-    s.Write(static_cast<uint8_t>(charset) & 0b1111);
+    s.Write<uint8_t>(static_cast<uint8_t>(charset) & 0b1111);
 
     // Reserved byte (zero)
     s.Write<uint8_t>(0);

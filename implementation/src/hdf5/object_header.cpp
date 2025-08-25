@@ -31,7 +31,7 @@ void DataspaceMessage::Serialize(Serializer& s) const {
     auto dimensionality = static_cast<uint8_t>(dimensions.size());
     s.Write(dimensionality);
 
-    s.Write(static_cast<uint8_t>(bitset_.to_ulong()) & 0b11);
+    s.Write(static_cast<uint8_t>(bitset_.to_ulong() & 0b11));
 
     // reserved
     s.Write<uint32_t>(0);
