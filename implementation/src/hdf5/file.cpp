@@ -1,7 +1,6 @@
 #include "file.h"
 
 File::File(const std::filesystem::path& path)
-    : root_group_({}) // FIXME: get rid of this temp ctor?
 {
     // scope since file_io and superblock are invalid after make_shared
     {
