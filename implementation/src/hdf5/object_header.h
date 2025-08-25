@@ -32,6 +32,8 @@ struct DimensionInfo {
 struct DataspaceMessage {
     std::vector<DimensionInfo> dimensions;
 
+    DataspaceMessage(const std::vector<DimensionInfo>&, bool max_dim_present, bool perm_indices_present);
+
     [[nodiscard]] bool IsMaxDimensionsPresent() const {
         return bitset_.test(0);
     }
@@ -46,6 +48,8 @@ struct DataspaceMessage {
     void Serialize(Serializer& s) const;
 
     static DataspaceMessage Deserialize(Deserializer& de);
+
+    DataspaceMessage() = default;
 
 private:
     std::bitset<2> bitset_;

@@ -84,6 +84,17 @@ DataspaceMessage DataspaceMessage::Deserialize(Deserializer& de) {
     return msg;
 }
 
+DataspaceMessage::DataspaceMessage(const std::vector<DimensionInfo>& dimensions, bool max_dim_present, bool perm_indices_present) {
+    if (dimensions.size() > 255) {
+        throw std::logic_error("DataspaceMessage cannot have more than 255 dimensions");
+    }
+
+    this->dimensions = dimensions;
+
+    bitset_.set(0, max_dim_present);
+    bitset_.set(1, perm_indices_present);
+}
+
 void LinkInfoMessage::Serialize(Serializer& s) const {
     s.Write(kVersionNumber);
 
