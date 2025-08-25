@@ -23,7 +23,12 @@ private:
     Group() = default;
 
     // FIXME: get rid of this method
-    const LocalHeap& GetLocalHeap() const {
+    [[nodiscard]] const LocalHeap& GetLocalHeap() const {
+        return table_.heap_;
+    }
+
+    // FIXME: get rid of this method
+    LocalHeap& GetLocalHeap() {
         return table_.heap_;
     }
 
