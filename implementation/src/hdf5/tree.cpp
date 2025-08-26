@@ -475,7 +475,7 @@ std::optional<offset_t> BTree::Get(std::string_view name) const {
         return std::nullopt;
     }
 
-    return ReadRoot()->Get(name, *file_, heap_);
+    return root->Get(name, *file_, heap_);
 }
 
 void BTree::Insert(offset_t name_offset, offset_t object_header_ptr) {
