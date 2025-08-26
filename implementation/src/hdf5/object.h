@@ -49,6 +49,15 @@ private:
 
     [[nodiscard]] std::optional<Space> FindSpace(size_t size, bool must_be_nil) const;
 
+    [[nodiscard]] std::optional<Space> FindMessageRecursive(
+        Deserializer& de,
+        offset_t sb_base_addr,
+        uint16_t& messages_read,
+        uint16_t total_message_ct,
+        uint32_t size_limit,
+        uint16_t msg_type
+    );
+
     [[nodiscard]] static std::optional<Space> FindSpaceRecursive(
         Deserializer& de,
         offset_t sb_base_addr,

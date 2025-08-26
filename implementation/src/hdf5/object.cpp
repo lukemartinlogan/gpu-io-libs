@@ -4,6 +4,59 @@
 
 constexpr uint32_t kPrefixSize = 8;
 
+// TODO: take predicate lambda?
+std::optional<Object::Space> Object::FindMessageRecursive(  // NOLINT(*-no-recursion
+    Deserializer& de,
+    offset_t sb_base_addr,
+    uint16_t& messages_read,
+    uint16_t total_message_ct,
+    uint32_t size_limit,
+    uint16_t msg_type
+) {
+    uint32_t bytes_read = 0;
+
+    while (bytes_read < size_limit && messages_read < total_message_ct) {
+        auto type = de.Read<uint16_t>();
+        auto size_bytes = de.Read<uint16_t>();
+
+        bytes_read += size_bytes + kPrefixSize;
+        ++messages_read;
+
+        // flags + reserved
+        de.Skip<4>();
+
+        if (type == ObjectHeaderContinuationMessage::kType) {
+            auto cont = de.Read<ObjectHeaderContinuationMessage>();
+
+            offset_t return_pos = de.GetPosition();
+            de.SetPosition(sb_base_addr + cont.offset);
+
+            std::optional<Space> found = FindMessageRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, msg_type);
+
+            if (found.has_value()) {
+                return found;
+            }
+
+            de.SetPosition(return_pos);
+        } else {
+            if (type == msg_type) {
+                uint16_t total_size = size_bytes + kPrefixSize;
+
+                return Space {
+                    .offset = de.GetPosition() - kPrefixSize,
+                    .size = total_size,
+                };
+            }
+
+            for (size_t b = 0; b < size_bytes; ++b) {
+                de.Skip<byte_t>();
+            }
+        }
+    }
+
+    return std::nullopt;
+}
+
 std::optional<Object::Space> Object::FindSpaceRecursive(  // NOLINT(*-no-recursion
     Deserializer& de,
     offset_t sb_base_addr,
