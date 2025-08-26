@@ -378,7 +378,7 @@ std::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
         return std::nullopt;
     }
 
-    file->io.SetPosition(found->offset + kPrefixSize);
+    file->io.SetPosition(found->offset);
     auto msg = file->io.ReadComplex<ObjectHeaderMessage>();
 
     if (file->io.GetPosition() > found->offset + found->size) {
