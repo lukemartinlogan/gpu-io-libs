@@ -34,7 +34,7 @@ struct Object {
     // TODO: add a 'dirty' field to header messages
     void WriteMessage(const HeaderMessageVariant& msg) const;
 
-    bool DeleteMessage(uint16_t msg_type);
+    std::optional<ObjectHeaderMessage> DeleteMessage(uint16_t msg_type);
 
     static void WriteEmpty(len_t min_size, Serializer& s);
 

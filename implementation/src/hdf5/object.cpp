@@ -356,7 +356,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     file->io.Write(written_ct);
 }
 
-bool Object::DeleteMessage(uint16_t msg_type) {
+std::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     JumpToRelativeOffset(0);
 
     file->io.Skip<2>();
@@ -375,7 +375,14 @@ bool Object::DeleteMessage(uint16_t msg_type) {
     std::optional<Space> found = FindMessageRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, msg_type);
 
     if (!found.has_value()) {
-        return false;
+        return std::nullopt;
+    }
+
+    file->io.SetPosition(found->offset + kPrefixSize);
+    auto msg = file->io.ReadComplex<ObjectHeaderMessage>();
+
+    if (file->io.GetPosition() > found->offset + found->size) {
+        throw std::logic_error("Read too many bytes for message");
     }
 
     file->io.SetPosition(found->offset);
@@ -384,7 +391,7 @@ bool Object::DeleteMessage(uint16_t msg_type) {
     WriteHeader(file->io, NilMessage::kType, nil_size, 0);
     file->io.WriteComplex(NilMessage { .size = nil_size, });
 
-    return true;
+    return msg;
 }
 
 inline len_t EmptyHeaderMessagesSize(len_t min_size) {
