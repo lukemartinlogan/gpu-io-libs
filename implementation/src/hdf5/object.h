@@ -47,6 +47,19 @@ struct Object {
         }
     }
 
+    std::optional<ObjectHeaderMessage> GetMessage(uint16_t msg_type);
+
+    template<typename T>
+    std::optional<T> GetMessage() {
+        std::optional<ObjectHeaderMessage> msg = GetMessage(T::kType);
+
+        if (msg.has_value()) {
+            return std::get<T>(msg->message);
+        } else {
+            return std::nullopt;
+        }
+    }
+
     static void WriteEmpty(len_t min_size, Serializer& s);
 
     static Object AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file);
