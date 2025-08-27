@@ -37,9 +37,13 @@ private:
 
     void ReserveAdditional(FileLink& file, size_t additional_bytes);
 
+    void RewriteToFile(ReaderWriter& rw) const;
+
 private:
     offset_t data_segment_address{};
     len_t data_segment_size{};
+
+    offset_t this_offset{};
 
     static constexpr offset_t kLastFreeBlock = 1;
 

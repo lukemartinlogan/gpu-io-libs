@@ -133,6 +133,8 @@ offset_t LocalHeap::WriteBytes(std::span<const byte_t> data, FileLink& file) {
         file.io.WriteRaw<byte_t>({});
     }
 
+    RewriteToFile(file.io);
+
     return free->this_offset;
 }
 
@@ -148,6 +150,7 @@ offset_t LocalHeap::WriteString(std::string_view string, FileLink& file) {
     );
 }
 
+// note: this method does not rewrite to file
 void LocalHeap::ReserveAdditional(FileLink& file, size_t additional_bytes) {
     // 1. determine new size + alloc
     size_t new_size = std::max(
@@ -193,6 +196,11 @@ void LocalHeap::ReserveAdditional(FileLink& file, size_t additional_bytes) {
     data_segment_size = new_size;
 }
 
+void LocalHeap::RewriteToFile(ReaderWriter& rw) const {
+    rw.SetPosition(this_offset);
+    rw.WriteComplex<LocalHeap>(*this);
+}
+
 void LocalHeap::Serialize(Serializer& s) const {
     s.Write(kSignature);
     s.Write(kVersionNumber);
@@ -206,6 +214,8 @@ void LocalHeap::Serialize(Serializer& s) const {
 }
 
 LocalHeap LocalHeap::Deserialize(Deserializer& de) {
+    offset_t this_offset = de.GetPosition();
+
     if (de.Read<std::array<uint8_t, 4>>() != kSignature) {
         throw std::runtime_error("Superblock signature was invalid");
     }
@@ -223,6 +233,8 @@ LocalHeap LocalHeap::Deserialize(Deserializer& de) {
     heap.data_segment_size = de.Read<len_t>();
     heap.free_list_head_offset = de.Read<len_t>();
     heap.data_segment_address = de.Read<offset_t>();
+
+    heap.this_offset = this_offset;
 
     return heap;
 }
