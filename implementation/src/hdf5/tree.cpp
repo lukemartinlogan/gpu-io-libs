@@ -496,7 +496,7 @@ void BTree::Insert(offset_t name_offset, offset_t object_header_ptr) {
         entries.keys.push_back({ name_offset });
 
         BTreeNode new_root {
-            .level = 1,
+            .level = 0,
             .entries = entries,
         };
 
