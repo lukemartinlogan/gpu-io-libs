@@ -531,12 +531,6 @@ void BTree::Insert(offset_t name_offset, offset_t object_header_ptr) {
     }
 }
 
-void BTree::Insert(const std::string& name, offset_t object_header_ptr) {
-    offset_t name_offset = heap_.WriteString(name, *file_);
-
-    return Insert(name_offset, object_header_ptr);
-}
-
 size_t BTree::Size() const {
     std::optional<BTreeNode> root = ReadRoot();
 
