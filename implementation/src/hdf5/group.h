@@ -13,7 +13,7 @@ class Group {
 public:
     explicit Group(const Object& object);
 
-    [[nodiscard]] Dataset GetDataset(std::string_view dataset_name) const;
+    [[nodiscard]] Dataset OpenDataset(std::string_view dataset_name) const;
 
     [[nodiscard]] Group OpenGroup(std::string_view group_name) const;
 

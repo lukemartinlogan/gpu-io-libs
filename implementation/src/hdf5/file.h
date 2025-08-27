@@ -8,8 +8,8 @@ class File {
 public:
     explicit File(const std::filesystem::path& path);
 
-    [[nodiscard]] Dataset GetDataset(std::string_view dataset_name) const {
-        return root_group_.GetDataset(dataset_name);
+    [[nodiscard]] Dataset OpenDataset(std::string_view dataset_name) const {
+        return root_group_.OpenDataset(dataset_name);
     }
 
 private:

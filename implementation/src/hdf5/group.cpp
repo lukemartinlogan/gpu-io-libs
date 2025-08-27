@@ -26,7 +26,7 @@ Group::Group(const Object& object)
     table_ = BTree(symb_tbl.b_tree_addr, object_.file, local_heap);
 }
 
-Dataset Group::GetDataset(std::string_view dataset_name) const {
+Dataset Group::OpenDataset(std::string_view dataset_name) const {
     if (const auto object = Get(dataset_name)) {
         return Dataset(*object);
     }
