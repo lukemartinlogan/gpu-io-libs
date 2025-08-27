@@ -35,6 +35,8 @@ private:
     // FIXME: get rid of this method
     [[nodiscard]] SymbolTableNode GetSymbolTableNode() const;
 
+    void UpdateBTreePointer();
+
 private:
 public:
     Object object_;

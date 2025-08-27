@@ -87,3 +87,10 @@ SymbolTableNode Group::GetSymbolTableNode() const {
 
     return object_.file->io.ReadComplex<SymbolTableNode>();
 }
+
+void Group::UpdateBTreePointer() {
+    SymbolTableMessage sym = object_.DeleteMessage<SymbolTableMessage>().value();
+    sym.b_tree_addr = table_.addr_.value();
+
+    object_.WriteMessage(sym);
+}
