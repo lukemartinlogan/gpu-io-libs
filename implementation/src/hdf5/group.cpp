@@ -65,6 +65,14 @@ std::optional<Object> Group::Get(std::string_view name) const {
     return Object(object_.file, base_addr + *entry_addr);
 }
 
+void Group::Insert(std::string_view name, offset_t object_header_ptr) {
+    offset_t name_offset = GetLocalHeap().WriteString(name, *object_.file);
+
+    table_.Insert(name_offset, object_header_ptr);
+
+    UpdateBTreePointer();
+}
+
 SymbolTableNode Group::GetSymbolTableNode() const {
     BTreeNode table = table_.ReadRoot().value();
 

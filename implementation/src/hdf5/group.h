@@ -22,6 +22,8 @@ public:
 private:
     Group() = default;
 
+    void Insert(std::string_view name, offset_t object_header_ptr);
+
     // FIXME: get rid of this method
     [[nodiscard]] const LocalHeap& GetLocalHeap() const {
         return table_.heap_;
