@@ -4,7 +4,6 @@
 
 #include "dataset.h"
 #include "local_heap.h"
-#include "object_header.h"
 #include "symbol_table.h"
 #include "tree.h"
 #include "file_link.h"
@@ -24,12 +23,23 @@ private:
     Group() = default;
 
     // FIXME: get rid of this method
+    [[nodiscard]] const LocalHeap& GetLocalHeap() const {
+        return table_.heap_;
+    }
+
+    // FIXME: get rid of this method
+    LocalHeap& GetLocalHeap() {
+        return table_.heap_;
+    }
+
+    // FIXME: get rid of this method
     [[nodiscard]] SymbolTableNode GetSymbolTableNode() const;
+
+    void UpdateBTreePointer();
 
 private:
 public:
     Object object_;
 
-    BTreeNode table_{};
-    LocalHeap local_heap_{};
+    BTree table_{};
 };

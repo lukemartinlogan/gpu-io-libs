@@ -20,11 +20,10 @@ Group::Group(const Object& object)
 
     auto symb_tbl = std::get<SymbolTableMessage>(symb_tbl_msg->message);
 
-    object_.file->io.SetPosition(object_.file->superblock.base_addr + symb_tbl.b_tree_addr);
-    table_ = object_.file->io.ReadComplex<BTreeNode>();
-
     object_.file->io.SetPosition(object_.file->superblock.base_addr + symb_tbl.local_heap_addr);
-    local_heap_ = object_.file->io.ReadComplex<LocalHeap>();
+    auto local_heap = object_.file->io.ReadComplex<LocalHeap>();
+
+    table_ = BTree(symb_tbl.b_tree_addr, object_.file, local_heap);
 }
 
 Dataset Group::GetDataset(std::string_view dataset_name) const {
@@ -46,7 +45,7 @@ Group Group::OpenGroup(std::string_view group_name) const {
 }
 
 std::optional<Object> Group::Get(std::string_view name) const {
-    std::optional<offset_t> sym_table_node_ptr = table_.Get(name, *object_.file, local_heap_);
+    std::optional<offset_t> sym_table_node_ptr = table_.Get(name);
 
     if (!sym_table_node_ptr) {
         return std::nullopt;
@@ -57,7 +56,7 @@ std::optional<Object> Group::Get(std::string_view name) const {
     object_.file->io.SetPosition(base_addr + *sym_table_node_ptr);
     auto symbol_table_node = object_.file->io.ReadComplex<SymbolTableNode>();
 
-    std::optional<offset_t> entry_addr = symbol_table_node.FindEntry(name, local_heap_);
+    std::optional<offset_t> entry_addr = symbol_table_node.FindEntry(name, GetLocalHeap(), object_.file->io);
 
     if (!entry_addr) {
         return std::nullopt;
@@ -67,11 +66,13 @@ std::optional<Object> Group::Get(std::string_view name) const {
 }
 
 SymbolTableNode Group::GetSymbolTableNode() const {
-    if (table_.level != 0) {
+    BTreeNode table = table_.ReadRoot().value();
+
+    if (!table.IsLeaf()) {
         throw std::logic_error("traversing tree not implemented");
     }
 
-    const auto* entries = std::get_if<BTreeEntries<BTreeGroupNodeKey>>(&table_.entries);
+    const auto* entries = std::get_if<BTreeEntries<BTreeGroupNodeKey>>(&table.entries);
 
     if (!entries) {
         throw std::runtime_error("Group table does not contain group node keys");
@@ -85,4 +86,11 @@ SymbolTableNode Group::GetSymbolTableNode() const {
     object_.file->io.SetPosition(object_.file->superblock.base_addr + sym_tbl_node);
 
     return object_.file->io.ReadComplex<SymbolTableNode>();
+}
+
+void Group::UpdateBTreePointer() {
+    SymbolTableMessage sym = object_.DeleteMessage<SymbolTableMessage>().value();
+    sym.b_tree_addr = table_.addr_.value();
+
+    object_.WriteMessage(sym);
 }

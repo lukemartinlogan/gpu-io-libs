@@ -26,9 +26,43 @@ struct Object {
         return file->io.Read<ObjectHeader>();
     }
 
+    [[nodiscard]] offset_t GetAddress() const {
+        return file_pos_;
+    }
+
     // TODO: should this mutate an internally held object as well?
     // TODO: add a 'dirty' field to header messages
     void WriteMessage(const HeaderMessageVariant& msg) const;
+
+    std::optional<ObjectHeaderMessage> DeleteMessage(uint16_t msg_type);
+
+    template<typename T>
+    std::optional<T> DeleteMessage() {
+        std::optional<ObjectHeaderMessage> msg = DeleteMessage(T::kType);
+
+        if (msg.has_value()) {
+            return std::get<T>(msg->message);
+        } else {
+            return std::nullopt;
+        }
+    }
+
+    std::optional<ObjectHeaderMessage> GetMessage(uint16_t msg_type);
+
+    template<typename T>
+    std::optional<T> GetMessage() {
+        std::optional<ObjectHeaderMessage> msg = GetMessage(T::kType);
+
+        if (msg.has_value()) {
+            return std::get<T>(msg->message);
+        } else {
+            return std::nullopt;
+        }
+    }
+
+    static void WriteEmpty(len_t min_size, Serializer& s);
+
+    static Object AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file);
 
 public:
     std::shared_ptr<FileLink> file;
@@ -40,6 +74,15 @@ private:
     };
 
     [[nodiscard]] std::optional<Space> FindSpace(size_t size, bool must_be_nil) const;
+
+    [[nodiscard]] std::optional<Space> FindMessageRecursive(
+        Deserializer& de,
+        offset_t sb_base_addr,
+        uint16_t& messages_read,
+        uint16_t total_message_ct,
+        uint32_t size_limit,
+        uint16_t msg_type
+    );
 
     [[nodiscard]] static std::optional<Space> FindSpaceRecursive(
         Deserializer& de,
