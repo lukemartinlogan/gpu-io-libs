@@ -15,6 +15,13 @@ public:
 
     [[nodiscard]] Dataset OpenDataset(std::string_view dataset_name) const;
 
+    Dataset CreateDataset(
+        std::string_view dataset_name,
+        const std::vector<len_t>& dimension_sizes,
+        const DatatypeMessage& type,
+        std::optional<std::vector<byte_t>> fill_value = std::nullopt
+    );
+
     [[nodiscard]] Group OpenGroup(std::string_view group_name) const;
 
     [[nodiscard]] std::optional<Object> Get(std::string_view name) const;
