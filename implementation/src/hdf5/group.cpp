@@ -48,7 +48,7 @@ Dataset Group::CreateDataset(
 
     offset_t name_offset = GetLocalHeap().WriteString(dataset_name, *object_.file);
 
-    Object new_ds = Object::AllocateEmptyAtEOF(128, object_.file);
+    Object new_ds = Object::AllocateEmptyAtEOF(128 + 24, object_.file);
 
     // turn the span of lens into a vec of dimension info
     std::vector<DimensionInfo> dims(dimension_sizes.size());
