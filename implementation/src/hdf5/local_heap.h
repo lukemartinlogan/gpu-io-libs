@@ -15,6 +15,8 @@ struct LocalHeap {
 
     offset_t WriteString(std::string_view string, FileLink& file);
 
+    static LocalHeap AllocateNew(FileLink& file, len_t min_size);
+
     void Serialize(Serializer& s) const;
 
     static LocalHeap Deserialize(Deserializer& de);
@@ -46,6 +48,7 @@ private:
     offset_t this_offset{};
 
     static constexpr offset_t kLastFreeBlock = 1;
+    static constexpr len_t kHeaderSize = 32;
 
     static constexpr std::array<uint8_t, 4> kSignature = { 'H', 'E', 'A', 'P' };
     static constexpr uint8_t kVersionNumber = 0x00;

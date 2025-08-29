@@ -150,6 +150,30 @@ offset_t LocalHeap::WriteString(std::string_view string, FileLink& file) {
     );
 }
 
+LocalHeap LocalHeap::AllocateNew(FileLink& file, len_t min_size) {
+    len_t aligned_size = std::max(EightBytesAlignedSize(min_size), sizeof(FreeListBlock));
+
+    offset_t heap_offset = file.AllocateAtEOF(kHeaderSize + aligned_size);
+
+    LocalHeap heap;
+    heap.this_offset = heap_offset;
+    heap.data_segment_address = heap_offset + kHeaderSize;
+    heap.data_segment_size = aligned_size;
+    heap.free_list_head_offset = 0;
+
+    FreeListBlock new_fl {
+        .next_free_list_offset = kLastFreeBlock,
+        .size = aligned_size,
+    };
+
+    file.io.SetPosition(heap.data_segment_address);
+    file.io.WriteRaw(new_fl);
+
+    heap.RewriteToFile(file.io);
+
+    return heap;
+}
+
 // note: this method does not rewrite to file
 void LocalHeap::ReserveAdditional(FileLink& file, size_t additional_bytes) {
     // 1. determine new size + alloc
