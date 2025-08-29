@@ -42,9 +42,9 @@ Dataset Group::CreateDataset(
     std::optional<std::vector<byte_t>> fill_value
 ) {
     // FIXME: this causes the get heap call on the next line to crassh
-    // if (Get(dataset_name)) {
-    //     throw std::runtime_error(std::format("Dataset \"{}\" already exists", dataset_name));
-    // }
+    if (Get(dataset_name)) {
+        throw std::runtime_error(std::format("Dataset \"{}\" already exists", dataset_name));
+    }
 
     offset_t name_offset = GetLocalHeap().WriteString(dataset_name, *object_.file);
 
@@ -125,9 +125,9 @@ Group Group::OpenGroup(std::string_view group_name) const {
 
 Group Group::CreateGroup(std::string_view name) {
     // FIXME: this causes the get heap call on the next line to crassh
-    // if (Get(dataset_name)) {
-    //     throw std::runtime_error(std::format("Dataset \"{}\" already exists", dataset_name));
-    // }
+    if (Get(name)) {
+        throw std::runtime_error(std::format("Dataset \"{}\" already exists", name));
+    }
 
     offset_t name_offset = GetLocalHeap().WriteString(name, *object_.file);
 
