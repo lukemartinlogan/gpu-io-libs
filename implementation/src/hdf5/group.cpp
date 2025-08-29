@@ -123,6 +123,65 @@ Group Group::OpenGroup(std::string_view group_name) const {
     throw std::runtime_error(std::format("Group \"{}\" not found", group_name));
 }
 
+Group Group::CreateGroup(std::string_view name) {
+    // FIXME: this causes the get heap call on the next line to crassh
+    // if (Get(dataset_name)) {
+    //     throw std::runtime_error(std::format("Dataset \"{}\" already exists", dataset_name));
+    // }
+
+    offset_t name_offset = GetLocalHeap().WriteString(name, *object_.file);
+
+    Object new_group_obj = Object::AllocateEmptyAtEOF(24 + 24, object_.file);
+
+    BTreeNode::KValues k{
+        .leaf = object_.file->superblock.group_leaf_node_k,
+        .internal = object_.file->superblock.group_internal_node_k
+    };
+
+    auto [heap, heap_offset] = LocalHeap::AllocateNew(*object_.file, 64);
+
+    offset_t empty_offset = heap.WriteString("", *object_.file);
+
+    heap.RewriteToFile(object_.file->io);
+
+    BTreeEntries<BTreeGroupNodeKey> entries{};
+    entries.keys.push_back({ empty_offset });
+
+    offset_t root = BTreeNode { .level = 0, .entries = entries }.AllocateAndWrite(*object_.file, k);
+
+    new_group_obj.WriteMessage(SymbolTableMessage {
+        .b_tree_addr = root,
+        .local_heap_addr = heap_offset
+    });
+
+    SymbolTableEntry ent {
+        .link_name_offset = name_offset,
+        .object_header_addr = new_group_obj.GetAddress(),
+        .cache_ty = SymbolTableEntryCacheType::kNoDataCached,
+    };
+
+    SymbolTableNode node { .entries = { ent }, };
+
+    DynamicBufferSerializer ser;
+    ser.WriteComplex(node);
+
+    std::vector<byte_t> padding( // TODO: optimize inserts?
+        (2 * object_.file->superblock.group_leaf_node_k - node.entries.size()) * 40
+    );
+
+    ser.WriteBuffer(padding);
+
+    offset_t node_alloc = object_.file->AllocateAtEOF(ser.buf.size());
+    object_.file->io.SetPosition(node_alloc);
+    object_.file->io.WriteBuffer(ser.buf);
+
+    table_.Insert(name_offset, node_alloc);
+
+    UpdateBTreePointer();
+
+    return Group(new_group_obj);
+}
+
 std::optional<Object> Group::Get(std::string_view name) const {
     std::optional<offset_t> sym_table_node_ptr = table_.Get(name);
 

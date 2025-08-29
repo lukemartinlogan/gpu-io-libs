@@ -24,6 +24,8 @@ public:
 
     [[nodiscard]] Group OpenGroup(std::string_view group_name) const;
 
+    Group CreateGroup(std::string_view name);
+
     [[nodiscard]] std::optional<Object> Get(std::string_view name) const;
 
 private:
