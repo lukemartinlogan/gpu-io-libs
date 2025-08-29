@@ -202,12 +202,15 @@ len_t BTreeNode::AllocationSize(KValues k_val) const {
 
     return
         + 4 // Signature
-        + 1 // Node Type
-        + 2 // Entries Used
-        + 4 // Left Sibling Address
-        + 4 // Right Sibling Address
 
-        + (2 * k + 1) *  key_size // keys
+        + 1 // Node Type
+        + 1 // Node Level
+        + 2 // Entries Used
+
+        + sizeof(offset_t) // Left Sibling Address
+        + sizeof(offset_t) // Right Sibling Address
+
+        + (2 * k + 1) * key_size // keys
         + (2 * k) * sizeof(offset_t) // child pointers
     ;
 }

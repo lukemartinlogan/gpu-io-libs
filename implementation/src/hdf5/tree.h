@@ -85,6 +85,7 @@ struct BTreeNode {
 
 private:
     friend struct BTree;
+    friend class Group;
 
     struct KValues {
         uint16_t leaf;

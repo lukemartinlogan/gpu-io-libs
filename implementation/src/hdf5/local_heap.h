@@ -15,6 +15,10 @@ struct LocalHeap {
 
     offset_t WriteString(std::string_view string, FileLink& file);
 
+    static std::pair<LocalHeap, offset_t> AllocateNew(FileLink& file, len_t min_size);
+
+    void RewriteToFile(ReaderWriter& rw) const;
+
     void Serialize(Serializer& s) const;
 
     static LocalHeap Deserialize(Deserializer& de);
@@ -37,8 +41,6 @@ private:
 
     void ReserveAdditional(FileLink& file, size_t additional_bytes);
 
-    void RewriteToFile(ReaderWriter& rw) const;
-
 private:
     offset_t data_segment_address{};
     len_t data_segment_size{};
@@ -46,6 +48,7 @@ private:
     offset_t this_offset{};
 
     static constexpr offset_t kLastFreeBlock = 1;
+    static constexpr len_t kHeaderSize = 32;
 
     static constexpr std::array<uint8_t, 4> kSignature = { 'H', 'E', 'A', 'P' };
     static constexpr uint8_t kVersionNumber = 0x00;
