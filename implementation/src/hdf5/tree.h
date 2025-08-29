@@ -1,8 +1,14 @@
 #pragma once
 #include <array>
+#include <functional>
+#include <optional>
+#include <utility>
 #include <variant>
 #include <vector>
 
+#include "file_link.h"
+#include "local_heap.h"
+#include "object.h"
 #include "types.h"
 #include "../serialization/serialization.h"
 
@@ -41,6 +47,8 @@ struct BTreeEntries {
     [[nodiscard]] uint16_t EntriesUsed() const;
 };
 
+struct SplitResult;
+
 struct BTreeNode {
     // type: (not stored, check variant)
     // implies max degree K of the tree & size of each key field
@@ -65,11 +73,81 @@ struct BTreeNode {
     // most nodes point to less than that
     [[nodiscard]] uint16_t EntriesUsed() const;
 
+    [[nodiscard]] bool IsLeaf() const {
+        return level == 0;
+    }
+
+    [[nodiscard]] std::optional<offset_t> Get(std::string_view name, FileLink& file, const LocalHeap& heap) const;
+
     void Serialize(Serializer& s) const;
 
     static BTreeNode Deserialize(Deserializer& de);
 
 private:
+    friend struct BTree;
+    friend class Group;
+
+    struct KValues {
+        uint16_t leaf;
+        uint16_t internal;
+
+        [[nodiscard]] uint16_t Get(bool is_leaf) const {
+            return is_leaf ? leaf : internal;
+        }
+    };
+
+    [[nodiscard]] BTreeNode Split(KValues k) const;
+
+    std::optional<SplitResult> Insert(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
+
+    std::optional<uint16_t> FindIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
+
+    [[nodiscard]] bool AtCapacity(KValues k) const;
+
+    uint16_t InsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
+
+    [[nodiscard]] BTreeGroupNodeKey GetMaxKey(FileLink& file) const;
+
+    [[nodiscard]] BTreeGroupNodeKey GetMinKey() const;
+
+    [[nodiscard]] len_t AllocationSize(KValues k) const;
+
+    len_t WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues k) const;
+
+    offset_t AllocateAndWrite(FileLink& file, KValues k) const;
+
+    void Recurse(const std::function<void(std::string, offset_t)>& visitor, FileLink& file) const;
+
+private:
     static constexpr uint8_t kGroupNodeTy = 0, kRawDataChunkNodeTy = 1;
     static constexpr std::array<uint8_t, 4> kSignature = { 'T', 'R', 'E', 'E' };
+};
+
+struct SplitResult {
+    BTreeGroupNodeKey promoted_key;
+    offset_t new_node_offset;
+};
+
+struct BTree {
+    explicit BTree(offset_t addr, std::shared_ptr<FileLink> file, const LocalHeap& heap)
+        : file_(std::move(file)), heap_(heap), addr_(addr) {}
+
+    [[nodiscard]] std::optional<offset_t> Get(std::string_view name) const;
+
+    void Insert(offset_t name_offset, offset_t object_header_ptr);
+
+    [[nodiscard]] size_t Size() const;
+
+    [[nodiscard]] std::vector<offset_t> Elements() const;
+private:
+    friend class Group;
+
+    BTree() = default;
+
+    [[nodiscard]] std::optional<BTreeNode> ReadRoot() const;
+
+private:
+    std::shared_ptr<FileLink> file_{};
+    LocalHeap heap_{};
+    std::optional<offset_t> addr_{};
 };

@@ -10,6 +10,7 @@ add_executable(hdf5_implementation
     include/jenkins/lookup3.cpp
     src/main.cpp
     src/util/lookup3.h
+    src/util/align.h
     src/serialization/serialization.h
     src/serialization/filestream.h
     src/serialization/buffer.h

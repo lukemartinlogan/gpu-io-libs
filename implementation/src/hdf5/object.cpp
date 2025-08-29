@@ -1,6 +1,61 @@
 #include "object.h"
 
+#include "../util/align.h"
+
 constexpr uint32_t kPrefixSize = 8;
+
+// TODO: take predicate lambda?
+std::optional<Object::Space> Object::FindMessageRecursive(  // NOLINT(*-no-recursion
+    Deserializer& de,
+    offset_t sb_base_addr,
+    uint16_t& messages_read,
+    uint16_t total_message_ct,
+    uint32_t size_limit,
+    uint16_t msg_type
+) {
+    uint32_t bytes_read = 0;
+
+    while (bytes_read < size_limit && messages_read < total_message_ct) {
+        auto type = de.Read<uint16_t>();
+        auto size_bytes = de.Read<uint16_t>();
+
+        bytes_read += size_bytes + kPrefixSize;
+        ++messages_read;
+
+        // flags + reserved
+        de.Skip<4>();
+
+        if (type == ObjectHeaderContinuationMessage::kType) {
+            auto cont = de.Read<ObjectHeaderContinuationMessage>();
+
+            offset_t return_pos = de.GetPosition();
+            de.SetPosition(sb_base_addr + cont.offset);
+
+            std::optional<Space> found = FindMessageRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, msg_type);
+
+            if (found.has_value()) {
+                return found;
+            }
+
+            de.SetPosition(return_pos);
+        } else {
+            if (type == msg_type) {
+                uint16_t total_size = size_bytes + kPrefixSize;
+
+                return Space {
+                    .offset = de.GetPosition() - kPrefixSize,
+                    .size = total_size,
+                };
+            }
+
+            for (size_t b = 0; b < size_bytes; ++b) {
+                de.Skip<byte_t>();
+            }
+        }
+    }
+
+    return std::nullopt;
+}
 
 std::optional<Object::Space> Object::FindSpaceRecursive(  // NOLINT(*-no-recursion
     Deserializer& de,
@@ -299,4 +354,122 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
     JumpToRelativeOffset(2);
     file->io.Write(written_ct);
+}
+
+std::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
+    JumpToRelativeOffset(0);
+
+    file->io.Skip<2>();
+
+    auto total_message_ct = file->io.Read<uint16_t>();
+
+    file->io.Skip<4>();
+
+    auto header_size = file->io.Read<uint32_t>();
+
+    // reserved
+    file->io.Skip<4>();
+
+    uint16_t messages_read = 0;
+
+    std::optional<Space> found = FindMessageRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, msg_type);
+
+    if (!found.has_value()) {
+        return std::nullopt;
+    }
+
+    file->io.SetPosition(found->offset);
+    auto msg = file->io.ReadComplex<ObjectHeaderMessage>();
+
+    if (file->io.GetPosition() > found->offset + found->size) {
+        throw std::logic_error("Read too many bytes for message");
+    }
+
+    file->io.SetPosition(found->offset);
+    uint16_t nil_size = found->size - kPrefixSize;
+
+    WriteHeader(file->io, NilMessage::kType, nil_size, 0);
+    file->io.WriteComplex(NilMessage { .size = nil_size, });
+
+    return msg;
+}
+
+// TODO: fix code duplication
+std::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
+    JumpToRelativeOffset(0);
+
+    file->io.Skip<2>();
+
+    auto total_message_ct = file->io.Read<uint16_t>();
+
+    file->io.Skip<4>();
+
+    auto header_size = file->io.Read<uint32_t>();
+
+    // reserved
+    file->io.Skip<4>();
+
+    uint16_t messages_read = 0;
+
+    std::optional<Space> found = FindMessageRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, msg_type);
+
+    if (!found.has_value()) {
+        return std::nullopt;
+    }
+
+    file->io.SetPosition(found->offset);
+    auto msg = file->io.ReadComplex<ObjectHeaderMessage>();
+
+    if (file->io.GetPosition() > found->offset + found->size) {
+        throw std::logic_error("Read too many bytes for message");
+    }
+
+    return msg;
+}
+
+inline len_t EmptyHeaderMessagesSize(len_t min_size) {
+    return EightBytesAlignedSize(std::max(
+        min_size,
+        sizeof(ObjectHeaderContinuationMessage) + kPrefixSize
+    ));
+}
+
+void Object::WriteEmpty(len_t min_size, Serializer& s) {
+    len_t aligned_size = EmptyHeaderMessagesSize(min_size);
+
+    s.Write(ObjectHeader::kVersionNumber);
+    // reserved
+    s.Write<uint8_t>(0);
+    // total num of messages (one nil message)
+    s.Write<uint16_t>(1);
+
+    // object ref count
+    s.Write<uint32_t>(0);
+    // header size
+    s.Write<uint32_t>(min_size);
+
+    // reserved
+    s.Write<uint32_t>(0);
+
+    // TODO: fix size overflow?
+    uint16_t nil_size = min_size - 8;
+
+    WriteHeader(s, NilMessage::kType, nil_size, 0);
+    s.WriteComplex(NilMessage { .size = nil_size });
+}
+
+Object Object::AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file) {
+    len_t alloc_size = EmptyHeaderMessagesSize(min_size) + 16;
+
+    offset_t alloc_start = file->AllocateAtEOF(alloc_size);
+    file->io.SetPosition(alloc_start);
+    WriteEmpty(min_size, file->io);
+
+    len_t bytes_written = file->io.GetPosition() - alloc_start;
+
+    if (bytes_written != alloc_size) {
+        throw std::logic_error("AllocateEmptyAtEOF: size mismatch");
+    }
+
+    return Object(file, alloc_start);
 }

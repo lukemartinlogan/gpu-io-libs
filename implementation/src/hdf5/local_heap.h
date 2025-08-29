@@ -1,29 +1,54 @@
 #pragma once
 
 #include <string>
-#include <vector>
 #include <cstdint>
 
 #include "types.h"
 #include "../serialization/serialization.h"
 
+struct FileLink;
+
 struct LocalHeap {
     len_t free_list_head_offset{};
 
-    // FIXME: don't store this?
-    std::vector<byte_t> data_segment;
+    [[nodiscard]] std::string ReadString(offset_t offset, Deserializer& de) const;
 
-    [[nodiscard]] std::string ReadString(offset_t offset) const;
+    offset_t WriteString(std::string_view string, FileLink& file);
 
-    // Read raw data at the given offset
-    [[nodiscard]] std::span<const byte_t> ReadData(len_t offset, len_t size) const;
+    static std::pair<LocalHeap, offset_t> AllocateNew(FileLink& file, len_t min_size);
+
+    void RewriteToFile(ReaderWriter& rw) const;
 
     void Serialize(Serializer& s) const;
 
     static LocalHeap Deserialize(Deserializer& de);
 
 private:
+    struct FreeListBlock {
+        len_t next_free_list_offset;
+        len_t size;
+    };
+
+    struct SuitableFreeSpace {
+        std::optional<offset_t> prev_block_offset;
+        offset_t this_offset;
+        FreeListBlock block;
+    };
+
+    std::optional<SuitableFreeSpace> FindFreeSpace(len_t required_size, Deserializer& de) const;
+
+    offset_t WriteBytes(std::span<const byte_t> data, FileLink& file);
+
+    void ReserveAdditional(FileLink& file, size_t additional_bytes);
+
+private:
     offset_t data_segment_address{};
+    len_t data_segment_size{};
+
+    offset_t this_offset{};
+
+    static constexpr offset_t kLastFreeBlock = 1;
+    static constexpr len_t kHeaderSize = 32;
 
     static constexpr std::array<uint8_t, 4> kSignature = { 'H', 'E', 'A', 'P' };
     static constexpr uint8_t kVersionNumber = 0x00;
