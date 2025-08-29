@@ -17,6 +17,8 @@ struct LocalHeap {
 
     static LocalHeap AllocateNew(FileLink& file, len_t min_size);
 
+    void RewriteToFile(ReaderWriter& rw) const;
+
     void Serialize(Serializer& s) const;
 
     static LocalHeap Deserialize(Deserializer& de);
@@ -38,8 +40,6 @@ private:
     offset_t WriteBytes(std::span<const byte_t> data, FileLink& file);
 
     void ReserveAdditional(FileLink& file, size_t additional_bytes);
-
-    void RewriteToFile(ReaderWriter& rw) const;
 
 private:
     offset_t data_segment_address{};
