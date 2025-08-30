@@ -117,6 +117,8 @@ private:
 
     std::optional<uint16_t> FindIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
+    [[nodiscard]] std::optional<uint16_t> FindChunkedIndex(const ChunkCoordinates& chunk_coords) const;
+
     [[nodiscard]] bool AtCapacity(KValues k) const;
 
     uint16_t InsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const;

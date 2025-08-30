@@ -152,6 +152,44 @@ uint16_t BTreeNode::InsertionPosition(std::string_view key, const LocalHeap& hea
     return child_index;
 }
 
+std::optional<uint16_t> BTreeNode::FindChunkedIndex(const ChunkCoordinates& chunk_coords) const {
+    if (!std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
+        return std::nullopt;
+    }
+
+    const auto& chunk_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+
+    uint16_t entries_ct = EntriesUsed();
+
+    if (entries_ct == 0) {
+        // empty node, no entries
+        return std::nullopt;
+    }
+
+    // find correct child pointer
+    uint16_t child_index = entries_ct + 1;
+
+    ChunkCoordinates prev = chunk_entries.keys.front().chunk_offset_in_dataset;
+
+    for (size_t i = 1; i < chunk_entries.keys.size(); ++i) {
+        ChunkCoordinates next = chunk_entries.keys[i].chunk_offset_in_dataset;
+
+        if (prev <= chunk_coords && chunk_coords < next) {
+            child_index = i - 1;
+            break;
+        }
+
+        prev = std::move(next);
+    }
+
+    if (child_index == entries_ct + 1) {
+        // coords are greater than all keys
+        return std::nullopt;
+    }
+
+    return child_index;
+}
+
 BTreeGroupNodeKey BTreeNode::GetMaxKey(FileLink& file) const {
     using GroupEntries = BTreeEntries<BTreeGroupNodeKey>;
 
