@@ -190,6 +190,34 @@ std::optional<uint16_t> BTreeNode::FindChunkedIndex(const ChunkCoordinates& chun
     return child_index;
 }
 
+uint16_t BTreeNode::ChunkedInsertionPosition(const ChunkCoordinates& chunk_coords) const {
+    if (!std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
+        throw std::logic_error("ChunkedInsertionPosition only supported for chunked nodes");
+    }
+
+    const auto& chunk_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+
+    uint16_t entries_ct = EntriesUsed();
+
+    if (entries_ct == 0) {
+        return 0;
+    }
+
+    // find correct child pointer
+    uint16_t child_index = entries_ct;
+
+    for (size_t i = 0; i < entries_ct; ++i) {
+        const auto& next = chunk_entries.keys.at(i + 1).chunk_offset_in_dataset;
+
+        if (chunk_coords < next) {
+            child_index = i;
+            break;
+        }
+    }
+
+    return child_index;
+}
+
 BTreeGroupNodeKey BTreeNode::GetMaxKey(FileLink& file) const {
     using GroupEntries = BTreeEntries<BTreeGroupNodeKey>;
 

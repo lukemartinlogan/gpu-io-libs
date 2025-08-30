@@ -123,6 +123,8 @@ private:
 
     uint16_t GroupInsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
+    [[nodiscard]] uint16_t ChunkedInsertionPosition(const ChunkCoordinates& chunk_coords) const;
+
     [[nodiscard]] BTreeGroupNodeKey GetMaxKey(FileLink& file) const;
 
     [[nodiscard]] BTreeGroupNodeKey GetMinKey() const;
