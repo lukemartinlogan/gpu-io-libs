@@ -115,13 +115,13 @@ private:
 
     std::optional<SplitResult> Insert(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
 
-    std::optional<uint16_t> FindIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
+    std::optional<uint16_t> FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
     [[nodiscard]] std::optional<uint16_t> FindChunkedIndex(const ChunkCoordinates& chunk_coords) const;
 
     [[nodiscard]] bool AtCapacity(KValues k) const;
 
-    uint16_t InsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
+    uint16_t GroupInsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
     [[nodiscard]] BTreeGroupNodeKey GetMaxKey(FileLink& file) const;
 

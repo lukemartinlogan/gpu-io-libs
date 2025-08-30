@@ -43,7 +43,7 @@ uint16_t BTreeNode::EntriesUsed() const {
 }
 
 std::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, const LocalHeap& heap) const { // NOLINT(*-no-recursion
-    std::optional<uint16_t> child_index = FindIndex(name, heap, file.io);
+    std::optional<uint16_t> child_index = FindGroupIndex(name, heap, file.io);
 
     if (!child_index) {
         return std::nullopt;
@@ -82,7 +82,7 @@ void WriteEntries(const BTreeEntries<K>& entries, Serializer& s) {
     s.Write(entries.keys.back());
 }
 
-std::optional<uint16_t> BTreeNode::FindIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
+std::optional<uint16_t> BTreeNode::FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
     if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         return std::nullopt;
     }
@@ -122,7 +122,7 @@ std::optional<uint16_t> BTreeNode::FindIndex(std::string_view key, const LocalHe
     return child_index;
 }
 
-uint16_t BTreeNode::InsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
+uint16_t BTreeNode::GroupInsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
     if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         throw std::logic_error("InsertionPosition only supported for group nodes");
     }
@@ -421,7 +421,7 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
         std::string key_str = heap.ReadString(key.first_object_name, file.io);
 
         auto& ins_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(node.entries);
-        uint16_t ins_pos = node.InsertionPosition(key_str, heap, file.io);
+        uint16_t ins_pos = node.GroupInsertionPosition(key_str, heap, file.io);
 
         ins_entries.child_pointers.insert(
             ins_entries.child_pointers.begin() + ins_pos,
@@ -463,7 +463,7 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
 
         WriteNodeGetAllocSize(this_offset, file, k);
     } else {
-        std::optional<uint16_t> child_idx = FindIndex(name_str, heap, file.io);
+        std::optional<uint16_t> child_idx = FindGroupIndex(name_str, heap, file.io);
 
         if (!child_idx) {
             throw std::runtime_error("BTreeNode::Insert: could not find child index");
