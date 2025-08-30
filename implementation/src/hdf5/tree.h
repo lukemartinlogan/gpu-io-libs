@@ -78,6 +78,8 @@ struct BTreeEntries {
 
     [[nodiscard]] uint16_t EntriesUsed() const;
 
+    [[nodiscard]] uint16_t KeySize() const;
+
     static_assert(
         std::is_same_v<K, BTreeGroupNodeKey> || std::is_same_v<K, BTreeChunkedRawDataNodeKey>,
         "Unsupported key type"

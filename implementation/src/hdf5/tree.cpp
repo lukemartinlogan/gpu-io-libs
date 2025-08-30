@@ -38,6 +38,21 @@ uint16_t BTreeEntries<K>::EntriesUsed() const {
     return entries_ct;
 }
 
+template <typename K>
+uint16_t BTreeEntries<K>::KeySize() const {
+    if constexpr (std::is_same_v<K, BTreeGroupNodeKey>) {
+        return BTreeGroupNodeKey::kAllocationSize;
+    } else if constexpr (std::is_same_v<K, BTreeChunkedRawDataNodeKey>) {
+        if (keys.empty()) {
+            throw std::logic_error("Cannot determine key size for empty entries");
+        }
+
+        return keys.front().AllocationSize();
+    } else {
+        throw std::logic_error("unsupported key type");
+    }
+}
+
 uint16_t BTreeNode::EntriesUsed() const {
     return std::visit([](const auto& entries) {
         return entries.EntriesUsed();
@@ -262,19 +277,7 @@ BTreeGroupNodeKey BTreeNode::GetMinKey() const {
 len_t BTreeNode::AllocationSize(KValues k_val) const {
     const uint16_t k = k_val.Get(IsLeaf());
 
-    uint16_t key_size;
-
-    if (std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
-        key_size = BTreeGroupNodeKey::kAllocationSize; // Group node key size
-    } else {
-        const auto& chunk_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
-
-        if (chunk_entries.keys.empty()) {
-            throw std::logic_error("Cannot calculate AllocationSize for empty chunked node without dimensionality");
-        }
-
-        key_size = chunk_entries.keys.front().AllocationSize();
-    }
+    uint16_t key_size = std::visit([](const auto& entries) -> uint16_t { return entries.KeySize(); }, entries);
 
     return
         + 4 // Signature
@@ -401,20 +404,7 @@ len_t BTreeNode::WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues 
     len_t unused_entries = 2 * k.Get(IsLeaf()) - EntriesUsed();
 
     // Calculate key size based on node type
-    uint16_t key_size;
-
-    if (std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
-        key_size = BTreeGroupNodeKey::kAllocationSize; // Group node key size
-    } else if (std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
-        const auto& chunk_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
-        if (chunk_entries.keys.empty()) {
-            throw std::logic_error("Cannot calculate key size for empty chunked node");
-        }
-
-        key_size = chunk_entries.keys.front().AllocationSize();
-    } else {
-        throw std::logic_error("Unknown entry type in WriteNodeGetAllocSize");
-    }
+    uint16_t key_size = std::visit([](const auto& entries) -> uint16_t { return entries.KeySize(); }, entries);
 
     len_t key_ptr_size = key_size + sizeof(offset_t);
 
