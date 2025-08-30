@@ -149,9 +149,11 @@ private:
 
     [[nodiscard]] uint16_t ChunkedInsertionPosition(const ChunkCoordinates& chunk_coords) const;
 
-    [[nodiscard]] BTreeGroupNodeKey GetMaxKey(FileLink& file) const;
+    template <class K>
+    [[nodiscard]] K GetMaxKey(FileLink& file) const;
 
-    [[nodiscard]] BTreeGroupNodeKey GetMinKey() const;
+    template <class K>
+    [[nodiscard]] K GetMinKey() const;
 
     [[nodiscard]] len_t AllocationSize(KValues k) const;
 

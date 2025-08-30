@@ -235,43 +235,51 @@ uint16_t BTreeNode::ChunkedInsertionPosition(const ChunkCoordinates& chunk_coord
     return child_index;
 }
 
-BTreeGroupNodeKey BTreeNode::GetMaxKey(FileLink& file) const {
-    using GroupEntries = BTreeEntries<BTreeGroupNodeKey>;
+template<typename K>
+K BTreeNode::GetMaxKey(FileLink& file) const {
+    static_assert(
+        std::is_same_v<K, BTreeGroupNodeKey> || std::is_same_v<K, BTreeChunkedRawDataNodeKey>,
+        "Unsupported key type"
+    );
 
-    if (!std::holds_alternative<GroupEntries>(entries)) {
-        throw std::logic_error("GetMaxKey only supported for group nodes");
+    if (!std::holds_alternative<BTreeEntries<K>>(entries)) {
+        throw std::logic_error("GetMaxKey: incorrect key type for this node");
     }
 
-    auto g_entries = std::get<GroupEntries>(entries);
+    auto node_entries = std::get<BTreeEntries<K>>(entries);
 
-    if (g_entries.EntriesUsed() == 0) {
+    if (node_entries.EntriesUsed() == 0) {
         throw std::logic_error("GetMaxKey called on empty node");
     }
 
     if (IsLeaf()) {
-        return g_entries.keys.back();
+        return node_entries.keys.back();
     } else {
-        file.io.SetPosition(file.superblock.base_addr + g_entries.child_pointers.back());
+        file.io.SetPosition(file.superblock.base_addr + node_entries.child_pointers.back());
         auto child = file.io.ReadComplex<BTreeNode>();
 
-        return child.GetMaxKey(file);
+        return child.GetMaxKey<K>(file);
     }
 }
 
-BTreeGroupNodeKey BTreeNode::GetMinKey() const {
-    using GroupEntries = BTreeEntries<BTreeGroupNodeKey>;
+template<typename K>
+K BTreeNode::GetMinKey() const {
+    static_assert(
+        std::is_same_v<K, BTreeGroupNodeKey> || std::is_same_v<K, BTreeChunkedRawDataNodeKey>,
+        "Unsupported key type"
+    );
 
-    if (!std::holds_alternative<GroupEntries>(entries)) {
-        throw std::logic_error("GetMaxKey only supported for group nodes");
+    if (!std::holds_alternative<BTreeEntries<K>>(entries)) {
+        throw std::logic_error("GetMinKey: incorrect key type for this node");
     }
 
-    auto g_entries = std::get<GroupEntries>(entries);
+    auto node_entries = std::get<BTreeEntries<K>>(entries);
 
-    if (g_entries.EntriesUsed() == 0) {
-        throw std::logic_error("GetMaxKey called on empty node");
+    if (node_entries.EntriesUsed() == 0) {
+        throw std::logic_error("GetMinKey called on empty node");
     }
 
-    return g_entries.keys.front();
+    return node_entries.keys.front();
 }
 
 len_t BTreeNode::AllocationSize(KValues k_val) const {
@@ -594,7 +602,7 @@ void BTree::Insert(offset_t name_offset, offset_t object_header_ptr) {
     if (split.has_value()) {
         BTreeEntries<BTreeGroupNodeKey> entries{};
 
-        BTreeGroupNodeKey min = root->GetMinKey(), max = root->GetMaxKey(*file_);
+        auto min = root->GetMinKey<BTreeGroupNodeKey>(), max = root->GetMaxKey<BTreeGroupNodeKey>(*file_);
 
         entries.keys.push_back(min);
         entries.child_pointers.push_back(/* root: */ *addr_);
