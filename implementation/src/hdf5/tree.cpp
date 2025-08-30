@@ -262,11 +262,19 @@ BTreeGroupNodeKey BTreeNode::GetMinKey() const {
 len_t BTreeNode::AllocationSize(KValues k_val) const {
     const uint16_t k = k_val.Get(IsLeaf());
 
-    if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
-        throw std::logic_error("AllocationSize not impl for chunk nodes");
-    }
+    uint16_t key_size;
 
-    uint16_t key_size = BTreeGroupNodeKey::kAllocationSize;
+    if (std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+        key_size = BTreeGroupNodeKey::kAllocationSize; // Group node key size
+    } else {
+        const auto& chunk_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+
+        if (chunk_entries.keys.empty()) {
+            throw std::logic_error("Cannot calculate AllocationSize for empty chunked node without dimensionality");
+        }
+
+        key_size = chunk_entries.keys.front().AllocationSize();
+    }
 
     return
         + 4 // Signature
@@ -392,8 +400,23 @@ len_t BTreeNode::WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues 
 
     len_t unused_entries = 2 * k.Get(IsLeaf()) - EntriesUsed();
 
-    // fixme: this only works for group nodes, but it's fine since it would've thrown earlier
-    len_t key_ptr_size = /* key: */ BTreeGroupNodeKey::kAllocationSize + /* ptr: */ sizeof(offset_t);
+    // Calculate key size based on node type
+    uint16_t key_size;
+
+    if (std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+        key_size = BTreeGroupNodeKey::kAllocationSize; // Group node key size
+    } else if (std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
+        const auto& chunk_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+        if (chunk_entries.keys.empty()) {
+            throw std::logic_error("Cannot calculate key size for empty chunked node");
+        }
+
+        key_size = chunk_entries.keys.front().AllocationSize();
+    } else {
+        throw std::logic_error("Unknown entry type in WriteNodeGetAllocSize");
+    }
+
+    len_t key_ptr_size = key_size + sizeof(offset_t);
 
     // intended allocation size
     return written_bytes + unused_entries * key_ptr_size;
