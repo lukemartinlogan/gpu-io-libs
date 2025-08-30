@@ -60,6 +60,13 @@ struct BTreeChunkedRawDataNodeKey {
     void Serialize(Serializer& s) const;
 
     static BTreeChunkedRawDataNodeKey Deserialize(Deserializer& de);
+
+    [[nodiscard]] uint16_t AllocationSize() const {
+        // Key size = chunk_size + filter_mask + (dimensions * sizeof(uint64_t))
+        // + 1 for the terminating 0, since this is allocation size
+        uint16_t dimensions = static_cast<uint16_t>(chunk_offset_in_dataset.Dimensions());
+        return sizeof(uint32_t) + sizeof(uint32_t) + (dimensions + 1) * sizeof(uint64_t);
+    }
 };
 
 template<typename K>
