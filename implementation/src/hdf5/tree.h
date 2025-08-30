@@ -2,6 +2,7 @@
 #include <array>
 #include <functional>
 #include <optional>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -24,7 +25,14 @@ struct BTreeGroupNodeKey {
     static BTreeGroupNodeKey Deserialize(Deserializer& de) {
         return de.ReadRaw<BTreeGroupNodeKey>();
     }
+
+    static constexpr len_t kAllocationSize = sizeof(len_t);
 };
+
+static_assert(
+    BTreeGroupNodeKey::kAllocationSize == sizeof(BTreeGroupNodeKey),
+    "no extra fields should be added to key"
+);
 
 struct ChunkCoordinates {
     std::vector<uint64_t> coords;
@@ -53,6 +61,13 @@ struct BTreeChunkedRawDataNodeKey {
     void Serialize(Serializer& s) const;
 
     static BTreeChunkedRawDataNodeKey Deserialize(Deserializer& de);
+
+    [[nodiscard]] uint16_t AllocationSize() const {
+        // Key size = chunk_size + filter_mask + (dimensions * sizeof(uint64_t))
+        // + 1 for the terminating 0, since this is allocation size
+        uint16_t dimensions = static_cast<uint16_t>(chunk_offset_in_dataset.Dimensions());
+        return sizeof(uint32_t) + sizeof(uint32_t) + (dimensions + 1) * sizeof(uint64_t);
+    }
 };
 
 template<typename K>
@@ -62,6 +77,13 @@ struct BTreeEntries {
     std::vector<offset_t> child_pointers;
 
     [[nodiscard]] uint16_t EntriesUsed() const;
+
+    [[nodiscard]] uint16_t KeySize() const;
+
+    static_assert(
+        std::is_same_v<K, BTreeGroupNodeKey> || std::is_same_v<K, BTreeChunkedRawDataNodeKey>,
+        "Unsupported key type"
+    );
 };
 
 struct SplitResult;

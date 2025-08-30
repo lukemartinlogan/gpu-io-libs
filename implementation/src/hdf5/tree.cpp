@@ -38,6 +38,21 @@ uint16_t BTreeEntries<K>::EntriesUsed() const {
     return entries_ct;
 }
 
+template <typename K>
+uint16_t BTreeEntries<K>::KeySize() const {
+    if constexpr (std::is_same_v<K, BTreeGroupNodeKey>) {
+        return BTreeGroupNodeKey::kAllocationSize;
+    } else if constexpr (std::is_same_v<K, BTreeChunkedRawDataNodeKey>) {
+        if (keys.empty()) {
+            throw std::logic_error("Cannot determine key size for empty entries");
+        }
+
+        return keys.front().AllocationSize();
+    } else {
+        throw std::logic_error("unsupported key type");
+    }
+}
+
 uint16_t BTreeNode::EntriesUsed() const {
     return std::visit([](const auto& entries) {
         return entries.EntriesUsed();
@@ -262,11 +277,7 @@ BTreeGroupNodeKey BTreeNode::GetMinKey() const {
 len_t BTreeNode::AllocationSize(KValues k_val) const {
     const uint16_t k = k_val.Get(IsLeaf());
 
-    if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
-        throw std::logic_error("AllocationSize not impl for chunk nodes");
-    }
-
-    uint16_t key_size = sizeof(len_t);
+    uint16_t key_size = std::visit([](const auto& entries) -> uint16_t { return entries.KeySize(); }, entries);
 
     return
         + 4 // Signature
@@ -392,8 +403,10 @@ len_t BTreeNode::WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues 
 
     len_t unused_entries = 2 * k.Get(IsLeaf()) - EntriesUsed();
 
-    // fixme: this only works for group nodes, but it's fine since it would've thrown earlier
-    len_t key_ptr_size = /* key: */ sizeof(len_t) + /* ptr: */ sizeof(offset_t);
+    // Calculate key size based on node type
+    uint16_t key_size = std::visit([](const auto& entries) -> uint16_t { return entries.KeySize(); }, entries);
+
+    len_t key_ptr_size = key_size + sizeof(offset_t);
 
     // intended allocation size
     return written_bytes + unused_entries * key_ptr_size;
