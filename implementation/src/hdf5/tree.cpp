@@ -376,25 +376,25 @@ bool BTreeNode::AtCapacity(KValues k) const {
     return EntriesUsed() == k.Get(IsLeaf()) * 2;
 }
 
-BTreeNode BTreeNode::Split(KValues k) const {
-    auto l_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+BTreeNode BTreeNode::Split(KValues k) {
+    return std::visit([this, k]<typename Entries>(Entries& l_entries) -> BTreeNode {
+        Entries r_entries{};
+        uint16_t mid = k.Get(IsLeaf());
 
-    BTreeEntries<BTreeGroupNodeKey> r_entries{};
-    uint16_t mid = k.Get(IsLeaf());
+        // 1. move keys to right node
+        r_entries.keys.assign(l_entries.keys.begin() + mid, l_entries.keys.end());
+        // + 1 to keep key
+        l_entries.keys.erase(l_entries.keys.begin() + mid + 1, l_entries.keys.end());
 
-    // 1. move keys to right node
-    r_entries.keys.assign(l_entries.keys.begin() + mid, l_entries.keys.end());
-    // + 1 to keep key
-    l_entries.keys.erase(l_entries.keys.begin() + mid + 1, l_entries.keys.end());
+        // 2. move pointers
+        r_entries.child_pointers.assign(l_entries.child_pointers.begin() + mid, l_entries.child_pointers.end());
+        l_entries.child_pointers.erase(l_entries.child_pointers.begin() + mid, l_entries.child_pointers.end());
 
-    // 2. move pointers
-    r_entries.child_pointers.assign(l_entries.child_pointers.begin() + mid, l_entries.child_pointers.end());
-    l_entries.child_pointers.erase(l_entries.child_pointers.begin() + mid, l_entries.child_pointers.end());
-
-    return {
-        .level = level,
-        .entries = r_entries,
-    };
+        return {
+            .level = level,
+            .entries = r_entries,
+        };
+    }, entries);
 }
 
 len_t BTreeNode::WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues k) const {

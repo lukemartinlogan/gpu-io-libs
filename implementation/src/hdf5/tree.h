@@ -135,7 +135,7 @@ private:
         }
     };
 
-    [[nodiscard]] BTreeNode Split(KValues k) const;
+    [[nodiscard]] BTreeNode Split(KValues k);
 
     std::optional<SplitResult> Insert(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
 
