@@ -2,6 +2,7 @@
 #include <array>
 #include <functional>
 #include <optional>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -76,6 +77,11 @@ struct BTreeEntries {
     std::vector<offset_t> child_pointers;
 
     [[nodiscard]] uint16_t EntriesUsed() const;
+
+    static_assert(
+        std::is_same_v<K, BTreeGroupNodeKey> || std::is_same_v<K, BTreeChunkedRawDataNodeKey>,
+        "Unsupported key type"
+    );
 };
 
 struct SplitResult;
