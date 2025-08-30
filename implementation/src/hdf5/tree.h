@@ -46,7 +46,7 @@ struct BTreeChunkedRawDataNodeKey {
     uint32_t chunk_size;
     // .size() == number of dimensions
     // extra uint64_t(0) at the end (not stored)
-    std::vector<uint64_t> chunk_offset_in_dataset;
+    ChunkCoordinates chunk_offset_in_dataset;
 
     void Serialize(Serializer& s) const;
 
