@@ -6,7 +6,7 @@
 void BTreeChunkedRawDataNodeKey::Serialize(Serializer& s) const {
     s.Write(chunk_size);
 
-    for (const uint64_t offset: chunk_offset_in_dataset) {
+    for (const uint64_t offset: chunk_offset_in_dataset.coords) {
         s.Write(offset);
     }
 
@@ -19,7 +19,7 @@ BTreeChunkedRawDataNodeKey BTreeChunkedRawDataNodeKey::Deserialize(Deserializer&
     key.chunk_size = de.Read<uint32_t>();
 
     for (uint64_t offset; (offset = de.Read<uint64_t>()) != 0;) {
-        key.chunk_offset_in_dataset.push_back(offset);
+        key.chunk_offset_in_dataset.coords.push_back(offset);
     }
 
     return key;
@@ -43,7 +43,7 @@ uint16_t BTreeNode::EntriesUsed() const {
 }
 
 std::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, const LocalHeap& heap) const { // NOLINT(*-no-recursion
-    std::optional<uint16_t> child_index = FindIndex(name, heap, file.io);
+    std::optional<uint16_t> child_index = FindGroupIndex(name, heap, file.io);
 
     if (!child_index) {
         return std::nullopt;
@@ -82,7 +82,7 @@ void WriteEntries(const BTreeEntries<K>& entries, Serializer& s) {
     s.Write(entries.keys.back());
 }
 
-std::optional<uint16_t> BTreeNode::FindIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
+std::optional<uint16_t> BTreeNode::FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
     if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         return std::nullopt;
     }
@@ -122,7 +122,7 @@ std::optional<uint16_t> BTreeNode::FindIndex(std::string_view key, const LocalHe
     return child_index;
 }
 
-uint16_t BTreeNode::InsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
+uint16_t BTreeNode::GroupInsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
     if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         throw std::logic_error("InsertionPosition only supported for group nodes");
     }
@@ -144,6 +144,72 @@ uint16_t BTreeNode::InsertionPosition(std::string_view key, const LocalHeap& hea
         std::string next = heap.ReadString(group_entries.keys.at(i + 1).first_object_name, de);
 
         if (key <= next) {
+            child_index = i;
+            break;
+        }
+    }
+
+    return child_index;
+}
+
+std::optional<uint16_t> BTreeNode::FindChunkedIndex(const ChunkCoordinates& chunk_coords) const {
+    if (!std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
+        return std::nullopt;
+    }
+
+    const auto& chunk_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+
+    uint16_t entries_ct = EntriesUsed();
+
+    if (entries_ct == 0) {
+        // empty node, no entries
+        return std::nullopt;
+    }
+
+    // find correct child pointer
+    uint16_t child_index = entries_ct + 1;
+
+    ChunkCoordinates prev = chunk_entries.keys.front().chunk_offset_in_dataset;
+
+    for (size_t i = 1; i < chunk_entries.keys.size(); ++i) {
+        ChunkCoordinates next = chunk_entries.keys[i].chunk_offset_in_dataset;
+
+        if (prev <= chunk_coords && chunk_coords < next) {
+            child_index = i - 1;
+            break;
+        }
+
+        prev = std::move(next);
+    }
+
+    if (child_index == entries_ct + 1) {
+        // coords are greater than all keys
+        return std::nullopt;
+    }
+
+    return child_index;
+}
+
+uint16_t BTreeNode::ChunkedInsertionPosition(const ChunkCoordinates& chunk_coords) const {
+    if (!std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
+        throw std::logic_error("ChunkedInsertionPosition only supported for chunked nodes");
+    }
+
+    const auto& chunk_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+
+    uint16_t entries_ct = EntriesUsed();
+
+    if (entries_ct == 0) {
+        return 0;
+    }
+
+    // find correct child pointer
+    uint16_t child_index = entries_ct;
+
+    for (size_t i = 0; i < entries_ct; ++i) {
+        const auto& next = chunk_entries.keys.at(i + 1).chunk_offset_in_dataset;
+
+        if (chunk_coords < next) {
             child_index = i;
             break;
         }
@@ -383,7 +449,7 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
         std::string key_str = heap.ReadString(key.first_object_name, file.io);
 
         auto& ins_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(node.entries);
-        uint16_t ins_pos = node.InsertionPosition(key_str, heap, file.io);
+        uint16_t ins_pos = node.GroupInsertionPosition(key_str, heap, file.io);
 
         ins_entries.child_pointers.insert(
             ins_entries.child_pointers.begin() + ins_pos,
@@ -425,7 +491,7 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
 
         WriteNodeGetAllocSize(this_offset, file, k);
     } else {
-        std::optional<uint16_t> child_idx = FindIndex(name_str, heap, file.io);
+        std::optional<uint16_t> child_idx = FindGroupIndex(name_str, heap, file.io);
 
         if (!child_idx) {
             throw std::runtime_error("BTreeNode::Insert: could not find child index");

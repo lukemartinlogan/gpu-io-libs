@@ -26,12 +26,27 @@ struct BTreeGroupNodeKey {
     }
 };
 
+struct ChunkCoordinates {
+    std::vector<uint64_t> coords;
+
+    ChunkCoordinates() = default;
+
+    explicit ChunkCoordinates(const std::vector<uint64_t>& coordinates) : coords(coordinates) {}
+    explicit ChunkCoordinates(std::vector<uint64_t>&& coordinates) : coords(std::move(coordinates)) {}
+
+    auto operator<=>(const ChunkCoordinates&) const = default;
+
+    [[nodiscard]] size_t Dimensions() const {
+        return coords.size();
+    }
+};
+
 struct BTreeChunkedRawDataNodeKey {
     // in bytes
     uint32_t chunk_size;
     // .size() == number of dimensions
     // extra uint64_t(0) at the end (not stored)
-    std::vector<uint64_t> chunk_offset_in_dataset;
+    ChunkCoordinates chunk_offset_in_dataset;
 
     void Serialize(Serializer& s) const;
 
@@ -100,11 +115,15 @@ private:
 
     std::optional<SplitResult> Insert(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
 
-    std::optional<uint16_t> FindIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
+    std::optional<uint16_t> FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
+
+    [[nodiscard]] std::optional<uint16_t> FindChunkedIndex(const ChunkCoordinates& chunk_coords) const;
 
     [[nodiscard]] bool AtCapacity(KValues k) const;
 
-    uint16_t InsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
+    uint16_t GroupInsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
+
+    [[nodiscard]] uint16_t ChunkedInsertionPosition(const ChunkCoordinates& chunk_coords) const;
 
     [[nodiscard]] BTreeGroupNodeKey GetMaxKey(FileLink& file) const;
 
