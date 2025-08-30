@@ -24,7 +24,14 @@ struct BTreeGroupNodeKey {
     static BTreeGroupNodeKey Deserialize(Deserializer& de) {
         return de.ReadRaw<BTreeGroupNodeKey>();
     }
+
+    static constexpr len_t kAllocationSize = sizeof(len_t);
 };
+
+static_assert(
+    BTreeGroupNodeKey::kAllocationSize == sizeof(BTreeGroupNodeKey),
+    "no extra fields should be added to key"
+);
 
 struct ChunkCoordinates {
     std::vector<uint64_t> coords;

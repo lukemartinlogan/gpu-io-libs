@@ -266,7 +266,7 @@ len_t BTreeNode::AllocationSize(KValues k_val) const {
         throw std::logic_error("AllocationSize not impl for chunk nodes");
     }
 
-    uint16_t key_size = sizeof(len_t);
+    uint16_t key_size = BTreeGroupNodeKey::kAllocationSize;
 
     return
         + 4 // Signature
@@ -393,7 +393,7 @@ len_t BTreeNode::WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues 
     len_t unused_entries = 2 * k.Get(IsLeaf()) - EntriesUsed();
 
     // fixme: this only works for group nodes, but it's fine since it would've thrown earlier
-    len_t key_ptr_size = /* key: */ sizeof(len_t) + /* ptr: */ sizeof(offset_t);
+    len_t key_ptr_size = /* key: */ BTreeGroupNodeKey::kAllocationSize + /* ptr: */ sizeof(offset_t);
 
     // intended allocation size
     return written_bytes + unused_entries * key_ptr_size;
