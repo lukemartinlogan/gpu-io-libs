@@ -44,6 +44,8 @@ struct ChunkCoordinates {
 struct BTreeChunkedRawDataNodeKey {
     // in bytes
     uint32_t chunk_size;
+    // bit field indicating which filters have been skipped for this chunk
+    uint32_t filter_mask;
     // .size() == number of dimensions
     // extra uint64_t(0) at the end (not stored)
     ChunkCoordinates chunk_offset_in_dataset;

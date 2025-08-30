@@ -5,6 +5,7 @@
 
 void BTreeChunkedRawDataNodeKey::Serialize(Serializer& s) const {
     s.Write(chunk_size);
+    s.Write(filter_mask);
 
     for (const uint64_t offset: chunk_offset_in_dataset.coords) {
         s.Write(offset);
@@ -17,6 +18,7 @@ BTreeChunkedRawDataNodeKey BTreeChunkedRawDataNodeKey::Deserialize(Deserializer&
     BTreeChunkedRawDataNodeKey key{};
 
     key.chunk_size = de.Read<uint32_t>();
+    key.filter_mask = de.Read<uint32_t>();
 
     for (uint64_t offset; (offset = de.Read<uint64_t>()) != 0;) {
         key.chunk_offset_in_dataset.coords.push_back(offset);
