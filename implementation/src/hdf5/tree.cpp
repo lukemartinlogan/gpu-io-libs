@@ -91,6 +91,34 @@ std::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, co
     return child_node.Get(name, file, heap);
 }
 
+std::optional<offset_t> BTreeNode::GetChunk(const ChunkCoordinates& chunk_coords, FileLink& file) const { // NOLINT(*-no-recursion)
+    std::optional<uint16_t> child_index = FindChunkedIndex(chunk_coords);
+
+    if (!child_index) {
+        return std::nullopt;
+    }
+
+    const auto& chunk_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+
+    // pointers point to raw chunk data
+    if (IsLeaf()) {
+        // coordinates must match exactly
+        const auto& key = chunk_entries.keys.at(*child_index);
+        if (key.chunk_offset_in_dataset.coords == chunk_coords.coords) {
+            return chunk_entries.child_pointers.at(*child_index);
+        }
+        return std::nullopt;
+    }
+
+    // recursively search the tree
+    offset_t child_addr = chunk_entries.child_pointers.at(*child_index);
+
+    file.io.SetPosition(file.superblock.base_addr + child_addr);
+    auto child_node = ReadChild(file.io);
+
+    return child_node.GetChunk(chunk_coords, file);
+}
+
 template<typename K>
 void WriteEntries(const BTreeEntries<K>& entries, Serializer& s) {
     uint16_t entries_ct = entries.child_pointers.size();

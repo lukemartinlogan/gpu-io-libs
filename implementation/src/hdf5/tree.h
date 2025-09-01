@@ -120,6 +120,8 @@ struct BTreeNode {
 
     [[nodiscard]] std::optional<offset_t> Get(std::string_view name, FileLink& file, const LocalHeap& heap) const;
 
+    [[nodiscard]] std::optional<offset_t> GetChunk(const ChunkCoordinates& chunk_coords, FileLink& file) const;
+
     void Serialize(Serializer& s) const;
 
     static BTreeNode DeserializeGroup(Deserializer& de);
