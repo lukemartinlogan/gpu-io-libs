@@ -60,7 +60,7 @@ struct BTreeChunkedRawDataNodeKey {
 
     void Serialize(Serializer& s) const;
 
-    static BTreeChunkedRawDataNodeKey Deserialize(Deserializer& de);
+    static BTreeChunkedRawDataNodeKey DeserializeWithDims(Deserializer& de, uint8_t dimensionality);
 
     [[nodiscard]] uint16_t AllocationSize() const {
         // Key size = chunk_size + filter_mask + (dimensions * sizeof(uint64_t))

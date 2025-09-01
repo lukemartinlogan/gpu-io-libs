@@ -14,14 +14,24 @@ void BTreeChunkedRawDataNodeKey::Serialize(Serializer& s) const {
     s.Write<uint64_t>(0);
 }
 
-BTreeChunkedRawDataNodeKey BTreeChunkedRawDataNodeKey::Deserialize(Deserializer& de) {
+BTreeChunkedRawDataNodeKey BTreeChunkedRawDataNodeKey::DeserializeWithDims(Deserializer& de, uint8_t dimensionality) {
     BTreeChunkedRawDataNodeKey key{};
 
     key.chunk_size = de.Read<uint32_t>();
     key.filter_mask = de.Read<uint32_t>();
 
-    for (uint64_t offset; (offset = de.Read<uint64_t>()) != 0;) {
+    for (uint8_t i = 0; i < dimensionality; ++i) {
+        auto offset = de.Read<uint64_t>();
+
         key.chunk_offset_in_dataset.coords.push_back(offset);
+
+        if (offset == 0) {
+            throw std::runtime_error("BTreeChunkedRawDataNodeKey: unexpected 0 in chunk coordinates");
+        }
+    }
+
+    if (de.Read<uint64_t>() != 0) {
+        throw std::runtime_error("BTreeChunkedRawDataNodeKey: expected terminating 0");
     }
 
     return key;
