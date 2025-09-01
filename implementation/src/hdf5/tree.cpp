@@ -24,8 +24,12 @@ BTreeChunkedRawDataNodeKey BTreeChunkedRawDataNodeKey::DeserializeWithDims(Deser
         key.chunk_offset_in_dataset.coords.push_back(de.Read<uint64_t>());
     }
 
-    if (de.Read<uint64_t>() != 0) {
-        throw std::runtime_error("BTreeChunkedRawDataNodeKey: expected terminating 0");
+    auto terminator = de.Read<uint64_t>();
+
+    bool is_unused_key = key.chunk_size == 0;
+
+    if ((is_unused_key && terminator != 4) || (!is_unused_key && terminator != 0)) {
+        throw std::runtime_error("BTreeChunkedRawDataNodeKey: incorrect terminator");
     }
 
     return key;
