@@ -560,7 +560,7 @@ std::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_t
     return res;
 }
 
-std::optional<offset_t> BTree::Get(std::string_view name) const {
+std::optional<offset_t> GroupBTree::Get(std::string_view name) const {
     std::optional<BTreeNode> root = ReadRoot();
 
     if (!root.has_value()) {
@@ -570,7 +570,7 @@ std::optional<offset_t> BTree::Get(std::string_view name) const {
     return root->Get(name, *file_, heap_);
 }
 
-void BTree::InsertGroup(offset_t name_offset, offset_t object_header_ptr) {
+void GroupBTree::InsertGroup(offset_t name_offset, offset_t object_header_ptr) {
     const BTreeNode::KValues k {
         .leaf = file_->superblock.group_leaf_node_k,
         .internal = file_->superblock.group_internal_node_k
@@ -623,7 +623,7 @@ void BTree::InsertGroup(offset_t name_offset, offset_t object_header_ptr) {
     }
 }
 
-size_t BTree::Size() const {
+size_t GroupBTree::Size() const {
     std::optional<BTreeNode> root = ReadRoot();
 
     if (!root.has_value()) {
@@ -637,7 +637,7 @@ size_t BTree::Size() const {
     return size;
 }
 
-std::vector<offset_t> BTree::Elements() const {
+std::vector<offset_t> GroupBTree::Elements() const {
     std::optional<BTreeNode> root = ReadRoot();
 
     if (!root.has_value()) {
@@ -651,7 +651,7 @@ std::vector<offset_t> BTree::Elements() const {
     return elems;
 }
 
-std::optional<BTreeNode> BTree::ReadRoot() const {
+std::optional<BTreeNode> GroupBTree::ReadRoot() const {
     if (!addr_.has_value()) {
         return std::nullopt;
     }

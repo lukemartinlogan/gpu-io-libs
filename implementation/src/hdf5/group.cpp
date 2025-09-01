@@ -23,7 +23,7 @@ Group::Group(const Object& object)
     object_.file->io.SetPosition(object_.file->superblock.base_addr + symb_tbl.local_heap_addr);
     auto local_heap = object_.file->io.ReadComplex<LocalHeap>();
 
-    table_ = BTree(symb_tbl.b_tree_addr, object_.file, local_heap);
+    table_ = GroupBTree(symb_tbl.b_tree_addr, object_.file, local_heap);
 }
 
 Dataset Group::OpenDataset(std::string_view dataset_name) const {

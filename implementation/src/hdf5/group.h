@@ -52,5 +52,5 @@ private:
 public:
     Object object_;
 
-    BTree table_{};
+    GroupBTree table_{};
 };

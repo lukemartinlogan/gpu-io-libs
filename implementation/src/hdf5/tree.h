@@ -123,7 +123,7 @@ struct BTreeNode {
     static BTreeNode Deserialize(Deserializer& de);
 
 private:
-    friend struct BTree;
+    friend struct GroupBTree;
     friend class Group;
 
     struct KValues {
@@ -173,8 +173,8 @@ struct SplitResult {
     offset_t new_node_offset;
 };
 
-struct BTree {
-    explicit BTree(offset_t addr, std::shared_ptr<FileLink> file, const LocalHeap& heap)
+struct GroupBTree {
+    explicit GroupBTree(offset_t addr, std::shared_ptr<FileLink> file, const LocalHeap& heap)
         : file_(std::move(file)), heap_(heap), addr_(addr) {}
 
     [[nodiscard]] std::optional<offset_t> Get(std::string_view name) const;
@@ -187,7 +187,7 @@ struct BTree {
 private:
     friend class Group;
 
-    BTree() = default;
+    GroupBTree() = default;
 
     [[nodiscard]] std::optional<BTreeNode> ReadRoot() const;
 
