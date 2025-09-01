@@ -542,6 +542,32 @@ void BTreeNode::Recurse(const std::function<void(std::string, offset_t)>& visito
     }
 }
 
+void BTreeNode::RecurseChunked(const std::function<void(ChunkCoordinates, offset_t)>& visitor, FileLink& file) const {
+    if (!std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
+        throw std::logic_error("RecurseChunked only supported for chunked nodes");
+    }
+
+    auto c_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+
+    for (size_t i = 0; i < c_entries.EntriesUsed(); ++i) {
+        offset_t ptr = c_entries.child_pointers.at(i);
+
+        if (IsLeaf()) {
+            const auto& key = c_entries.keys.at(i);
+            
+            // Only visit chunks that actually exist (chunk_size > 0)
+            if (key.chunk_size > 0) {
+                visitor(key.chunk_offset_in_dataset, ptr);
+            }
+        } else {
+            file.io.SetPosition(file.superblock.base_addr + ptr);
+            auto child = ReadChild(file.io);
+
+            child.RecurseChunked(visitor, file);
+        }
+    }
+}
+
 std::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
     std::optional<SplitResult> res{};
 

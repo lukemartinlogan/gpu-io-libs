@@ -170,6 +170,8 @@ private:
 
     void Recurse(const std::function<void(std::string, offset_t)>& visitor, FileLink& file) const;
 
+    void RecurseChunked(const std::function<void(ChunkCoordinates, offset_t)>& visitor, FileLink& file) const;
+
 private:
     static constexpr uint8_t kGroupNodeTy = 0, kRawDataChunkNodeTy = 1;
     static constexpr uint16_t kChunkedRawDataK = 32;
