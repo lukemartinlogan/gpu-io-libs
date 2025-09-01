@@ -170,6 +170,7 @@ private:
 
 private:
     static constexpr uint8_t kGroupNodeTy = 0, kRawDataChunkNodeTy = 1;
+    static constexpr uint16_t kChunkedRawDataK = 32;
     static constexpr std::array<uint8_t, 4> kSignature = { 'T', 'R', 'E', 'E' };
 };
 
