@@ -456,7 +456,7 @@ void BTreeNode::Recurse(const std::function<void(std::string, offset_t)>& visito
     }
 }
 
-std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
+std::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
     std::optional<SplitResult> res{};
 
     std::string name_str = heap.ReadString(name_offset, file.io);
@@ -525,7 +525,7 @@ std::optional<SplitResult> BTreeNode::Insert(offset_t this_offset, offset_t name
         file.io.SetPosition(child_offset);
         auto child = file.io.ReadComplex<BTreeNode>();
 
-        std::optional<SplitResult> child_ins = child.Insert(child_offset, name_offset, obj_header_ptr, file, heap);
+        std::optional<SplitResult> child_ins = child.InsertGroup(child_offset, name_offset, obj_header_ptr, file, heap);
 
         if (child_ins.has_value()) {
             if (AtCapacity(k)) {
@@ -570,7 +570,7 @@ std::optional<offset_t> BTree::Get(std::string_view name) const {
     return root->Get(name, *file_, heap_);
 }
 
-void BTree::Insert(offset_t name_offset, offset_t object_header_ptr) {
+void BTree::InsertGroup(offset_t name_offset, offset_t object_header_ptr) {
     const BTreeNode::KValues k {
         .leaf = file_->superblock.group_leaf_node_k,
         .internal = file_->superblock.group_internal_node_k
@@ -597,7 +597,7 @@ void BTree::Insert(offset_t name_offset, offset_t object_header_ptr) {
         return;
     }
 
-    std::optional<SplitResult> split = root->Insert(*addr_, name_offset, object_header_ptr, *file_, heap_);
+    std::optional<SplitResult> split = root->InsertGroup(*addr_, name_offset, object_header_ptr, *file_, heap_);
 
     if (split.has_value()) {
         BTreeEntries<BTreeGroupNodeKey> entries{};

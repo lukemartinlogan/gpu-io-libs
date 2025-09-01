@@ -106,7 +106,7 @@ Dataset Group::CreateDataset(
     object_.file->io.SetPosition(node_alloc);
     object_.file->io.WriteBuffer(ser.buf);
 
-    table_.Insert(name_offset, node_alloc);
+    table_.InsertGroup(name_offset, node_alloc);
 
     UpdateBTreePointer();
 
@@ -173,7 +173,7 @@ Group Group::CreateGroup(std::string_view name) {
     object_.file->io.SetPosition(node_alloc);
     object_.file->io.WriteBuffer(ser.buf);
 
-    table_.Insert(name_offset, node_alloc);
+    table_.InsertGroup(name_offset, node_alloc);
 
     UpdateBTreePointer();
 
@@ -204,7 +204,7 @@ std::optional<Object> Group::Get(std::string_view name) const {
 void Group::Insert(std::string_view name, offset_t object_header_ptr) {
     offset_t name_offset = GetLocalHeap().WriteString(name, *object_.file);
 
-    table_.Insert(name_offset, object_header_ptr);
+    table_.InsertGroup(name_offset, object_header_ptr);
 
     UpdateBTreePointer();
 }

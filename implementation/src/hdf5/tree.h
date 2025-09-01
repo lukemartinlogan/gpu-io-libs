@@ -137,7 +137,7 @@ private:
 
     [[nodiscard]] BTreeNode Split(KValues k);
 
-    std::optional<SplitResult> Insert(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
+    std::optional<SplitResult> InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
 
     std::optional<uint16_t> FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
@@ -179,7 +179,7 @@ struct BTree {
 
     [[nodiscard]] std::optional<offset_t> Get(std::string_view name) const;
 
-    void Insert(offset_t name_offset, offset_t object_header_ptr);
+    void InsertGroup(offset_t name_offset, offset_t object_header_ptr);
 
     [[nodiscard]] size_t Size() const;
 
