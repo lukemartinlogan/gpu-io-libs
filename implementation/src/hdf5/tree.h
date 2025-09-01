@@ -107,6 +107,8 @@ struct BTreeNode {
         BTreeEntries<BTreeChunkedRawDataNodeKey>
     > entries{};
 
+    std::optional<uint8_t> dimensionality{};
+
     // max number of children this node points to
     // all nodes have same max degree (max entries used) but
     // most nodes point to less than that
@@ -120,7 +122,8 @@ struct BTreeNode {
 
     void Serialize(Serializer& s) const;
 
-    static BTreeNode Deserialize(Deserializer& de);
+    static BTreeNode DeserializeGroup(Deserializer& de);
+    static BTreeNode DeserializeChunked(Deserializer& de, uint8_t dimensionality);
 
 private:
     friend struct GroupBTree;
@@ -134,6 +137,8 @@ private:
             return is_leaf ? leaf : internal;
         }
     };
+
+    BTreeNode ReadChild(Deserializer& de) const;
 
     [[nodiscard]] BTreeNode Split(KValues k);
 

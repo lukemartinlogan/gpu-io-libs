@@ -88,7 +88,7 @@ std::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, co
     offset_t child_addr = group_entries.child_pointers.at(*child_index);
 
     file.io.SetPosition(file.superblock.base_addr + child_addr);
-    auto child_node = file.io.ReadComplex<BTreeNode>();
+    auto child_node = ReadChild(file.io);
 
     return child_node.Get(name, file, heap);
 }
@@ -266,7 +266,7 @@ K BTreeNode::GetMaxKey(FileLink& file) const {
         return node_entries.keys.back();
     } else {
         file.io.SetPosition(file.superblock.base_addr + node_entries.child_pointers.back());
-        auto child = file.io.ReadComplex<BTreeNode>();
+        auto child = ReadChild(file.io);
 
         return child.GetMaxKey<K>(file);
     }
@@ -340,21 +340,7 @@ void BTreeNode::Serialize(Serializer& s) const {
     }
 }
 
-template<typename K>
-BTreeEntries<K> ReadEntries(uint16_t entries_used, Deserializer& de) {
-    BTreeEntries<K> entries{};
-
-    for (uint16_t i = 0; i < entries_used; ++i) {
-        entries.keys.push_back(de.ReadComplex<K>());
-        entries.child_pointers.push_back(de.Read<offset_t>());
-    }
-
-    entries.keys.push_back(de.ReadComplex<K>());
-
-    return entries;
-}
-
-BTreeNode BTreeNode::Deserialize(Deserializer& de) {
+BTreeNode BTreeNode::DeserializeGroup(Deserializer& de) {
     if (de.Read<std::array<uint8_t, 4>>() != kSignature) {
         throw std::runtime_error("BTree signature was invalid");
     }
@@ -365,6 +351,10 @@ BTreeNode BTreeNode::Deserialize(Deserializer& de) {
         throw std::runtime_error("Invalid BTree node type");
     }
 
+    if (type != kGroupNodeTy) {
+        throw std::runtime_error("BTreeNode::DeserializeGroup called on non-group node");
+    }
+
     BTreeNode node{};
 
     node.level = de.Read<uint8_t>();
@@ -373,17 +363,77 @@ BTreeNode BTreeNode::Deserialize(Deserializer& de) {
     node.left_sibling_addr = de.Read<offset_t>();
     node.right_sibling_addr = de.Read<offset_t>();
 
-    if (type == kGroupNodeTy) {
-        node.entries = ReadEntries<BTreeGroupNodeKey>(entries_used, de);
-    } else /* kRawDataChunkNodeTy */ {
-        node.entries = ReadEntries<BTreeChunkedRawDataNodeKey>(entries_used, de);
+    BTreeEntries<BTreeGroupNodeKey> entries{};
+
+    for (uint16_t i = 0; i < entries_used; ++i) {
+        entries.keys.push_back(de.ReadComplex<BTreeGroupNodeKey>());
+        entries.child_pointers.push_back(de.Read<offset_t>());
     }
+
+    entries.keys.push_back(de.ReadComplex<BTreeGroupNodeKey>());
+
+    node.entries = entries;
+
+    return node;
+}
+
+BTreeNode BTreeNode::DeserializeChunked(Deserializer& de, uint8_t dimensionality) {
+    if (de.Read<std::array<uint8_t, 4>>() != kSignature) {
+        throw std::runtime_error("BTree signature was invalid");
+    }
+
+    auto type = de.Read<uint8_t>();
+
+    if (type != kGroupNodeTy && type != kRawDataChunkNodeTy) {
+        throw std::runtime_error("Invalid BTree node type");
+    }
+
+    if (type != kRawDataChunkNodeTy) {
+        throw std::runtime_error("BTreeNode::DeserializeChunked called on non-chunked node");
+    }
+
+    BTreeNode node{};
+
+    node.level = de.Read<uint8_t>();
+    auto entries_used = de.Read<uint16_t>();
+
+    node.left_sibling_addr = de.Read<offset_t>();
+    node.right_sibling_addr = de.Read<offset_t>();
+
+    node.dimensionality = dimensionality;
+
+    BTreeEntries<BTreeChunkedRawDataNodeKey> entries{};
+
+    for (uint16_t i = 0; i < entries_used; ++i) {
+        entries.keys.push_back(BTreeChunkedRawDataNodeKey::DeserializeWithDims(de, dimensionality));
+        entries.child_pointers.push_back(de.Read<offset_t>());
+    }
+
+    entries.keys.push_back(BTreeChunkedRawDataNodeKey::DeserializeWithDims(de, dimensionality));
+
+    node.entries = entries;
+
+    node.dimensionality = dimensionality;
 
     return node;
 }
 
 bool BTreeNode::AtCapacity(KValues k) const {
     return EntriesUsed() == k.Get(IsLeaf()) * 2;
+}
+
+BTreeNode BTreeNode::ReadChild(Deserializer& de) const {
+    if (std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+        return DeserializeGroup(de);
+    } else if (std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
+        if (!dimensionality.has_value()) {
+            throw std::logic_error("BTreeNode::ReadChild: dimensionality not set for chunked node");
+        }
+
+        return DeserializeChunked(de, *dimensionality);
+    } else {
+        throw std::logic_error("Variant has invalid state");
+    }
 }
 
 BTreeNode BTreeNode::Split(KValues k) {
@@ -459,7 +509,7 @@ void BTreeNode::Recurse(const std::function<void(std::string, offset_t)>& visito
             visitor(std::move(name), ptr);
         } else {
             file.io.SetPosition(file.superblock.base_addr + ptr);
-            auto child = file.io.ReadComplex<BTreeNode>();
+            auto child = ReadChild(file.io);
 
             child.Recurse(visitor, file);
         }
@@ -533,7 +583,7 @@ std::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_t
         offset_t child_offset = g_entries.child_pointers.at(*child_idx);
 
         file.io.SetPosition(child_offset);
-        auto child = file.io.ReadComplex<BTreeNode>();
+        auto child = ReadChild(file.io);
 
         std::optional<SplitResult> child_ins = child.InsertGroup(child_offset, name_offset, obj_header_ptr, file, heap);
 
@@ -668,5 +718,5 @@ std::optional<BTreeNode> GroupBTree::ReadRoot() const {
 
     file_->io.SetPosition(*addr_);
 
-    return file_->io.ReadComplex<BTreeNode>();
+    return BTreeNode::DeserializeGroup(file_->io);
 }
