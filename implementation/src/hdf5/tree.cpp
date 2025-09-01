@@ -21,13 +21,7 @@ BTreeChunkedRawDataNodeKey BTreeChunkedRawDataNodeKey::DeserializeWithDims(Deser
     key.filter_mask = de.Read<uint32_t>();
 
     for (uint8_t i = 0; i < dimensionality; ++i) {
-        auto offset = de.Read<uint64_t>();
-
-        key.chunk_offset_in_dataset.coords.push_back(offset);
-
-        if (offset == 0) {
-            throw std::runtime_error("BTreeChunkedRawDataNodeKey: unexpected 0 in chunk coordinates");
-        }
+        key.chunk_offset_in_dataset.coords.push_back(de.Read<uint64_t>());
     }
 
     if (de.Read<uint64_t>() != 0) {
