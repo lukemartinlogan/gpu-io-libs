@@ -39,6 +39,7 @@ Dataset Group::CreateDataset(
     std::string_view dataset_name,
     const std::vector<len_t>& dimension_sizes,
     const DatatypeMessage& type,
+    std::optional<std::vector<uint32_t>> chunk_dims,
     std::optional<std::vector<byte_t>> fill_value
 ) {
     if (Get(dataset_name)) {
@@ -71,15 +72,25 @@ Dataset Group::CreateDataset(
         .fill_value = fill_value,
     });
 
-    len_t dataset_bytes = dataspace.MaxElements() * type.Size();
+    if (chunk_dims.has_value()) {
+        ChunkedStorageProperty chunked_prop {
+            .b_tree_addr = ChunkedBTree::CreateNew(object_.file, dimension_sizes),
+            .dimension_sizes = *chunk_dims,
+            .elem_size_bytes = static_cast<uint32_t>(type.Size()),
+        };
 
-    offset_t data_alloc = object_.file->AllocateAtEOF(dataset_bytes);
+        new_ds.WriteMessage(DataLayoutMessage { chunked_prop });
+    } else {
+        len_t dataset_bytes = dataspace.MaxElements() * type.Size();
 
-    object_.file->io.SetPosition(data_alloc);
+        offset_t data_alloc = object_.file->AllocateAtEOF(dataset_bytes);
 
-    new_ds.WriteMessage(DataLayoutMessage {
-        ContiguousStorageProperty { .address = data_alloc, .size = dataset_bytes }
-    });
+        object_.file->io.SetPosition(data_alloc);
+
+        new_ds.WriteMessage(DataLayoutMessage {
+            ContiguousStorageProperty { .address = data_alloc, .size = dataset_bytes }
+        });
+    }
 
     new_ds.WriteMessage(ObjectModificationTimeMessage {
         .modification_time = std::chrono::system_clock::now(),
