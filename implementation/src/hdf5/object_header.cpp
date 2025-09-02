@@ -328,31 +328,28 @@ ContiguousStorageProperty ContiguousStorageProperty::Deserialize(Deserializer& d
 }
 
 void ChunkedStorageProperty::Serialize(Serializer& s) const {
-    s.Write(static_cast<uint8_t>(dimension_sizes.size()));
+    s.Write<uint8_t>(dimension_sizes.size() + 1);
 
     s.Write(b_tree_addr);
 
-    s.WriteBuffer(std::span(
-        reinterpret_cast<const byte_t*>(dimension_sizes.data()),
-        dimension_sizes.size() * sizeof(uint32_t)
-    ));
+    for (uint32_t dim_size : dimension_sizes) {
+        s.Write(dim_size);
+    }
 
     s.Write(elem_size_bytes);
 }
 
 ChunkedStorageProperty ChunkedStorageProperty::Deserialize(Deserializer& de) {
-    auto dimensionality = de.Read<uint8_t>();
+    auto dimensionality = de.Read<uint8_t>() - 1;
 
     ChunkedStorageProperty prop{};
 
     prop.b_tree_addr = de.Read<offset_t>();
 
-    prop.dimension_sizes.resize(dimensionality);
-
-    de.ReadBuffer(std::span(
-        reinterpret_cast<byte_t*>(prop.dimension_sizes.data()),
-        prop.dimension_sizes.size() * sizeof(uint32_t)
-    ));
+    prop.dimension_sizes.reserve(dimensionality);
+    for (uint8_t i = 0; i < dimensionality; ++i) {
+        prop.dimension_sizes.push_back(de.Read<uint32_t>());
+    }
 
     prop.elem_size_bytes = de.Read<uint32_t>();
 
