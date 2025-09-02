@@ -546,7 +546,7 @@ void BTreeNode::Recurse(const std::function<void(std::string, offset_t)>& visito
     }
 }
 
-void BTreeNode::RecurseChunked(const std::function<void(ChunkCoordinates, offset_t)>& visitor, FileLink& file) const {
+void BTreeNode::RecurseChunked(const std::function<void(const BTreeChunkedRawDataNodeKey&, offset_t)>& visitor, FileLink& file) const {
     if (!std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
         throw std::logic_error("RecurseChunked only supported for chunked nodes");
     }
@@ -561,7 +561,7 @@ void BTreeNode::RecurseChunked(const std::function<void(ChunkCoordinates, offset
             
             // Only visit chunks that actually exist (chunk_size > 0)
             if (key.chunk_size > 0) {
-                visitor(key.chunk_offset_in_dataset, ptr);
+                visitor(key, ptr);
             }
         } else {
             file.io.SetPosition(file.superblock.base_addr + ptr);
