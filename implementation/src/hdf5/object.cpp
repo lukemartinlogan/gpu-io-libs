@@ -205,10 +205,14 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             uint16_t nil_size = total_nil_size - kPrefixSize;
 
             WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-            file->io.Write(NilMessage { .size = nil_size, });
+            file->io.WriteComplex(NilMessage { .size = nil_size, });
 
             // wrote a nil header
             written_ct += 1;
+        }
+
+        if (file->io.GetPosition() > nil_space->offset + nil_space->size) {
+            throw std::logic_error("wrote more bytes than the nil space allowed");
         }
     } else {
         size_t cont_size = sizeof(ObjectHeaderContinuationMessage) + kPrefixSize;
