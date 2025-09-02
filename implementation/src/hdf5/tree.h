@@ -130,6 +130,7 @@ struct BTreeNode {
 
 private:
     friend struct GroupBTree;
+    friend struct ChunkedBTree;
     friend class Group;
 
     struct KValues {
@@ -218,4 +219,31 @@ private:
     std::shared_ptr<FileLink> file_{};
     LocalHeap heap_{};
     std::optional<offset_t> addr_{};
+};
+
+struct ChunkedBTree {
+    explicit ChunkedBTree(offset_t addr, std::shared_ptr<FileLink> file, uint8_t dimensionality)
+        : file_(std::move(file)), addr_(addr), dimensionality_(dimensionality) {}
+
+    void InsertChunk(
+        const ChunkCoordinates& chunk_coords,
+        uint32_t chunk_size,
+        uint32_t filter_mask,
+        offset_t data_ptr
+    );
+
+    [[nodiscard]] std::optional<offset_t> GetChunk(const ChunkCoordinates& chunk_coords) const;
+
+    static offset_t CreateNew(const std::shared_ptr<FileLink>& file, const std::vector<uint64_t>& max_size);
+
+private:
+    ChunkedBTree() = default;
+
+public:
+    [[nodiscard]] std::optional<BTreeNode> ReadRoot() const;
+
+private:
+    std::shared_ptr<FileLink> file_{};
+    std::optional<offset_t> addr_{};
+    uint8_t dimensionality_{};
 };

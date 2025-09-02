@@ -839,6 +839,91 @@ void GroupBTree::InsertGroup(offset_t name_offset, offset_t object_header_ptr) {
     }
 }
 
+void ChunkedBTree::InsertChunk(const ChunkCoordinates& chunk_coords, uint32_t chunk_size, uint32_t filter_mask, offset_t data_ptr) {
+    const BTreeNode::KValues k {
+        .leaf = BTreeNode::kChunkedRawDataK,
+        .internal = BTreeNode::kChunkedRawDataK
+    };
+
+    std::optional<BTreeNode> root = ReadRoot();
+
+    BTreeChunkedRawDataNodeKey new_key {
+        .chunk_size = chunk_size,
+        .filter_mask = filter_mask,
+        .chunk_offset_in_dataset = chunk_coords
+    };
+
+    if (!root.has_value()) {
+        throw std::logic_error("should have been created elsewhere");
+    }
+
+    std::optional<SplitResultChunked> split = root->InsertChunked(*addr_, new_key, data_ptr, *file_);
+
+    if (split.has_value()) {
+        BTreeEntries<BTreeChunkedRawDataNodeKey> entries{};
+
+        auto min = root->GetMinKey<BTreeChunkedRawDataNodeKey>();
+        auto max = root->GetMaxKey<BTreeChunkedRawDataNodeKey>(*file_);
+
+        entries.keys.push_back(min);
+        entries.child_pointers.push_back(*addr_);
+        entries.keys.push_back(split->promoted_key);
+        entries.child_pointers.push_back(split->new_node_offset);
+        entries.keys.push_back(max);
+
+        if (root->level == std::numeric_limits<uint8_t>::max()) {
+            throw std::runtime_error("BTree level overflow");
+        }
+
+        BTreeNode new_root {
+            .level = static_cast<uint8_t>(root->level + 1),
+            .entries = entries,
+        };
+
+        addr_ = new_root.AllocateAndWrite(*file_, k);
+    }
+}
+
+std::optional<offset_t> ChunkedBTree::GetChunk(const ChunkCoordinates& chunk_coords) const {
+    std::optional<BTreeNode> root = ReadRoot();
+    
+    if (!root.has_value()) {
+        return std::nullopt;
+    }
+    
+    return root->GetChunk(chunk_coords, *file_);
+}
+
+offset_t ChunkedBTree::CreateNew(const std::shared_ptr<FileLink>& file, const std::vector<uint64_t>& max_size) {
+    BTreeNode::KValues k{
+        .leaf = BTreeNode::kChunkedRawDataK,
+        .internal = BTreeNode::kChunkedRawDataK
+    };
+
+    BTreeEntries<BTreeChunkedRawDataNodeKey> entries{};
+
+    ChunkCoordinates end_coords;
+    end_coords.coords = std::vector(max_size.begin(), max_size.end());
+
+    entries.keys.push_back({
+        .chunk_size = 0,
+        .filter_mask = 0,
+        .chunk_offset_in_dataset = end_coords
+    });
+
+    return BTreeNode { .level = 0, .entries = entries }.AllocateAndWrite(*file, k);
+}
+
+std::optional<BTreeNode> ChunkedBTree::ReadRoot() const {
+    if (!addr_.has_value()) {
+        return std::nullopt;
+    }
+
+    file_->io.SetPosition(file_->superblock.base_addr + *addr_);
+
+    return BTreeNode::DeserializeChunked(file_->io, dimensionality_);
+}
+
 size_t GroupBTree::Size() const {
     std::optional<BTreeNode> root = ReadRoot();
 
