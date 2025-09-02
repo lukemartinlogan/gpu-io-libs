@@ -60,7 +60,7 @@ struct BTreeChunkedRawDataNodeKey {
 
     void Serialize(Serializer& s) const;
 
-    static BTreeChunkedRawDataNodeKey Deserialize(Deserializer& de);
+    static BTreeChunkedRawDataNodeKey DeserializeWithDims(Deserializer& de, uint8_t dimensionality);
 
     [[nodiscard]] uint16_t AllocationSize() const {
         // Key size = chunk_size + filter_mask + (dimensions * sizeof(uint64_t))
@@ -87,6 +87,7 @@ struct BTreeEntries {
 };
 
 struct SplitResult;
+struct SplitResultChunked;
 
 struct BTreeNode {
     // type: (not stored, check variant)
@@ -107,6 +108,8 @@ struct BTreeNode {
         BTreeEntries<BTreeChunkedRawDataNodeKey>
     > entries{};
 
+    std::optional<uint8_t> dimensionality{};
+
     // max number of children this node points to
     // all nodes have same max degree (max entries used) but
     // most nodes point to less than that
@@ -118,12 +121,16 @@ struct BTreeNode {
 
     [[nodiscard]] std::optional<offset_t> Get(std::string_view name, FileLink& file, const LocalHeap& heap) const;
 
+    [[nodiscard]] std::optional<offset_t> GetChunk(const ChunkCoordinates& chunk_coords, FileLink& file) const;
+
     void Serialize(Serializer& s) const;
 
-    static BTreeNode Deserialize(Deserializer& de);
+    static BTreeNode DeserializeGroup(Deserializer& de);
+    static BTreeNode DeserializeChunked(Deserializer& de, uint8_t dimensionality);
 
 private:
-    friend struct BTree;
+    friend struct GroupBTree;
+    friend struct ChunkedBTree;
     friend class Group;
 
     struct KValues {
@@ -135,9 +142,18 @@ private:
         }
     };
 
-    [[nodiscard]] BTreeNode Split(KValues k) const;
+    BTreeNode ReadChild(Deserializer& de) const;
 
-    std::optional<SplitResult> Insert(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
+    [[nodiscard]] BTreeNode Split(KValues k);
+
+    std::optional<SplitResult> InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
+
+    std::optional<SplitResultChunked> InsertChunked(
+        offset_t this_offset,
+        const BTreeChunkedRawDataNodeKey& key,
+        offset_t data_ptr,
+        FileLink& file
+    );
 
     std::optional<uint16_t> FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
@@ -149,9 +165,11 @@ private:
 
     [[nodiscard]] uint16_t ChunkedInsertionPosition(const ChunkCoordinates& chunk_coords) const;
 
-    [[nodiscard]] BTreeGroupNodeKey GetMaxKey(FileLink& file) const;
+    template <class K>
+    [[nodiscard]] K GetMaxKey(FileLink& file) const;
 
-    [[nodiscard]] BTreeGroupNodeKey GetMinKey() const;
+    template <class K>
+    [[nodiscard]] K GetMinKey() const;
 
     [[nodiscard]] len_t AllocationSize(KValues k) const;
 
@@ -161,8 +179,11 @@ private:
 
     void Recurse(const std::function<void(std::string, offset_t)>& visitor, FileLink& file) const;
 
+    void RecurseChunked(const std::function<void(ChunkCoordinates, offset_t)>& visitor, FileLink& file) const;
+
 private:
     static constexpr uint8_t kGroupNodeTy = 0, kRawDataChunkNodeTy = 1;
+    static constexpr uint16_t kChunkedRawDataK = 32;
     static constexpr std::array<uint8_t, 4> kSignature = { 'T', 'R', 'E', 'E' };
 };
 
@@ -171,13 +192,18 @@ struct SplitResult {
     offset_t new_node_offset;
 };
 
-struct BTree {
-    explicit BTree(offset_t addr, std::shared_ptr<FileLink> file, const LocalHeap& heap)
+struct SplitResultChunked {
+    BTreeChunkedRawDataNodeKey promoted_key;
+    offset_t new_node_offset;
+};
+
+struct GroupBTree {
+    explicit GroupBTree(offset_t addr, std::shared_ptr<FileLink> file, const LocalHeap& heap)
         : file_(std::move(file)), heap_(heap), addr_(addr) {}
 
     [[nodiscard]] std::optional<offset_t> Get(std::string_view name) const;
 
-    void Insert(offset_t name_offset, offset_t object_header_ptr);
+    void InsertGroup(offset_t name_offset, offset_t object_header_ptr);
 
     [[nodiscard]] size_t Size() const;
 
@@ -185,7 +211,7 @@ struct BTree {
 private:
     friend class Group;
 
-    BTree() = default;
+    GroupBTree() = default;
 
     [[nodiscard]] std::optional<BTreeNode> ReadRoot() const;
 
@@ -193,4 +219,31 @@ private:
     std::shared_ptr<FileLink> file_{};
     LocalHeap heap_{};
     std::optional<offset_t> addr_{};
+};
+
+struct ChunkedBTree {
+    explicit ChunkedBTree(offset_t addr, std::shared_ptr<FileLink> file, uint8_t dimensionality)
+        : file_(std::move(file)), addr_(addr), dimensionality_(dimensionality) {}
+
+    void InsertChunk(
+        const ChunkCoordinates& chunk_coords,
+        uint32_t chunk_size,
+        uint32_t filter_mask,
+        offset_t data_ptr
+    );
+
+    [[nodiscard]] std::optional<offset_t> GetChunk(const ChunkCoordinates& chunk_coords) const;
+
+    static offset_t CreateNew(const std::shared_ptr<FileLink>& file, const std::vector<uint64_t>& max_size);
+
+private:
+    ChunkedBTree() = default;
+
+public:
+    [[nodiscard]] std::optional<BTreeNode> ReadRoot() const;
+
+private:
+    std::shared_ptr<FileLink> file_{};
+    std::optional<offset_t> addr_{};
+    uint8_t dimensionality_{};
 };

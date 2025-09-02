@@ -19,6 +19,7 @@ public:
         std::string_view dataset_name,
         const std::vector<len_t>& dimension_sizes,
         const DatatypeMessage& type,
+        std::optional<std::vector<uint32_t>> chunk_dims = std::nullopt,
         std::optional<std::vector<byte_t>> fill_value = std::nullopt
     );
 
@@ -52,5 +53,5 @@ private:
 public:
     Object object_;
 
-    BTree table_{};
+    GroupBTree table_{};
 };
