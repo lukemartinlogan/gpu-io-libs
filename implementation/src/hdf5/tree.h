@@ -234,6 +234,8 @@ struct ChunkedBTree {
 
     [[nodiscard]] std::optional<offset_t> GetChunk(const ChunkCoordinates& chunk_coords) const;
 
+    [[nodiscard]] std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> Offsets() const;
+
     static offset_t CreateNew(const std::shared_ptr<FileLink>& file, const std::vector<uint64_t>& max_size);
 
 private:

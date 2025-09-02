@@ -894,6 +894,22 @@ std::optional<offset_t> ChunkedBTree::GetChunk(const ChunkCoordinates& chunk_coo
     return root->GetChunk(chunk_coords, *file_);
 }
 
+std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> ChunkedBTree::Offsets() const {
+    std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> result{};
+    
+    std::optional<BTreeNode> root = ReadRoot();
+    
+    if (!root.has_value()) {
+        return result;
+    }
+    
+    root->RecurseChunked([&result](const BTreeChunkedRawDataNodeKey& key, offset_t data_offset) {
+        result.emplace_back(key.chunk_offset_in_dataset, data_offset, key.chunk_size);
+    }, *file_);
+    
+    return result;
+}
+
 offset_t ChunkedBTree::CreateNew(const std::shared_ptr<FileLink>& file, const std::vector<uint64_t>& max_size) {
     BTreeNode::KValues k{
         .leaf = BTreeNode::kChunkedRawDataK,
