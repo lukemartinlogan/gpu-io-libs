@@ -264,7 +264,7 @@ uint16_t BTreeNode::ChunkedInsertionPosition(const ChunkCoordinates& chunk_coord
     uint16_t child_index = entries_ct;
 
     for (size_t i = 0; i < entries_ct; ++i) {
-        const auto& next = chunk_entries.keys.at(i + 1).chunk_offset_in_dataset;
+        const auto& next = chunk_entries.keys.at(i).chunk_offset_in_dataset;
 
         if (chunk_coords < next) {
             child_index = i;
