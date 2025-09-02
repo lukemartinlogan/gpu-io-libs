@@ -11,7 +11,11 @@ void BTreeChunkedRawDataNodeKey::Serialize(Serializer& s) const {
         s.Write(offset);
     }
 
-    s.Write<uint64_t>(0);
+    if (chunk_size == 0) {
+        s.Write<uint64_t>(4);
+    } else {
+        s.Write<uint64_t>(0);
+    }
 }
 
 BTreeChunkedRawDataNodeKey BTreeChunkedRawDataNodeKey::DeserializeWithDims(Deserializer& de, uint8_t dimensionality) {
