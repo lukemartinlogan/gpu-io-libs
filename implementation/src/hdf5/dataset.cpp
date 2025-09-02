@@ -122,3 +122,31 @@ void Dataset::Write(std::span<const byte_t> data, size_t start_index) const {
         throw std::logic_error("unknown storage type in dataset");
     }
 }
+
+std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::RawOffsets() const {
+    auto props = layout_.properties;
+
+    if (const auto* compact = std::get_if<CompactStorageProperty>(&props)) {
+        // For compact storage, return a single entry with zero coordinates matching dataset dimensionality
+        ChunkCoordinates coords;
+        coords.coords = std::vector<uint64_t>(space_.dimensions.size(), 0);
+        return { {coords, 0, static_cast<len_t>(compact->raw_data.size())} };
+
+    } else if (const auto* contiguous = std::get_if<ContiguousStorageProperty>(&props)) {
+        // For contiguous storage, return a single entry with zero coordinates matching dataset dimensionality
+        ChunkCoordinates coords;
+        coords.coords = std::vector<uint64_t>(space_.dimensions.size(), 0);
+        return { {coords, contiguous->address, contiguous->size} };
+
+    } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
+        // For chunked storage, use the B-tree to get all chunk offsets
+        ChunkedBTree chunked_tree(
+            chunked->b_tree_addr,
+            object_.file,
+            static_cast<uint8_t>(chunked->dimension_sizes.size())
+        );
+        return chunked_tree.Offsets();
+    } else {
+        throw std::logic_error("unknown storage type in dataset");
+    }
+}

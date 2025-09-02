@@ -5,6 +5,7 @@
 #include "file_link.h"
 #include "object.h"
 #include "object_header.h"
+#include "tree.h"
 #include "../serialization/serialization.h"
 
 class Dataset {
@@ -67,6 +68,8 @@ public:
             start_index
         );
     }
+
+    [[nodiscard]] std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> RawOffsets() const;
 
 private:
     Object object_;
