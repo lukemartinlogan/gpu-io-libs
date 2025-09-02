@@ -87,6 +87,7 @@ struct BTreeEntries {
 };
 
 struct SplitResult;
+struct SplitResultChunked;
 
 struct BTreeNode {
     // type: (not stored, check variant)
@@ -146,6 +147,13 @@ private:
 
     std::optional<SplitResult> InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
 
+    std::optional<SplitResultChunked> InsertChunked(
+        offset_t this_offset,
+        const BTreeChunkedRawDataNodeKey& key,
+        offset_t data_ptr,
+        FileLink& file
+    );
+
     std::optional<uint16_t> FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
     [[nodiscard]] std::optional<uint16_t> FindChunkedIndex(const ChunkCoordinates& chunk_coords) const;
@@ -180,6 +188,11 @@ private:
 
 struct SplitResult {
     BTreeGroupNodeKey promoted_key;
+    offset_t new_node_offset;
+};
+
+struct SplitResultChunked {
+    BTreeChunkedRawDataNodeKey promoted_key;
     offset_t new_node_offset;
 };
 

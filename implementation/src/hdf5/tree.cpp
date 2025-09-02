@@ -676,6 +676,106 @@ std::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_t
     return res;
 }
 
+std::optional<SplitResultChunked> BTreeNode::InsertChunked(
+    offset_t this_offset,
+    const BTreeChunkedRawDataNodeKey& key,
+    offset_t data_ptr,
+    FileLink& file
+) {
+    std::optional<SplitResultChunked> res{};
+
+    const KValues k {
+        .leaf = kChunkedRawDataK,
+        .internal = kChunkedRawDataK,
+    };
+
+    auto& c_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+
+    auto RawInsert = [](BTreeNode& node, const BTreeChunkedRawDataNodeKey& insert_key, offset_t child_ptr) -> void {
+        auto& ins_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(node.entries);
+        uint16_t ins_pos = node.ChunkedInsertionPosition(insert_key.chunk_offset_in_dataset);
+
+        ins_entries.child_pointers.insert(
+            ins_entries.child_pointers.begin() + ins_pos,
+            child_ptr
+        );
+
+        ins_entries.keys.insert( // keys aren't offset by one for chunked
+            ins_entries.keys.begin() + ins_pos,
+            insert_key
+        );
+    };
+
+    if (IsLeaf()) {
+        if (AtCapacity(k)) {
+            uint16_t mid_index = k.leaf;
+
+            BTreeChunkedRawDataNodeKey promoted_key = c_entries.keys.at(mid_index);
+            BTreeNode new_node = Split(k);
+
+            // Use < for chunked coordinates comparison
+            if (key.chunk_offset_in_dataset < promoted_key.chunk_offset_in_dataset) {
+                RawInsert(*this, key, data_ptr);
+            } else {
+                RawInsert(new_node, key, data_ptr);
+            }
+
+            offset_t new_node_alloc = new_node.AllocateAndWrite(file, k);
+
+            res = SplitResultChunked {
+                .promoted_key = promoted_key,
+                .new_node_offset = new_node_alloc,
+            };
+        } else {
+            RawInsert(*this, key, data_ptr);
+        }
+
+        WriteNodeGetAllocSize(this_offset, file, k);
+    } else {
+        std::optional<uint16_t> child_idx = FindChunkedIndex(key.chunk_offset_in_dataset);
+
+        if (!child_idx) {
+            throw std::runtime_error("BTreeNode::InsertChunked: could not find child index");
+        }
+
+        offset_t child_offset = c_entries.child_pointers.at(*child_idx);
+
+        file.io.SetPosition(file.superblock.base_addr + child_offset);
+        auto child = ReadChild(file.io);
+
+        std::optional<SplitResultChunked> child_ins = child.InsertChunked(child_offset, key, data_ptr, file);
+
+        if (child_ins.has_value()) {
+            if (AtCapacity(k)) {
+                uint16_t mid_index = k.internal;
+
+                BTreeChunkedRawDataNodeKey promoted_key = c_entries.keys.at(mid_index);
+                BTreeNode new_node = Split(k);
+
+                // Use < for chunked coordinates comparison
+                if (key.chunk_offset_in_dataset < promoted_key.chunk_offset_in_dataset) {
+                    RawInsert(*this, child_ins->promoted_key, child_ins->new_node_offset);
+                } else {
+                    RawInsert(new_node, child_ins->promoted_key, child_ins->new_node_offset);
+                }
+
+                offset_t new_node_alloc = new_node.AllocateAndWrite(file, k);
+
+                res = SplitResultChunked {
+                    .promoted_key = promoted_key,
+                    .new_node_offset = new_node_alloc,
+                };
+            } else {
+                RawInsert(*this, child_ins->promoted_key, child_ins->new_node_offset);
+            }
+
+            WriteNodeGetAllocSize(this_offset, file, k);
+        }
+    }
+
+    return res;
+}
+
 std::optional<offset_t> GroupBTree::Get(std::string_view name) const {
     std::optional<BTreeNode> root = ReadRoot();
 
