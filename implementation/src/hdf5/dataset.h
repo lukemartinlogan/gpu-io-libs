@@ -73,11 +73,7 @@ public:
         const std::vector<uint64_t>& block = {}
     ) const {
         // Calculate total elements in the hyperslab selection
-        size_t total_elements = 1;
-        for (size_t i = 0; i < count.size(); ++i) {
-            size_t effective_block = block.empty() ? 1 : block[i];
-            total_elements *= count[i] * effective_block;
-        }
+        size_t total_elements = TotalElements(count, block);
 
         std::vector<T> result(total_elements);
         ReadHyperslab(
@@ -108,6 +104,18 @@ public:
     }
 
     [[nodiscard]] std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> RawOffsets() const;
+
+private:
+    static size_t TotalElements(const std::vector<uint64_t>& count, const std::vector<uint64_t>& block) {
+        size_t total_elements = 1;
+        for (size_t i = 0; i < count.size(); ++i) {
+            size_t effective_block = block.empty() ? 1 : block[i];
+            total_elements *= count[i] * effective_block;
+        }
+
+        return total_elements;
+    }
+
 
 private:
     Object object_;
