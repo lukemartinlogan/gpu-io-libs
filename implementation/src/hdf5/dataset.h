@@ -56,6 +56,44 @@ public:
         return out;
     }
 
+    // Hyperslab read operations for multi-dimensional datasets
+    void ReadHyperslab(
+        std::span<byte_t> buffer,
+        const std::vector<uint64_t>& start,
+        const std::vector<uint64_t>& count,
+        const std::vector<uint64_t>& stride = {},
+        const std::vector<uint64_t>& block = {}
+    ) const;
+
+    template<typename T>
+    std::vector<T> ReadHyperslab(
+        const std::vector<uint64_t>& start,
+        const std::vector<uint64_t>& count,
+        const std::vector<uint64_t>& stride = {},
+        const std::vector<uint64_t>& block = {}
+    ) const {
+        // Calculate total elements in the hyperslab selection
+        size_t total_elements = 1;
+        for (size_t i = 0; i < count.size(); ++i) {
+            size_t effective_block = block.empty() ? 1 : block[i];
+            total_elements *= count[i] * effective_block;
+        }
+
+        std::vector<T> result(total_elements);
+        ReadHyperslab(
+            std::span(
+                reinterpret_cast<byte_t*>(result.data()),
+                result.size() * sizeof(T)
+            ),
+            start,
+            count,
+            stride,
+            block
+        );
+
+        return result;
+    }
+
     void Write(std::span<const byte_t> data, size_t start_index) const;
 
     template<typename T>
