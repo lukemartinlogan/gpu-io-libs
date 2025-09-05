@@ -5,11 +5,11 @@
 #include <stdexcept>
 
 HyperslabIterator::HyperslabIterator(
-    const std::vector<uint64_t>& start,
-    const std::vector<uint64_t>& count,
-    const std::vector<uint64_t>& stride,
-    const std::vector<uint64_t>& block,
-    const std::vector<uint64_t>& dataset_dims
+    const coord_t& start,
+    const coord_t& count,
+    const coord_t& stride,
+    const coord_t& block,
+    const coord_t& dataset_dims
 ) :
     start_(start),
     count_(count),
@@ -20,8 +20,8 @@ HyperslabIterator::HyperslabIterator(
 
     size_t n_dims = dataset_dims.size();
 
-    std::vector<uint64_t> norm_stride = stride.empty() ? std::vector<uint64_t>(n_dims, 1) : stride;
-    std::vector<uint64_t> norm_block  = block.empty() ? std::vector<uint64_t>(n_dims, 1) : block;
+    coord_t norm_stride = stride.empty() ? coord_t(n_dims, 1) : stride;
+    coord_t norm_block  = block.empty() ? coord_t(n_dims, 1) : block;
 
     ValidateParams(start, count, norm_stride, norm_block, dataset_dims);
 
@@ -75,8 +75,8 @@ uint64_t HyperslabIterator::GetLinearIndex() const {
         throw std::runtime_error("Iterator is at end");
     }
 
-    const std::vector<uint64_t>& coords = current_coord_;
-    const std::vector<uint64_t>& dims = dataset_dims_;
+    const coord_t& coords = current_coord_;
+    const coord_t& dims = dataset_dims_;
 
     uint64_t linear_index = 0;
     uint64_t multiplier = 1;
@@ -122,11 +122,11 @@ void HyperslabIterator::Reset() {
 }
 
 void HyperslabIterator::ValidateParams(
-    const std::vector<uint64_t>& start,
-    const std::vector<uint64_t>& count,
-    const std::vector<uint64_t>& stride,
-    const std::vector<uint64_t>& block,
-    const std::vector<uint64_t>& dataset_dims
+    const coord_t& start,
+    const coord_t& count,
+    const coord_t& stride,
+    const coord_t& block,
+    const coord_t& dataset_dims
 ) {
     const size_t n_dims = dataset_dims.size();
 
@@ -178,11 +178,11 @@ void HyperslabIterator::ValidateParams(
 }
 
 void ValidateHyperslabParameters(
-    const std::vector<uint64_t>& start,
-    const std::vector<uint64_t>& count,
-    const std::vector<uint64_t>& stride,
-    const std::vector<uint64_t>& block,
-    const std::vector<uint64_t>& dataset_dims
+    const HyperslabIterator::coord_t& start,
+    const HyperslabIterator::coord_t& count,
+    const HyperslabIterator::coord_t& stride,
+    const HyperslabIterator::coord_t& block,
+    const HyperslabIterator::coord_t& dataset_dims
 ) {
     if (start.empty()) {
         throw std::invalid_argument("Start coordinates cannot be empty");

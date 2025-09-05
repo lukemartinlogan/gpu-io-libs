@@ -18,6 +18,8 @@
  */
 class HyperslabIterator {
 public:
+    using coord_t = std::vector<uint64_t>;
+
     /**
      * @brief Constructs a hyperslab iterator.
      *
@@ -30,11 +32,11 @@ public:
      * @throws std::invalid_argument if parameters are invalid
      */
     HyperslabIterator(
-            const std::vector<uint64_t>& start,
-            const std::vector<uint64_t>& count,
-            const std::vector<uint64_t>& stride,
-            const std::vector<uint64_t>& block,
-            const std::vector<uint64_t>& dataset_dims
+            const coord_t& start,
+            const coord_t& count,
+            const coord_t& stride,
+            const coord_t& block,
+            const coord_t& dataset_dims
     );
 
     /**
@@ -55,7 +57,7 @@ public:
      * @brief Get the current multi-dimensional coordinate.
      * @return Current coordinate vector
      */
-    [[nodiscard]] const std::vector<uint64_t>& GetCurrentCoordinate() const {
+    [[nodiscard]] const coord_t& GetCurrentCoordinate() const {
         return current_coord_;
     }
 
@@ -78,23 +80,23 @@ public:
 
 private:
     static void ValidateParams(
-        const std::vector<uint64_t>& start,
-        const std::vector<uint64_t>& count,
-        const std::vector<uint64_t>& stride,
-        const std::vector<uint64_t>& block,
-        const std::vector<uint64_t>& dataset_dims
+        const coord_t& start,
+        const coord_t& count,
+        const coord_t& stride,
+        const coord_t& block,
+        const coord_t& dataset_dims
     );
 
 private:
-    std::vector<uint64_t> start_;
-    std::vector<uint64_t> count_;
-    std::vector<uint64_t> stride_;
-    std::vector<uint64_t> block_;
-    std::vector<uint64_t> dataset_dims_;
+    coord_t start_;
+    coord_t count_;
+    coord_t stride_;
+    coord_t block_;
+    coord_t dataset_dims_;
 
-    std::vector<uint64_t> current_coord_;
-    std::vector<uint64_t> block_index_;  // curr pos within each block
-    std::vector<uint64_t> count_index_;  // curr block index within each count
+    coord_t current_coord_;
+    coord_t block_index_;  // curr pos within each block
+    coord_t count_index_;  // curr block index within each count
 
     bool at_end_;
 };
