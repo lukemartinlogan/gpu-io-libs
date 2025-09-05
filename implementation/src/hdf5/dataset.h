@@ -56,7 +56,6 @@ public:
         return out;
     }
 
-    // Hyperslab read operations for multi-dimensional datasets
     void ReadHyperslab(
         std::span<byte_t> buffer,
         const std::vector<uint64_t>& start,
@@ -72,7 +71,6 @@ public:
         const std::vector<uint64_t>& stride = {},
         const std::vector<uint64_t>& block = {}
     ) const {
-        // Calculate total elements in the hyperslab selection
         size_t total_elements = TotalElements(count, block);
 
         std::vector<T> result(total_elements);
