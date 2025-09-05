@@ -65,8 +65,6 @@ public:
      */
     [[nodiscard]] uint64_t GetLinearIndex() const;
 
-    [[nodiscard]] bool IsEmpty() const;
-
     /**
      * @brief Get the total number of elements in the hyperslab selection.
      * @return Total element count

@@ -14,7 +14,8 @@ HyperslabIterator::HyperslabIterator(
     start_(start),
     count_(count),
     dataset_dims_(dataset_dims),
-    current_coord_(start)
+    current_coord_(start),
+    at_end_(false)
 {
 
     size_t n_dims = dataset_dims.size();
@@ -29,8 +30,6 @@ HyperslabIterator::HyperslabIterator(
 
     block_index_.resize(n_dims, 0);
     count_index_.resize(n_dims, 0);
-
-    at_end_ = IsEmpty();
 }
 
 bool HyperslabIterator::Advance() {
@@ -95,14 +94,6 @@ uint64_t HyperslabIterator::GetLinearIndex() const {
     return linear_index;
 }
 
-bool HyperslabIterator::IsEmpty() const {
-    return
-        dataset_dims_.size() == 0
-        || std::ranges::any_of(count_, [](uint64_t v) { return v == 0; })
-        || std::ranges::any_of(block_, [](uint64_t v) { return v == 0; })
-    ;
-}
-
 uint64_t HyperslabIterator::GetTotalElements() const {
     if (count_.empty()) {
         return 0;
@@ -122,7 +113,7 @@ uint64_t HyperslabIterator::GetTotalElements() const {
 }
 
 void HyperslabIterator::Reset() {
-    at_end_ = IsEmpty();
+    at_end_ = false;
 
     std::ranges::fill(block_index_, 0);
     std::ranges::fill(count_index_, 0);
