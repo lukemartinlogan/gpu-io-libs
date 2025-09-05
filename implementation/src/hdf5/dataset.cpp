@@ -1,4 +1,5 @@
 #include "dataset.h"
+#include "hyperslab.h"
 
 Dataset::Dataset(const Object& object)
     : object_(object)
@@ -148,5 +149,80 @@ std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::RawOffsets()
         return chunked_tree.Offsets();
     } else {
         throw std::logic_error("unknown storage type in dataset");
+    }
+}
+
+void Dataset::ReadHyperslab(
+    std::span<byte_t> buffer,
+    const std::vector<uint64_t>& start,
+    const std::vector<uint64_t>& count,
+    const std::vector<uint64_t>& stride,
+    const std::vector<uint64_t>& block
+) const {
+    if (type_.class_v == DatatypeMessage::Class::kVariableLength) {
+        throw std::logic_error("Variable length datatypes are not supported yet");
+    }
+
+    std::vector<uint64_t> dataset_dims(space_.dimensions.size());
+
+    std::ranges::transform(
+        space_.dimensions,
+       dataset_dims.begin(),
+       [](const auto& dim_info) { return dim_info.size; }
+    );
+
+    HyperslabIterator iterator(start, count, stride, block, dataset_dims);
+
+    size_t element_size = type_.Size();
+    uint64_t total_elements = iterator.GetTotalElements();
+
+    if (buffer.size() < total_elements * element_size) {
+        throw std::invalid_argument("Buffer too small for hyperslab data");
+    }
+    if (buffer.size() > total_elements * element_size) {
+        throw std::invalid_argument("Buffer size exceeds hyperslab data size");
+    }
+
+    auto props = layout_.properties;
+
+    if (const auto* compact = std::get_if<CompactStorageProperty>(&props)) {
+        size_t buffer_offset = 0;
+
+        while (!iterator.IsAtEnd()) {
+            uint64_t linear_index = iterator.GetLinearIndex();
+            size_t data_offset = linear_index * element_size;
+
+            if (data_offset + element_size > compact->raw_data.size()) {
+                throw std::out_of_range("Hyperslab selection exceeds compact storage bounds");
+            }
+
+            std::copy_n(
+                compact->raw_data.begin() + static_cast<ptrdiff_t>(data_offset),
+                element_size,
+                buffer.data() + buffer_offset
+            );
+
+            buffer_offset += element_size;
+            iterator.Advance();
+        }
+
+    } else if (const auto* contiguous = std::get_if<ContiguousStorageProperty>(&props)) {
+        size_t buffer_offset = 0;
+
+        while (!iterator.IsAtEnd()) {
+            uint64_t linear_index = iterator.GetLinearIndex();
+            offset_t file_offset = contiguous->address + linear_index * element_size;
+
+            object_.file->io.SetPosition(file_offset);
+            object_.file->io.ReadBuffer(std::span(buffer.data() + buffer_offset, element_size));
+
+            buffer_offset += element_size;
+            iterator.Advance();
+        }
+
+    } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
+        throw std::logic_error("Chunked hyperslab read not implemented yet");
+    } else {
+        throw std::logic_error("Unknown storage type in dataset");
     }
 }
