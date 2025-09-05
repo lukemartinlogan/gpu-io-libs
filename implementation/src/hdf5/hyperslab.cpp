@@ -142,12 +142,12 @@ void HyperslabIterator::ValidateParams(
         throw std::invalid_argument("Count must have same dimensionality as dataset");
     }
 
-    if (!stride.empty() && stride.size() != n_dims) {
-        throw std::invalid_argument("Stride must be empty or have same dimensionality as dataset");
+    if (stride.size() != n_dims) {
+        throw std::invalid_argument("Stride must have same dimensionality as dataset");
     }
 
-    if (!block.empty() && block.size() != n_dims) {
-        throw std::invalid_argument("Block must be empty or have same dimensionality as dataset");
+    if (block.size() != n_dims) {
+        throw std::invalid_argument("Block must have same dimensionality as dataset");
     }
 
     for (size_t dim = 0; dim < n_dims; ++dim) {
