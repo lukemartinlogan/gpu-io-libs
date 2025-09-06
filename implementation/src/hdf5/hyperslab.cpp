@@ -167,7 +167,14 @@ void HyperslabIterator::ValidateParams(
             throw std::invalid_argument("Block cannot be zero");
         }
 
-        // Check if the last element in the selection is within bounds
+        if (start[dim] >= dataset_dims[dim]) {
+            throw std::invalid_argument("Start coordinate exceeds dataset bounds");
+        }
+
+        if (stride[dim] < block[dim]) {
+            throw std::invalid_argument("Hyperslab blocks overlap: stride < block in dimension " + std::to_string(dim));
+        }
+
         uint64_t last_block_start = start[dim] + (count[dim] - 1) * stride[dim];
         uint64_t last_element = last_block_start + block[dim] - 1;
 
