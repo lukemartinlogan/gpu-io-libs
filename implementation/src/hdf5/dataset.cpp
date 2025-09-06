@@ -292,3 +292,73 @@ void Dataset::ReadHyperslab(
         throw std::logic_error("Unknown storage type in dataset");
     }
 }
+
+void Dataset::WriteHyperslab(
+    std::span<const byte_t> data,
+    const std::vector<uint64_t>& start,
+    const std::vector<uint64_t>& count,
+    const std::vector<uint64_t>& stride,
+    const std::vector<uint64_t>& block
+) const {
+    if (type_.class_v == DatatypeMessage::Class::kVariableLength) {
+        throw std::logic_error("Variable length datatypes are not supported yet");
+    }
+
+    std::vector<uint64_t> dataset_dims(space_.dimensions.size());
+
+    std::ranges::transform(
+        space_.dimensions,
+       dataset_dims.begin(),
+       [](const auto& dim_info) { return dim_info.size; }
+    );
+
+    HyperslabIterator iterator(start, count, stride, block, dataset_dims);
+
+    size_t element_size = type_.Size();
+    uint64_t total_elements = iterator.GetTotalElements();
+
+    if (data.size() < total_elements * element_size) {
+        throw std::invalid_argument("Data buffer too small for hyperslab");
+    }
+    if (data.size() > total_elements * element_size) {
+        throw std::invalid_argument("Data buffer size exceeds hyperslab size");
+    }
+
+    auto props = layout_.properties;
+
+    if (const auto* compact = std::get_if<CompactStorageProperty>(&props)) {
+        // Compact storage is read-only after creation, so writing is not supported
+        throw std::logic_error("Cannot write to compact storage dataset");
+
+    } else if (const auto* contiguous = std::get_if<ContiguousStorageProperty>(&props)) {
+        size_t data_offset = 0;
+
+        while (!iterator.IsAtEnd()) {
+            uint64_t linear_index = iterator.GetLinearIndex();
+            offset_t file_offset = contiguous->address + linear_index * element_size;
+
+            object_.file->io.SetPosition(file_offset);
+            object_.file->io.WriteBuffer(std::span(data.data() + data_offset, element_size));
+
+            data_offset += element_size;
+            iterator.Advance();
+        }
+
+    } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
+        ProcessChunkedHyperslab(
+            chunked, iterator, element_size, object_.file,
+            [&](const std::optional<offset_t>& element_file_offset, size_t buffer_offset) {
+                if (!element_file_offset.has_value()) {
+                    // Chunk doesn't exist (sparse dataset) - this is an error for writing
+                    // In HDF5, writing to a non-existent chunk should create the chunk,
+                    // but our current implementation doesn't support chunk creation
+                    throw std::logic_error("Cannot write to non-existent chunk (chunk creation not implemented)");
+                }
+                
+                object_.file->io.SetPosition(*element_file_offset);
+                object_.file->io.WriteBuffer(std::span(data.data() + buffer_offset, element_size));
+            });
+    } else {
+        throw std::logic_error("Unknown storage type in dataset");
+    }
+}
