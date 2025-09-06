@@ -101,6 +101,34 @@ public:
         );
     }
 
+    void WriteHyperslab(
+        std::span<const byte_t> data,
+        const std::vector<uint64_t>& start,
+        const std::vector<uint64_t>& count,
+        const std::vector<uint64_t>& stride = {},
+        const std::vector<uint64_t>& block = {}
+    ) const;
+
+    template<typename T>
+    void WriteHyperslab(
+        std::span<const T> data,
+        const std::vector<uint64_t>& start,
+        const std::vector<uint64_t>& count,
+        const std::vector<uint64_t>& stride = {},
+        const std::vector<uint64_t>& block = {}
+    ) const {
+        WriteHyperslab(
+            std::span(
+                reinterpret_cast<const byte_t*>(data.data()),
+                data.size_bytes()
+            ),
+            start,
+            count,
+            stride,
+            block
+        );
+    }
+
     [[nodiscard]] std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> RawOffsets() const;
 
 private:
