@@ -230,8 +230,17 @@ std::optional<uint16_t> BTreeNode::FindChunkedIndex(const ChunkCoordinates& chun
 
     for (size_t i = 1; i < chunk_entries.keys.size(); ++i) {
         ChunkCoordinates next = chunk_entries.keys[i].chunk_offset_in_dataset;
+        
+        bool is_sentinel = (
+            i == entries_ct
+            && chunk_entries.keys[i].chunk_size == 0
+            && prev == chunk_coords
+            && chunk_coords == next
+        );
+        
+        bool in_range = (prev <= chunk_coords && chunk_coords < next);
 
-        if (prev <= chunk_coords && chunk_coords < next) {
+        if (in_range || is_sentinel) {
             child_index = i - 1;
             break;
         }
