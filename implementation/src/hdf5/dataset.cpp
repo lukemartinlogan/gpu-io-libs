@@ -221,7 +221,53 @@ void Dataset::ReadHyperslab(
         }
 
     } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
-        throw std::logic_error("Chunked hyperslab read not implemented yet");
+        ChunkedBTree chunked_tree(
+            chunked->b_tree_addr,
+            object_.file,
+            static_cast<uint8_t>(chunked->dimension_sizes.size())
+        );
+        
+        size_t buffer_offset = 0;
+        
+        while (!iterator.IsAtEnd()) {
+            const auto& current_coord = iterator.GetCurrentCoordinate();
+            
+            ChunkCoordinates chunk_coords;
+            chunk_coords.coords.resize(chunked->dimension_sizes.size());
+            
+            uint64_t within_chunk_offset = 0;
+            uint64_t chunk_stride = 1;
+            
+            // process dimensions in reverse order
+            for (int dim = static_cast<int>(chunked->dimension_sizes.size()) - 1; dim >= 0; --dim) {
+                uint64_t chunk_size = chunked->dimension_sizes[dim];
+                uint64_t coord = current_coord[dim];
+
+                uint64_t chunk_offset = (coord / chunk_size) * chunk_size;
+
+                uint64_t within_chunk = coord % chunk_size;
+
+                // calculate linear offset
+                within_chunk_offset += within_chunk * chunk_stride;
+                chunk_stride *= chunk_size;
+                
+                chunk_coords.coords[dim] = chunk_offset;
+            }
+            
+            std::optional<offset_t> chunk_file_offset = chunked_tree.GetChunk(chunk_coords);
+            
+            if (!chunk_file_offset.has_value()) {
+                // chunk doesn't exist (sparse dataset)
+                std::fill_n(buffer.data() + buffer_offset, element_size, byte_t{0});
+            } else {
+                offset_t element_file_offset = *chunk_file_offset + within_chunk_offset * element_size;
+                object_.file->io.SetPosition(element_file_offset);
+                object_.file->io.ReadBuffer(std::span(buffer.data() + buffer_offset, element_size));
+            }
+            
+            buffer_offset += element_size;
+            iterator.Advance();
+        }
     } else {
         throw std::logic_error("Unknown storage type in dataset");
     }
