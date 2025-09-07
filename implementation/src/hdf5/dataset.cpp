@@ -1,5 +1,7 @@
 #include "dataset.h"
 #include "hyperslab.h"
+#include <unordered_set>
+#include <numeric>
 
 Dataset::Dataset(const Object& object)
     : object_(object)
@@ -367,4 +369,98 @@ void Dataset::WriteHyperslab(
     } else {
         throw std::logic_error("Unknown storage type in dataset");
     }
+}
+
+std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::GetHyperslabChunks(
+    const std::vector<uint64_t>& start,
+    const std::vector<uint64_t>& count,
+    const std::vector<uint64_t>& stride,
+    const std::vector<uint64_t>& block
+) const {
+    std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> result;
+
+    const auto* chunked = std::get_if<ChunkedStorageProperty>(&layout_.properties);
+    if (!chunked) {
+        return result;
+    }
+
+    size_t dimensionality = chunked->dimension_sizes.size();
+
+    ChunkedBTree chunked_tree(chunked->b_tree_addr, object_.file, {
+        .dimensionality = static_cast<uint8_t>(dimensionality),
+        .elem_byte_size = type_.Size(),
+    });
+
+    const len_t chunk_size_bytes = std::accumulate(
+        chunked->dimension_sizes.begin(),
+        chunked->dimension_sizes.end(),
+        type_.Size(),
+        std::multiplies{}
+    );
+
+    std::vector<std::vector<uint64_t>> chunks_per_dim(dimensionality);
+    
+    for (size_t dim = 0; dim < dimensionality; ++dim) {
+        uint64_t chunk_size = chunked->dimension_sizes[dim];
+        uint64_t dim_start = start[dim];
+        uint64_t dim_count = count[dim];
+        uint64_t dim_stride = stride.empty() ? 1 : stride[dim];
+        uint64_t dim_block = block.empty() ? 1 : block[dim];
+        
+        std::unordered_set<uint64_t> unique_chunks;
+        unique_chunks.reserve(dim_count * 2); // avoid hash table rehashing
+        
+        // for each count iteration
+        for (uint64_t count_idx = 0; count_idx < dim_count; ++count_idx) {
+            uint64_t block_start = dim_start + count_idx * dim_stride;
+            uint64_t block_end = block_start + dim_block - 1;
+            
+            // find all chunks touched by this block
+            uint64_t start_chunk = (block_start / chunk_size) * chunk_size;
+            uint64_t end_chunk = (block_end / chunk_size) * chunk_size;
+            
+            for (uint64_t chunk_coord = start_chunk; chunk_coord <= end_chunk; chunk_coord += chunk_size) {
+                unique_chunks.insert(chunk_coord);
+            }
+        }
+        
+        if (unique_chunks.empty()) {
+            return result;
+        }
+        
+        // convert to sorted vector for cartesian products
+        auto& dim_chunks = chunks_per_dim[dim];
+        dim_chunks.reserve(unique_chunks.size());
+        dim_chunks.assign(unique_chunks.begin(), unique_chunks.end());
+        std::ranges::sort(dim_chunks); // sort for consistent ordering
+    }
+
+    std::vector<uint64_t> current_combination(dimensionality);
+    std::vector<size_t> indices(dimensionality, 0);
+    
+    for (;;) {
+        // get current combination
+        for (size_t dim = 0; dim < dimensionality; ++dim) {
+            current_combination[dim] = chunks_per_dim[dim][indices[dim]];
+        }
+        
+        ChunkCoordinates chunk_coords(current_combination);
+        std::optional<offset_t> chunk_file_offset = chunked_tree.GetChunk(chunk_coords);
+        
+        if (chunk_file_offset.has_value()) {
+            result.emplace_back(std::move(chunk_coords), *chunk_file_offset, chunk_size_bytes);
+        }
+        
+        // find first dimension that can increment
+        size_t dim = 0;
+        while (dim < dimensionality && ++indices[dim] >= chunks_per_dim[dim].size()) {
+            indices[dim] = 0;
+            ++dim;
+        }
+        if (dim == dimensionality) {
+            break;
+        }
+    }
+
+    return result;
 }
