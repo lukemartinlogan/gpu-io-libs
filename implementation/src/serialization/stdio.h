@@ -1,5 +1,6 @@
 #pragma once
 #include <filesystem>
+#include <functional>
 
 #include "serialization.h"
 #include "../hdf5/types.h"
@@ -25,7 +26,7 @@ public:
 
 private:
     std::filesystem::path path_;
-    std::unique_ptr<FILE, decltype(&std::fclose)> file_;
+    std::unique_ptr<FILE, std::function<int(FILE*)>> file_;
 };
 
 class StdioReader : public Deserializer {
@@ -65,7 +66,7 @@ public:
 
 private:
     std::filesystem::path path_;
-    std::unique_ptr<FILE, decltype(&std::fclose)> file_;
+    std::unique_ptr<FILE, std::function<int(FILE*)>> file_;
 };
 
 // TODO: is there a way to do this without code duplication
@@ -111,5 +112,5 @@ public:
 
 private:
     std::filesystem::path path_;
-    std::unique_ptr<FILE, decltype(&std::fclose)> file_;
+    std::unique_ptr<FILE, std::function<int(FILE*)>> file_;
 };
