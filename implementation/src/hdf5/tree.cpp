@@ -18,13 +18,14 @@ void BTreeChunkedRawDataNodeKey::Serialize(Serializer& s) const {
     }
 }
 
-BTreeChunkedRawDataNodeKey BTreeChunkedRawDataNodeKey::DeserializeWithDims(Deserializer& de, uint8_t dimensionality) {
+BTreeChunkedRawDataNodeKey BTreeChunkedRawDataNodeKey::DeserializeWithTermInfo(Deserializer& de, ChunkedKeyTerminatorInfo term_info) {
     BTreeChunkedRawDataNodeKey key{};
 
     key.chunk_size = de.Read<uint32_t>();
     key.filter_mask = de.Read<uint32_t>();
+    key.elem_byte_size = term_info.elem_byte_size;
 
-    for (uint8_t i = 0; i < dimensionality; ++i) {
+    for (uint8_t i = 0; i < term_info.dimensionality; ++i) {
         key.chunk_offset_in_dataset.coords.push_back(de.Read<uint64_t>());
     }
 
@@ -32,8 +33,9 @@ BTreeChunkedRawDataNodeKey BTreeChunkedRawDataNodeKey::DeserializeWithDims(Deser
 
     bool is_unused_key = key.chunk_size == 0;
 
-    if ((is_unused_key && terminator != 4) || (!is_unused_key && terminator != 0)) {
-        throw std::runtime_error("BTreeChunkedRawDataNodeKey: incorrect terminator");
+    // TODO: is terminator always the size of the type?
+    if ((is_unused_key && terminator != key.elem_byte_size) || (!is_unused_key && terminator != 0)) {
+        throw std::runtime_error(std::format("BTreeChunkedRawDataNodeKey: incorrect terminator (unused: {}, terminator: {})", is_unused_key, terminator));
     }
 
     return key;
@@ -230,8 +232,17 @@ std::optional<uint16_t> BTreeNode::FindChunkedIndex(const ChunkCoordinates& chun
 
     for (size_t i = 1; i < chunk_entries.keys.size(); ++i) {
         ChunkCoordinates next = chunk_entries.keys[i].chunk_offset_in_dataset;
+        
+        bool is_sentinel = (
+            i == entries_ct
+            && chunk_entries.keys[i].chunk_size == 0
+            && prev == chunk_coords
+            && chunk_coords == next
+        );
+        
+        bool in_range = (prev <= chunk_coords && chunk_coords < next);
 
-        if (prev <= chunk_coords && chunk_coords < next) {
+        if (in_range || is_sentinel) {
             child_index = i - 1;
             break;
         }
@@ -407,7 +418,7 @@ BTreeNode BTreeNode::DeserializeGroup(Deserializer& de) {
     return node;
 }
 
-BTreeNode BTreeNode::DeserializeChunked(Deserializer& de, uint8_t dimensionality) {
+BTreeNode BTreeNode::DeserializeChunked(Deserializer& de, ChunkedKeyTerminatorInfo term_info) {
     if (de.Read<std::array<uint8_t, 4>>() != kSignature) {
         throw std::runtime_error("BTree signature was invalid");
     }
@@ -430,20 +441,18 @@ BTreeNode BTreeNode::DeserializeChunked(Deserializer& de, uint8_t dimensionality
     node.left_sibling_addr = de.Read<offset_t>();
     node.right_sibling_addr = de.Read<offset_t>();
 
-    node.dimensionality = dimensionality;
+    node.chunked_key_term_info_ = term_info;
 
     BTreeEntries<BTreeChunkedRawDataNodeKey> entries{};
 
     for (uint16_t i = 0; i < entries_used; ++i) {
-        entries.keys.push_back(BTreeChunkedRawDataNodeKey::DeserializeWithDims(de, dimensionality));
+        entries.keys.push_back(BTreeChunkedRawDataNodeKey::DeserializeWithTermInfo(de, term_info));
         entries.child_pointers.push_back(de.Read<offset_t>());
     }
 
-    entries.keys.push_back(BTreeChunkedRawDataNodeKey::DeserializeWithDims(de, dimensionality));
+    entries.keys.push_back(BTreeChunkedRawDataNodeKey::DeserializeWithTermInfo(de, term_info));
 
     node.entries = entries;
-
-    node.dimensionality = dimensionality;
 
     return node;
 }
@@ -456,11 +465,11 @@ BTreeNode BTreeNode::ReadChild(Deserializer& de) const {
     if (std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         return DeserializeGroup(de);
     } else if (std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
-        if (!dimensionality.has_value()) {
+        if (!chunked_key_term_info_.has_value()) {
             throw std::logic_error("BTreeNode::ReadChild: dimensionality not set for chunked node");
         }
 
-        return DeserializeChunked(de, *dimensionality);
+        return DeserializeChunked(de, *chunked_key_term_info_);
     } else {
         throw std::logic_error("Variant has invalid state");
     }
@@ -937,7 +946,7 @@ std::optional<BTreeNode> ChunkedBTree::ReadRoot() const {
 
     file_->io.SetPosition(file_->superblock.base_addr + *addr_);
 
-    return BTreeNode::DeserializeChunked(file_->io, dimensionality_);
+    return BTreeNode::DeserializeChunked(file_->io, terminator_info_);
 }
 
 size_t GroupBTree::Size() const {

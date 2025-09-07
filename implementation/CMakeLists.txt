@@ -32,6 +32,8 @@ add_executable(hdf5_implementation
     src/hdf5/file.cpp
     src/hdf5/group.h
     src/hdf5/group.cpp
+    src/hdf5/hyperslab.h
+    src/hdf5/hyperslab.cpp
     src/hdf5/dataset.h
     src/hdf5/dataset.cpp
     src/hdf5/object.h

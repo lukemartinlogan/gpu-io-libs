@@ -5,6 +5,7 @@
 #include "file_link.h"
 #include "object.h"
 #include "object_header.h"
+#include "tree.h"
 #include "../serialization/serialization.h"
 
 class Dataset {
@@ -55,6 +56,38 @@ public:
         return out;
     }
 
+    void ReadHyperslab(
+        std::span<byte_t> buffer,
+        const std::vector<uint64_t>& start,
+        const std::vector<uint64_t>& count,
+        const std::vector<uint64_t>& stride = {},
+        const std::vector<uint64_t>& block = {}
+    ) const;
+
+    template<typename T>
+    std::vector<T> ReadHyperslab(
+        const std::vector<uint64_t>& start,
+        const std::vector<uint64_t>& count,
+        const std::vector<uint64_t>& stride = {},
+        const std::vector<uint64_t>& block = {}
+    ) const {
+        size_t total_elements = TotalElements(count, block);
+
+        std::vector<T> result(total_elements);
+        ReadHyperslab(
+            std::span(
+                reinterpret_cast<byte_t*>(result.data()),
+                result.size() * sizeof(T)
+            ),
+            start,
+            count,
+            stride,
+            block
+        );
+
+        return result;
+    }
+
     void Write(std::span<const byte_t> data, size_t start_index) const;
 
     template<typename T>
@@ -67,6 +100,48 @@ public:
             start_index
         );
     }
+
+    void WriteHyperslab(
+        std::span<const byte_t> data,
+        const std::vector<uint64_t>& start,
+        const std::vector<uint64_t>& count,
+        const std::vector<uint64_t>& stride = {},
+        const std::vector<uint64_t>& block = {}
+    ) const;
+
+    template<typename T>
+    void WriteHyperslab(
+        std::span<const T> data,
+        const std::vector<uint64_t>& start,
+        const std::vector<uint64_t>& count,
+        const std::vector<uint64_t>& stride = {},
+        const std::vector<uint64_t>& block = {}
+    ) const {
+        WriteHyperslab(
+            std::span(
+                reinterpret_cast<const byte_t*>(data.data()),
+                data.size_bytes()
+            ),
+            start,
+            count,
+            stride,
+            block
+        );
+    }
+
+    [[nodiscard]] std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> RawOffsets() const;
+
+private:
+    static size_t TotalElements(const std::vector<uint64_t>& count, const std::vector<uint64_t>& block) {
+        size_t total_elements = 1;
+        for (size_t i = 0; i < count.size(); ++i) {
+            size_t effective_block = block.empty() ? 1 : block[i];
+            total_elements *= count[i] * effective_block;
+        }
+
+        return total_elements;
+    }
+
 
 private:
     Object object_;
