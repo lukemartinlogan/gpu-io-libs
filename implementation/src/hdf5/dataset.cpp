@@ -379,21 +379,35 @@ std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::GetHyperslab
 ) const {
     std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> result;
 
-    const auto* chunked = std::get_if<ChunkedStorageProperty>(&layout_.properties);
-    if (!chunked) {
-        return result;
+    auto props = layout_.properties;
+
+    if (const auto* compact = std::get_if<CompactStorageProperty>(&props)) {
+        // For compact storage, return a single entry with zero coordinates matching dataset dimensionality
+        ChunkCoordinates coords;
+        coords.coords = std::vector<uint64_t>(space_.dimensions.size(), 0);
+        return { {coords, 0, static_cast<len_t>(compact->raw_data.size())} };
+
+    } else if (const auto* contiguous = std::get_if<ContiguousStorageProperty>(&props)) {
+        // For contiguous storage, return a single entry with zero coordinates matching dataset dimensionality
+        ChunkCoordinates coords;
+        coords.coords = std::vector<uint64_t>(space_.dimensions.size(), 0);
+        return { {coords, contiguous->address, contiguous->size} };
+    } else if (!std::holds_alternative<ChunkedStorageProperty>(props)) {
+        throw std::logic_error("unknown storage type in dataset");
     }
 
-    size_t dimensionality = chunked->dimension_sizes.size();
+    auto chunked = std::get<ChunkedStorageProperty>(props);
 
-    ChunkedBTree chunked_tree(chunked->b_tree_addr, object_.file, {
+    size_t dimensionality = chunked.dimension_sizes.size();
+
+    ChunkedBTree chunked_tree(chunked.b_tree_addr, object_.file, {
         .dimensionality = static_cast<uint8_t>(dimensionality),
         .elem_byte_size = type_.Size(),
     });
 
     const len_t chunk_size_bytes = std::accumulate(
-        chunked->dimension_sizes.begin(),
-        chunked->dimension_sizes.end(),
+        chunked.dimension_sizes.begin(),
+        chunked.dimension_sizes.end(),
         type_.Size(),
         std::multiplies{}
     );
@@ -401,7 +415,7 @@ std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::GetHyperslab
     std::vector<std::vector<uint64_t>> chunks_per_dim(dimensionality);
     
     for (size_t dim = 0; dim < dimensionality; ++dim) {
-        uint64_t chunk_size = chunked->dimension_sizes[dim];
+        uint64_t chunk_size = chunked.dimension_sizes[dim];
         uint64_t dim_start = start[dim];
         uint64_t dim_count = count[dim];
         uint64_t dim_stride = stride.empty() ? 1 : stride[dim];
