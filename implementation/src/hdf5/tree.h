@@ -49,6 +49,11 @@ struct ChunkCoordinates {
     }
 };
 
+struct ChunkedKeyTerminatorInfo {
+    uint8_t dimensionality;
+    uint64_t elem_byte_size;
+};
+
 struct BTreeChunkedRawDataNodeKey {
     // in bytes
     uint32_t chunk_size;
@@ -58,9 +63,11 @@ struct BTreeChunkedRawDataNodeKey {
     // extra uint64_t(0) at the end (not stored)
     ChunkCoordinates chunk_offset_in_dataset;
 
+    size_t elem_byte_size;
+
     void Serialize(Serializer& s) const;
 
-    static BTreeChunkedRawDataNodeKey DeserializeWithDims(Deserializer& de, uint8_t dimensionality);
+    static BTreeChunkedRawDataNodeKey DeserializeWithTermInfo(Deserializer& de, ChunkedKeyTerminatorInfo term_info);
 
     [[nodiscard]] uint16_t AllocationSize() const {
         // Key size = chunk_size + filter_mask + (dimensions * sizeof(uint64_t))
@@ -108,7 +115,7 @@ struct BTreeNode {
         BTreeEntries<BTreeChunkedRawDataNodeKey>
     > entries{};
 
-    std::optional<uint8_t> dimensionality{};
+    std::optional<ChunkedKeyTerminatorInfo> chunked_key_term_info_{};
 
     // max number of children this node points to
     // all nodes have same max degree (max entries used) but
@@ -126,7 +133,7 @@ struct BTreeNode {
     void Serialize(Serializer& s) const;
 
     static BTreeNode DeserializeGroup(Deserializer& de);
-    static BTreeNode DeserializeChunked(Deserializer& de, uint8_t dimensionality);
+    static BTreeNode DeserializeChunked(Deserializer& de, ChunkedKeyTerminatorInfo term_info);
 
 private:
     friend struct GroupBTree;
@@ -222,8 +229,8 @@ private:
 };
 
 struct ChunkedBTree {
-    explicit ChunkedBTree(offset_t addr, std::shared_ptr<FileLink> file, uint8_t dimensionality)
-        : file_(std::move(file)), addr_(addr), dimensionality_(dimensionality) {}
+    explicit ChunkedBTree(offset_t addr, std::shared_ptr<FileLink> file, ChunkedKeyTerminatorInfo term_info)
+        : file_(std::move(file)), addr_(addr), terminator_info_(term_info) {}
 
     void InsertChunk(
         const ChunkCoordinates& chunk_coords,
@@ -247,5 +254,6 @@ public:
 private:
     std::shared_ptr<FileLink> file_{};
     std::optional<offset_t> addr_{};
-    uint8_t dimensionality_{};
+
+    ChunkedKeyTerminatorInfo terminator_info_{};
 };

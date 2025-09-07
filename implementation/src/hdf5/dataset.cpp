@@ -144,7 +144,10 @@ std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::RawOffsets()
         ChunkedBTree chunked_tree(
             chunked->b_tree_addr,
             object_.file,
-            static_cast<uint8_t>(chunked->dimension_sizes.size())
+            {
+                .dimensionality = static_cast<uint8_t>(chunked->dimension_sizes.size()),
+                .elem_byte_size = type_.Size(),
+            }
         );
         return chunked_tree.Offsets();
     } else {
@@ -163,7 +166,10 @@ void ProcessChunkedHyperslab(
     ChunkedBTree chunked_tree(
         chunked->b_tree_addr,
         std::move(file),
-        static_cast<uint8_t>(chunked->dimension_sizes.size())
+        {
+            .dimensionality = static_cast<uint8_t>(chunked->dimension_sizes.size()),
+            .elem_byte_size = element_size,
+        }
     );
 
     size_t buffer_offset = 0;
