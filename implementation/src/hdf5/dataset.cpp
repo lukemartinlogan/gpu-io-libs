@@ -207,7 +207,7 @@ void ProcessChunkedHyperslab(
         }
 
         // Process this element using the provided processor
-        visitor(element_file_offset, buffer_offset);
+        visitor(element_file_offset, buffer_offset, chunk_coords);
 
         buffer_offset += element_size;
         iterator.Advance();
@@ -285,7 +285,7 @@ void Dataset::ReadHyperslab(
     } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
         ProcessChunkedHyperslab(
             chunked, iterator, element_size, object_.file,
-            [&](const std::optional<offset_t>& element_file_offset, size_t buffer_offset) {
+            [&](const std::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) {
                 if (!element_file_offset.has_value()) {
                     // chunk doesn't exist (sparse dataset)
                     std::fill_n(buffer.data() + buffer_offset, element_size, byte_t{0});
@@ -353,7 +353,7 @@ void Dataset::WriteHyperslab(
     } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
         ProcessChunkedHyperslab(
             chunked, iterator, element_size, object_.file,
-            [&](const std::optional<offset_t>& element_file_offset, size_t buffer_offset) {
+            [&](const std::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) {
                 if (!element_file_offset.has_value()) {
                     // Chunk doesn't exist (sparse dataset) - this is an error for writing
                     // In HDF5, writing to a non-existent chunk should create the chunk,
