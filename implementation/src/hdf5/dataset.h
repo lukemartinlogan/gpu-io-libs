@@ -130,8 +130,8 @@ public:
     }
 
     [[nodiscard]] std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> RawOffsets() const;
-    
-    [[nodiscard]] std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> GetHyperslabChunks(
+
+    [[nodiscard]] std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> GetHyperslabChunkRawOffsets(
         const std::vector<uint64_t>& start,
         const std::vector<uint64_t>& count,
         const std::vector<uint64_t>& stride = {},
