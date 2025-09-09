@@ -379,24 +379,11 @@ std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::GetHyperslab
 ) const {
     std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> result;
 
-    auto props = layout_.properties;
-
-    if (const auto* compact = std::get_if<CompactStorageProperty>(&props)) {
-        // For compact storage, return a single entry with zero coordinates matching dataset dimensionality
-        ChunkCoordinates coords;
-        coords.coords = std::vector<uint64_t>(space_.dimensions.size(), 0);
-        return { {coords, 0, static_cast<len_t>(compact->raw_data.size())} };
-
-    } else if (const auto* contiguous = std::get_if<ContiguousStorageProperty>(&props)) {
-        // For contiguous storage, return a single entry with zero coordinates matching dataset dimensionality
-        ChunkCoordinates coords;
-        coords.coords = std::vector<uint64_t>(space_.dimensions.size(), 0);
-        return { {coords, contiguous->address, contiguous->size} };
-    } else if (!std::holds_alternative<ChunkedStorageProperty>(props)) {
-        throw std::logic_error("unknown storage type in dataset");
+    if (!std::holds_alternative<ChunkedStorageProperty>(layout_.properties)) {
+        return RawOffsets();
     }
 
-    auto chunked = std::get<ChunkedStorageProperty>(props);
+    auto chunked = std::get<ChunkedStorageProperty>(layout_.properties);
 
     size_t dimensionality = chunked.dimension_sizes.size();
 
