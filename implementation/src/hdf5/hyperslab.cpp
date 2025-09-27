@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <numeric>
 #include <stdexcept>
+#include <string>
 
 HyperslabIterator::HyperslabIterator(
     const coord_t& start,
