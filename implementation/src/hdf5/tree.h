@@ -109,7 +109,7 @@ struct BTreeNode {
     // if rightmost, then kUndefinedOffset
     offset_t right_sibling_addr = kUndefinedOffset;
     // last entry's child_pointer field is unused
-    std::variant<
+    cstd::variant<
         BTreeEntries<BTreeGroupNodeKey>,
         BTreeEntries<BTreeChunkedRawDataNodeKey>
     > entries{};

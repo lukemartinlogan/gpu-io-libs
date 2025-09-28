@@ -11,15 +11,15 @@ Dataset::Dataset(const Object& object)
     bool found_layout = false, found_type = false, found_space = false;
 
     for (const ObjectHeaderMessage& msg: header.messages) {
-        if (const auto* layout = std::get_if<DataLayoutMessage>(&msg.message)) {
+        if (const auto* layout = cstd::get_if<DataLayoutMessage>(&msg.message)) {
             layout_ = *layout;
             found_layout = true;
         }
-        else if (const auto* type = std::get_if<DatatypeMessage>(&msg.message)) {
+        else if (const auto* type = cstd::get_if<DatatypeMessage>(&msg.message)) {
             type_ = *type;
             found_type = true;
         }
-        else if (const auto* space = std::get_if<DataspaceMessage>(&msg.message)) {
+        else if (const auto* space = cstd::get_if<DataspaceMessage>(&msg.message)) {
             space_ = *space;
             found_space = true;
         }
@@ -51,7 +51,7 @@ void Dataset::Read(std::span<byte_t> buffer, size_t start_index, size_t count) c
 
     auto props = layout_.properties;
 
-    if (const auto* compact = std::get_if<CompactStorageProperty>(&props)) {
+    if (const auto* compact = cstd::get_if<CompactStorageProperty>(&props)) {
         auto start = compact->raw_data.begin() + static_cast<ptrdiff_t>(start_index * element_size);
 
         if (start + static_cast<ptrdiff_t>(total_bytes) > compact->raw_data.end()) {
@@ -64,7 +64,7 @@ void Dataset::Read(std::span<byte_t> buffer, size_t start_index, size_t count) c
             buffer.data()
         );
 
-    } else if (const auto* contiguous = std::get_if<ContiguousStorageProperty>(&props)) {
+    } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
         if ((start_index + count) * element_size > contiguous->size) {
             throw std::out_of_range("Index range out of bounds for contiguous storage dataset");
         }
@@ -72,7 +72,7 @@ void Dataset::Read(std::span<byte_t> buffer, size_t start_index, size_t count) c
         object_.file->io.SetPosition(contiguous->address + start_index * element_size);
         object_.file->io.ReadBuffer(std::span(buffer.data(), total_bytes));
 
-    } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
+    } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
         throw std::logic_error("chunked read not implemented yet");
     } else {
         throw std::logic_error("unknown storage type in dataset");
@@ -98,7 +98,7 @@ void Dataset::Write(std::span<const byte_t> data, size_t start_index) const {
 
     auto props = layout_.properties;
 
-    if (auto* compact = std::get_if<CompactStorageProperty>(&props)) {
+    if (auto* compact = cstd::get_if<CompactStorageProperty>(&props)) {
         auto start = compact->raw_data.begin() + static_cast<ptrdiff_t>(start_index * element_size);
 
         if (start + static_cast<ptrdiff_t>(data.size()) > compact->raw_data.end()) {
@@ -111,7 +111,7 @@ void Dataset::Write(std::span<const byte_t> data, size_t start_index) const {
             start
         );
 
-    } else if (const auto* contiguous = std::get_if<ContiguousStorageProperty>(&props)) {
+    } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
         if ((start_index + count) * element_size > contiguous->size) {
             throw std::out_of_range("Index range out of bounds for contiguous storage dataset");
         }
@@ -119,7 +119,7 @@ void Dataset::Write(std::span<const byte_t> data, size_t start_index) const {
         object_.file->io.SetPosition(contiguous->address + start_index * element_size);
         object_.file->io.WriteBuffer(data);
 
-    } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
+    } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
         throw std::logic_error("chunked write not implemented yet");
     } else {
         throw std::logic_error("unknown storage type in dataset");
@@ -129,19 +129,19 @@ void Dataset::Write(std::span<const byte_t> data, size_t start_index) const {
 std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::RawOffsets() const {
     auto props = layout_.properties;
 
-    if (const auto* compact = std::get_if<CompactStorageProperty>(&props)) {
+    if (const auto* compact = cstd::get_if<CompactStorageProperty>(&props)) {
         // For compact storage, return a single entry with zero coordinates matching dataset dimensionality
         ChunkCoordinates coords;
         coords.coords = std::vector<uint64_t>(space_.dimensions.size(), 0);
         return { {coords, 0, static_cast<len_t>(compact->raw_data.size())} };
 
-    } else if (const auto* contiguous = std::get_if<ContiguousStorageProperty>(&props)) {
+    } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
         // For contiguous storage, return a single entry with zero coordinates matching dataset dimensionality
         ChunkCoordinates coords;
         coords.coords = std::vector<uint64_t>(space_.dimensions.size(), 0);
         return { {coords, contiguous->address, contiguous->size} };
 
-    } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
+    } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
         // For chunked storage, use the B-tree to get all chunk offsets
         ChunkedBTree chunked_tree(
             chunked->b_tree_addr,
@@ -249,7 +249,7 @@ void Dataset::ReadHyperslab(
 
     auto props = layout_.properties;
 
-    if (const auto* compact = std::get_if<CompactStorageProperty>(&props)) {
+    if (const auto* compact = cstd::get_if<CompactStorageProperty>(&props)) {
         size_t buffer_offset = 0;
 
         while (!iterator.IsAtEnd()) {
@@ -270,7 +270,7 @@ void Dataset::ReadHyperslab(
             iterator.Advance();
         }
 
-    } else if (const auto* contiguous = std::get_if<ContiguousStorageProperty>(&props)) {
+    } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
         size_t buffer_offset = 0;
 
         while (!iterator.IsAtEnd()) {
@@ -284,7 +284,7 @@ void Dataset::ReadHyperslab(
             iterator.Advance();
         }
 
-    } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
+    } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
         ProcessChunkedHyperslab(
             chunked, iterator, element_size, object_.file,
             [&](const cstd::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) {
@@ -334,11 +334,11 @@ void Dataset::WriteHyperslab(
 
     auto props = layout_.properties;
 
-    if (const auto* compact = std::get_if<CompactStorageProperty>(&props)) {
+    if (const auto* compact = cstd::get_if<CompactStorageProperty>(&props)) {
         // Compact storage is read-only after creation, so writing is not supported
         throw std::logic_error("Cannot write to compact storage dataset");
 
-    } else if (const auto* contiguous = std::get_if<ContiguousStorageProperty>(&props)) {
+    } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
         size_t data_offset = 0;
 
         while (!iterator.IsAtEnd()) {
@@ -352,7 +352,7 @@ void Dataset::WriteHyperslab(
             iterator.Advance();
         }
 
-    } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
+    } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
         ProcessChunkedHyperslab(
             chunked, iterator, element_size, object_.file,
             [&](const cstd::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) {
@@ -379,11 +379,11 @@ std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::GetHyperslab
 ) const {
     std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> result;
 
-    if (!std::holds_alternative<ChunkedStorageProperty>(layout_.properties)) {
+    if (!cstd::holds_alternative<ChunkedStorageProperty>(layout_.properties)) {
         return RawOffsets();
     }
 
-    auto chunked = std::get<ChunkedStorageProperty>(layout_.properties);
+    auto chunked = cstd::get<ChunkedStorageProperty>(layout_.properties);
 
     size_t dimensionality = chunked.dimension_sizes.size();
 

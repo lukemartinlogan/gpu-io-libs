@@ -154,7 +154,7 @@ std::vector<byte_t> WriteMessageToBuffer(const HeaderMessageVariant& msg) {
     // reserve eight bytes for prefix
     msg_data.Write<cstd::array<byte_t, kPrefixSize>>({});
 
-    std::visit([&msg_data](const auto& m) { msg_data.WriteComplex(m); }, msg);
+    cstd::visit([&msg_data](const auto& m) { msg_data.WriteComplex(m); }, msg);
 
     while (msg_data.buf.size() % 8 != 0) {
         msg_data.Write<uint8_t>(0);
@@ -164,7 +164,7 @@ std::vector<byte_t> WriteMessageToBuffer(const HeaderMessageVariant& msg) {
 
     BufferSerializer prefix_s(msg_data.buf);
 
-    uint16_t kType = std::visit([](const auto& m) { return m.kType; }, msg);
+    uint16_t kType = cstd::visit([](const auto& m) { return m.kType; }, msg);
 
     WriteHeader(prefix_s, kType, msg_size - kPrefixSize, /* FIXME: support flags */ 0);
 

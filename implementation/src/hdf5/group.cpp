@@ -10,7 +10,7 @@ Group::Group(const Object& object)
     auto symb_tbl_msg = std::ranges::find_if(
         header.messages,
         [](const auto& msg) {
-            return std::holds_alternative<SymbolTableMessage>(msg.message);
+            return cstd::holds_alternative<SymbolTableMessage>(msg.message);
         }
     );
 
@@ -18,7 +18,7 @@ Group::Group(const Object& object)
         throw std::runtime_error("Object is not a group header");
     }
 
-    auto symb_tbl = std::get<SymbolTableMessage>(symb_tbl_msg->message);
+    auto symb_tbl = cstd::get<SymbolTableMessage>(symb_tbl_msg->message);
 
     object_.file->io.SetPosition(object_.file->superblock.base_addr + symb_tbl.local_heap_addr);
     auto local_heap = object_.file->io.ReadComplex<LocalHeap>();
@@ -227,7 +227,7 @@ SymbolTableNode Group::GetSymbolTableNode() const {
         throw std::logic_error("traversing tree not implemented");
     }
 
-    const auto* entries = std::get_if<BTreeEntries<BTreeGroupNodeKey>>(&table.entries);
+    const auto* entries = cstd::get_if<BTreeEntries<BTreeGroupNodeKey>>(&table.entries);
 
     if (!entries) {
         throw std::runtime_error("Group table does not contain group node keys");

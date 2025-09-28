@@ -68,7 +68,7 @@ uint16_t BTreeEntries<K>::KeySize() const {
 }
 
 uint16_t BTreeNode::EntriesUsed() const {
-    return std::visit([](const auto& entries) {
+    return cstd::visit([](const auto& entries) {
         return entries.EntriesUsed();
     }, entries);
 }
@@ -80,7 +80,7 @@ cstd::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, c
         return cstd::nullopt;
     }
 
-    const auto& group_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+    const auto& group_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
 
     // leaf node, search for the exact entry
     // pointers point to symbol table entries
@@ -104,7 +104,7 @@ cstd::optional<offset_t> BTreeNode::GetChunk(const ChunkCoordinates& chunk_coord
         return cstd::nullopt;
     }
 
-    const auto& chunk_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+    const auto& chunk_entries = cstd::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
 
     // pointers point to raw chunk data
     if (IsLeaf()) {
@@ -142,13 +142,13 @@ void WriteEntries(const BTreeEntries<K>& entries, Serializer& s) {
 }
 
 cstd::optional<uint16_t> BTreeNode::FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
-    if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+    if (!cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         return cstd::nullopt;
     }
 
     // TODO: can we binary search here?
 
-    const auto& group_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+    const auto& group_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
 
     uint16_t entries_ct = EntriesUsed();
 
@@ -182,13 +182,13 @@ cstd::optional<uint16_t> BTreeNode::FindGroupIndex(std::string_view key, const L
 }
 
 uint16_t BTreeNode::GroupInsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
-    if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+    if (!cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         throw std::logic_error("InsertionPosition only supported for group nodes");
     }
 
     // TODO: can we binary search here?
 
-    const auto& group_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+    const auto& group_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
 
     uint16_t entries_ct = EntriesUsed();
 
@@ -212,11 +212,11 @@ uint16_t BTreeNode::GroupInsertionPosition(std::string_view key, const LocalHeap
 }
 
 cstd::optional<uint16_t> BTreeNode::FindChunkedIndex(const ChunkCoordinates& chunk_coords) const {
-    if (!std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
+    if (!cstd::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
         return cstd::nullopt;
     }
 
-    const auto& chunk_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+    const auto& chunk_entries = cstd::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
 
     uint16_t entries_ct = EntriesUsed();
 
@@ -259,11 +259,11 @@ cstd::optional<uint16_t> BTreeNode::FindChunkedIndex(const ChunkCoordinates& chu
 }
 
 uint16_t BTreeNode::ChunkedInsertionPosition(const ChunkCoordinates& chunk_coords) const {
-    if (!std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
+    if (!cstd::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
         throw std::logic_error("ChunkedInsertionPosition only supported for chunked nodes");
     }
 
-    const auto& chunk_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+    const auto& chunk_entries = cstd::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
 
     uint16_t entries_ct = EntriesUsed();
 
@@ -293,11 +293,11 @@ K BTreeNode::GetMaxKey(FileLink& file) const {
         "Unsupported key type"
     );
 
-    if (!std::holds_alternative<BTreeEntries<K>>(entries)) {
+    if (!cstd::holds_alternative<BTreeEntries<K>>(entries)) {
         throw std::logic_error("GetMaxKey: incorrect key type for this node");
     }
 
-    auto node_entries = std::get<BTreeEntries<K>>(entries);
+    auto node_entries = cstd::get<BTreeEntries<K>>(entries);
 
     if (node_entries.EntriesUsed() == 0) {
         throw std::logic_error("GetMaxKey called on empty node");
@@ -320,11 +320,11 @@ K BTreeNode::GetMinKey() const {
         "Unsupported key type"
     );
 
-    if (!std::holds_alternative<BTreeEntries<K>>(entries)) {
+    if (!cstd::holds_alternative<BTreeEntries<K>>(entries)) {
         throw std::logic_error("GetMinKey: incorrect key type for this node");
     }
 
-    auto node_entries = std::get<BTreeEntries<K>>(entries);
+    auto node_entries = cstd::get<BTreeEntries<K>>(entries);
 
     if (node_entries.EntriesUsed() == 0) {
         throw std::logic_error("GetMinKey called on empty node");
@@ -336,7 +336,7 @@ K BTreeNode::GetMinKey() const {
 len_t BTreeNode::AllocationSize(KValues k_val) const {
     const uint16_t k = k_val.Get(IsLeaf());
 
-    uint16_t key_size = std::visit([](const auto& entries) -> uint16_t { return entries.KeySize(); }, entries);
+    uint16_t key_size = cstd::visit([](const auto& entries) -> uint16_t { return entries.KeySize(); }, entries);
 
     return
         + 4 // Signature
@@ -355,9 +355,9 @@ len_t BTreeNode::AllocationSize(KValues k_val) const {
 
 void BTreeNode::Serialize(Serializer& s) const {
     uint8_t type;
-    if (std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+    if (cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         type = kGroupNodeTy;
-    } else if (std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
+    } else if (cstd::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
         type = kRawDataChunkNodeTy;
     } else {
         throw std::logic_error("Variant has invalid state");
@@ -373,10 +373,10 @@ void BTreeNode::Serialize(Serializer& s) const {
     s.Write(right_sibling_addr);
 
     if (type == kGroupNodeTy) {
-        const auto& entr = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+        const auto& entr = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
         WriteEntries(entr, s);
     } else {
-        const auto& entr = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+        const auto& entr = cstd::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
         WriteEntries(entr, s);
     }
 }
@@ -462,9 +462,9 @@ bool BTreeNode::AtCapacity(KValues k) const {
 }
 
 BTreeNode BTreeNode::ReadChild(Deserializer& de) const {
-    if (std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+    if (cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         return DeserializeGroup(de);
-    } else if (std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
+    } else if (cstd::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
         if (!chunked_key_term_info_.has_value()) {
             throw std::logic_error("BTreeNode::ReadChild: dimensionality not set for chunked node");
         }
@@ -476,7 +476,7 @@ BTreeNode BTreeNode::ReadChild(Deserializer& de) const {
 }
 
 BTreeNode BTreeNode::Split(KValues k) {
-    return std::visit([this, k]<typename Entries>(Entries& l_entries) -> BTreeNode {
+    return cstd::visit([this, k]<typename Entries>(Entries& l_entries) -> BTreeNode {
         Entries r_entries{};
         uint16_t mid = k.Get(IsLeaf());
 
@@ -511,7 +511,7 @@ len_t BTreeNode::WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues 
     len_t unused_entries = 2 * k.Get(IsLeaf()) - EntriesUsed();
 
     // Calculate key size based on node type
-    uint16_t key_size = std::visit([](const auto& entries) -> uint16_t { return entries.KeySize(); }, entries);
+    uint16_t key_size = cstd::visit([](const auto& entries) -> uint16_t { return entries.KeySize(); }, entries);
 
     len_t key_ptr_size = key_size + sizeof(offset_t);
 
@@ -533,11 +533,11 @@ offset_t BTreeNode::AllocateAndWrite(FileLink& file, KValues k) const {
 }
 
 void BTreeNode::Recurse(const std::function<void(std::string, offset_t)>& visitor, FileLink& file) const {
-    if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+    if (!cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         throw std::logic_error("Recurse only supported for group nodes");
     }
 
-    auto g_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+    auto g_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
 
     for (size_t i = 0; i < g_entries.EntriesUsed(); ++i) {
         offset_t ptr = g_entries.child_pointers.at(i);
@@ -556,11 +556,11 @@ void BTreeNode::Recurse(const std::function<void(std::string, offset_t)>& visito
 }
 
 void BTreeNode::RecurseChunked(const std::function<void(const BTreeChunkedRawDataNodeKey&, offset_t)>& visitor, FileLink& file) const {
-    if (!std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
+    if (!cstd::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
         throw std::logic_error("RecurseChunked only supported for chunked nodes");
     }
 
-    auto c_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+    auto c_entries = cstd::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
 
     for (size_t i = 0; i < c_entries.EntriesUsed(); ++i) {
         offset_t ptr = c_entries.child_pointers.at(i);
@@ -591,12 +591,12 @@ cstd::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_
         .internal = file.superblock.group_internal_node_k,
     };
 
-    auto& g_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+    auto& g_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
 
     auto RawInsert = [&file, &heap](BTreeNode& node, BTreeGroupNodeKey key, offset_t child_ptr) -> void {
         std::string key_str = heap.ReadString(key.first_object_name, file.io);
 
-        auto& ins_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(node.entries);
+        auto& ins_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(node.entries);
         uint16_t ins_pos = node.GroupInsertionPosition(key_str, heap, file.io);
 
         ins_entries.child_pointers.insert(
@@ -698,10 +698,10 @@ cstd::optional<SplitResultChunked> BTreeNode::InsertChunked(
         .internal = kChunkedRawDataK,
     };
 
-    auto& c_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+    auto& c_entries = cstd::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
 
     auto RawInsert = [](BTreeNode& node, const BTreeChunkedRawDataNodeKey& insert_key, offset_t child_ptr) -> void {
-        auto& ins_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(node.entries);
+        auto& ins_entries = cstd::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(node.entries);
         uint16_t ins_pos = node.ChunkedInsertionPosition(insert_key.chunk_offset_in_dataset);
 
         ins_entries.child_pointers.insert(

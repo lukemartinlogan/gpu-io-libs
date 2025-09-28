@@ -158,7 +158,7 @@ void DatatypeMessage::Serialize(Serializer& s) const {
 
     s.Write(class_and_version);
 
-    std::visit([&s](const auto& data) { return data.Serialize(s); }, data);
+    cstd::visit([&s](const auto& data) { return data.Serialize(s); }, data);
 }
 
 DatatypeMessage DatatypeMessage::Deserialize(Deserializer& de) {

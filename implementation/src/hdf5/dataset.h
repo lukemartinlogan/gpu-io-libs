@@ -23,7 +23,7 @@ public:
             throw std::logic_error("Variable length datatypes are not supported yet");
         }
 
-        const auto* props = std::get_if<ContiguousStorageProperty>(&layout_.properties);
+        const auto* props = cstd::get_if<ContiguousStorageProperty>(&layout_.properties);
 
         if (!props) {
             throw std::logic_error("only contiguous storage currently supported");

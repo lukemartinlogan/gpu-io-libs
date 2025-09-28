@@ -41,7 +41,7 @@ struct Object {
         cstd::optional<ObjectHeaderMessage> msg = DeleteMessage(T::kType);
 
         if (msg.has_value()) {
-            return std::get<T>(msg->message);
+            return cstd::get<T>(msg->message);
         } else {
             return cstd::nullopt;
         }
@@ -54,7 +54,7 @@ struct Object {
         cstd::optional<ObjectHeaderMessage> msg = GetMessage(T::kType);
 
         if (msg.has_value()) {
-            return std::get<T>(msg->message);
+            return cstd::get<T>(msg->message);
         } else {
             return cstd::nullopt;
         }

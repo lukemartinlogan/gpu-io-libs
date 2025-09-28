@@ -209,7 +209,7 @@ struct DatatypeMessage {
         kComplex = 11,
     } class_v;
 
-    std::variant<
+    cstd::variant<
         FixedPoint,
         FloatingPoint,
         CompoundDatatype,
@@ -217,7 +217,7 @@ struct DatatypeMessage {
     > data{};
 
     [[nodiscard]] uint16_t Size() const {
-        return std::visit([](const auto& elem) { return elem.size; }, data);
+        return cstd::visit([](const auto& elem) { return elem.size; }, data);
     }
 
     void Serialize(Serializer& s) const;

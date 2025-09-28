@@ -264,7 +264,7 @@ struct ChunkedStorageProperty {
 };
 
 struct DataLayoutMessage {
-    std::variant<
+    cstd::variant<
         CompactStorageProperty,
         ContiguousStorageProperty,
         ChunkedStorageProperty
@@ -548,7 +548,7 @@ public:
     static constexpr uint16_t kType = 0x17;
 };
 
-using HeaderMessageVariant = std::variant<
+using HeaderMessageVariant = cstd::variant<
     // ignore message, variable length
     NilMessage, // 0x00
     // exactly 1 req for datasets

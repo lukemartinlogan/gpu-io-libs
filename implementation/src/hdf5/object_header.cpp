@@ -359,15 +359,15 @@ ChunkedStorageProperty ChunkedStorageProperty::Deserialize(Deserializer& de) {
 void DataLayoutMessage::Serialize(Serializer& s) const {
     s.Write(kVersionNumber);
 
-    if (std::holds_alternative<CompactStorageProperty>(properties)) {
+    if (cstd::holds_alternative<CompactStorageProperty>(properties)) {
         s.Write<uint8_t>(kCompact);
-        s.WriteComplex(std::get<CompactStorageProperty>(properties));
-    } else if (std::holds_alternative<ContiguousStorageProperty>(properties)) {
+        s.WriteComplex(cstd::get<CompactStorageProperty>(properties));
+    } else if (cstd::holds_alternative<ContiguousStorageProperty>(properties)) {
         s.Write<uint8_t>(kContiguous);
-        s.WriteComplex(std::get<ContiguousStorageProperty>(properties));
-    } else if (std::holds_alternative<ChunkedStorageProperty>(properties)) {
+        s.WriteComplex(cstd::get<ContiguousStorageProperty>(properties));
+    } else if (cstd::holds_alternative<ChunkedStorageProperty>(properties)) {
         s.Write<uint8_t>(kChunked);
-        s.WriteComplex(std::get<ChunkedStorageProperty>(properties));
+        s.WriteComplex(cstd::get<ChunkedStorageProperty>(properties));
     } else {
         throw std::runtime_error("invalid data layout class");
     }
@@ -681,7 +681,7 @@ FileSpaceInfoMessage FileSpaceInfoMessage::Deserialize(Deserializer& de) {
 }
 
 uint16_t ObjectHeaderMessage::MessageType() const {
-    auto index = std::visit([]<typename T>(const T&) { return T::kType; }, message);
+    auto index = cstd::visit([]<typename T>(const T&) { return T::kType; }, message);
 
     if (index != message.index()) {
         throw std::runtime_error("mismatch between variant index and message type");
@@ -701,7 +701,7 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
     s.Write<uint8_t>(0);
     s.Write<uint8_t>(0);
 
-    std::visit([&s](const auto& msg) { s.WriteComplex(msg); }, message);
+    cstd::visit([&s](const auto& msg) { s.WriteComplex(msg); }, message);
 }
 
 ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
@@ -873,7 +873,7 @@ void ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& de, uint32_t size
 
         bytes_read += de.GetPosition() - before_read;
 
-        if (const auto* cont = std::get_if<ObjectHeaderContinuationMessage>(&hd.messages.back().message)) {
+        if (const auto* cont = cstd::get_if<ObjectHeaderContinuationMessage>(&hd.messages.back().message)) {
             offset_t return_pos = de.GetPosition();
 
             de.SetPosition(/* TODO: sb.base_addr + */ cont->offset);
