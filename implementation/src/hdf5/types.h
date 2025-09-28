@@ -10,6 +10,10 @@ using len_t = uint64_t;
 
 constexpr offset_t kUndefinedOffset = std::numeric_limits<offset_t>::max();
 
+namespace hdf5 {
+    constexpr uint32_t MAX_DIMS = 8;
+}
+
 #ifdef LIBCUDACXX_AVAILABLE
     #include <cuda/std/optional>
     #include <cuda/std/array>
@@ -22,4 +26,9 @@ constexpr offset_t kUndefinedOffset = std::numeric_limits<offset_t>::max();
     #include <cuda/std/inplace_vector>
 
     namespace cstd = cuda::std;
+
+    namespace hdf5 {
+        template<typename T>
+        using dim_vector = cstd::inplace_vector<T, MAX_DIMS>;
+    }
 #endif
