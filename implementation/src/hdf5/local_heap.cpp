@@ -1,5 +1,4 @@
 #include <vector>
-#include <optional>
 #include <stdexcept>
 
 #include "local_heap.h"
@@ -8,7 +7,7 @@
 #include "file_link.h"
 
 
-std::string ReadNullTerminatedString(Deserializer& de, std::optional<size_t> max_size) {
+std::string ReadNullTerminatedString(Deserializer& de, cstd::optional<size_t> max_size) {
     std::vector<byte_t> buf;
 
     while (!max_size || buf.size() < *max_size) {
@@ -36,15 +35,15 @@ std::string LocalHeap::ReadString(offset_t offset, Deserializer& de) const {
     return ReadNullTerminatedString(de, rem_size);
 }
 
-std::optional<LocalHeap::SuitableFreeSpace> LocalHeap::FindFreeSpace(len_t required_size, Deserializer& de) const {
+cstd::optional<LocalHeap::SuitableFreeSpace> LocalHeap::FindFreeSpace(len_t required_size, Deserializer& de) const {
     static_assert(sizeof(FreeListBlock) == 2 * sizeof(len_t), "mismatch between spec");
 
     if (free_list_head_offset == kUndefinedOffset) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     offset_t current_offset = free_list_head_offset;
-    std::optional<offset_t> prev_block_offset = std::nullopt;
+    cstd::optional<offset_t> prev_block_offset = cstd::nullopt;
 
     while (current_offset != kLastFreeBlock) {
         if (current_offset + sizeof(FreeListBlock) > data_segment_size) {
@@ -66,7 +65,7 @@ std::optional<LocalHeap::SuitableFreeSpace> LocalHeap::FindFreeSpace(len_t requi
         current_offset = block.next_free_list_offset;
     }
 
-    return std::nullopt;
+    return cstd::nullopt;
 }
 
 offset_t LocalHeap::WriteBytes(std::span<const byte_t> data, FileLink& file) {

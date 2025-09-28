@@ -3,6 +3,7 @@
 #include "dataset.h"
 #include "group.h"
 #include "file_link.h"
+#include "types.h"
 
 class File {
 public:
@@ -16,5 +17,5 @@ private:
     std::shared_ptr<FileLink> file_link_{};
 
     // root group
-    std::optional<Group> root_group_;
+    cstd::optional<Group> root_group_;
 };

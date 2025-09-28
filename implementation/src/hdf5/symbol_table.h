@@ -1,7 +1,6 @@
 #pragma once
 
 #include <array>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -40,7 +39,7 @@ struct SymbolTableEntry {
 struct SymbolTableNode {
     std::vector<SymbolTableEntry> entries;
 
-    [[nodiscard]] std::optional<offset_t> FindEntry(std::string_view name, const LocalHeap& heap, Deserializer& de) const;
+    [[nodiscard]] cstd::optional<offset_t> FindEntry(std::string_view name, const LocalHeap& heap, Deserializer& de) const;
 
     void Serialize(Serializer& s) const;
 

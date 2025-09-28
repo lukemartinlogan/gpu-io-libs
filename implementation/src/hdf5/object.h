@@ -1,7 +1,7 @@
 #pragma once
-#include <optional>
 
 #include "file_link.h"
+#include "types.h"
 #include "object_header.h"
 
 // TODO: create iterator over messages
@@ -34,29 +34,29 @@ struct Object {
     // TODO: add a 'dirty' field to header messages
     void WriteMessage(const HeaderMessageVariant& msg) const;
 
-    std::optional<ObjectHeaderMessage> DeleteMessage(uint16_t msg_type);
+    cstd::optional<ObjectHeaderMessage> DeleteMessage(uint16_t msg_type);
 
     template<typename T>
-    std::optional<T> DeleteMessage() {
-        std::optional<ObjectHeaderMessage> msg = DeleteMessage(T::kType);
+    cstd::optional<T> DeleteMessage() {
+        cstd::optional<ObjectHeaderMessage> msg = DeleteMessage(T::kType);
 
         if (msg.has_value()) {
             return std::get<T>(msg->message);
         } else {
-            return std::nullopt;
+            return cstd::nullopt;
         }
     }
 
-    std::optional<ObjectHeaderMessage> GetMessage(uint16_t msg_type);
+    cstd::optional<ObjectHeaderMessage> GetMessage(uint16_t msg_type);
 
     template<typename T>
-    std::optional<T> GetMessage() {
-        std::optional<ObjectHeaderMessage> msg = GetMessage(T::kType);
+    cstd::optional<T> GetMessage() {
+        cstd::optional<ObjectHeaderMessage> msg = GetMessage(T::kType);
 
         if (msg.has_value()) {
             return std::get<T>(msg->message);
         } else {
-            return std::nullopt;
+            return cstd::nullopt;
         }
     }
 
@@ -73,9 +73,9 @@ private:
         len_t size;
     };
 
-    [[nodiscard]] std::optional<Space> FindSpace(size_t size, bool must_be_nil) const;
+    [[nodiscard]] cstd::optional<Space> FindSpace(size_t size, bool must_be_nil) const;
 
-    [[nodiscard]] std::optional<Space> FindMessageRecursive(
+    [[nodiscard]] cstd::optional<Space> FindMessageRecursive(
         Deserializer& de,
         offset_t sb_base_addr,
         uint16_t& messages_read,
@@ -84,7 +84,7 @@ private:
         uint16_t msg_type
     );
 
-    [[nodiscard]] static std::optional<Space> FindSpaceRecursive(
+    [[nodiscard]] static cstd::optional<Space> FindSpaceRecursive(
         Deserializer& de,
         offset_t sb_base_addr,
         uint16_t& messages_read,

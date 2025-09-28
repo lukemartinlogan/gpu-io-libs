@@ -33,7 +33,7 @@ SymbolTableEntry SymbolTableEntry::Deserialize(Deserializer& de) {
     return ent;
 }
 
-std::optional<offset_t> SymbolTableNode::FindEntry(std::string_view name, const LocalHeap& heap, Deserializer& de) const {
+cstd::optional<offset_t> SymbolTableNode::FindEntry(std::string_view name, const LocalHeap& heap, Deserializer& de) const {
     for (const auto& entry : entries) {
         std::string entry_name = heap.ReadString(entry.link_name_offset, de);
 
@@ -42,7 +42,7 @@ std::optional<offset_t> SymbolTableNode::FindEntry(std::string_view name, const 
         }
     }
 
-    return std::nullopt;
+    return cstd::nullopt;
 }
 
 void SymbolTableNode::Serialize(Serializer& s) const {

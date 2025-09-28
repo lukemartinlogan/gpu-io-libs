@@ -39,8 +39,8 @@ Dataset Group::CreateDataset(
     std::string_view dataset_name,
     const std::vector<len_t>& dimension_sizes,
     const DatatypeMessage& type,
-    std::optional<std::vector<uint32_t>> chunk_dims,
-    std::optional<std::vector<byte_t>> fill_value
+    cstd::optional<std::vector<uint32_t>> chunk_dims,
+    cstd::optional<std::vector<byte_t>> fill_value
 ) {
     if (Get(dataset_name)) {
         throw std::runtime_error(std::format("Dataset \"{}\" already exists", dataset_name));
@@ -191,11 +191,11 @@ Group Group::CreateGroup(std::string_view name) {
     return Group(new_group_obj);
 }
 
-std::optional<Object> Group::Get(std::string_view name) const {
-    std::optional<offset_t> sym_table_node_ptr = table_.Get(name);
+cstd::optional<Object> Group::Get(std::string_view name) const {
+    cstd::optional<offset_t> sym_table_node_ptr = table_.Get(name);
 
     if (!sym_table_node_ptr) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     offset_t base_addr = object_.file->superblock.base_addr;
@@ -203,10 +203,10 @@ std::optional<Object> Group::Get(std::string_view name) const {
     object_.file->io.SetPosition(base_addr + *sym_table_node_ptr);
     auto symbol_table_node = object_.file->io.ReadComplex<SymbolTableNode>();
 
-    std::optional<offset_t> entry_addr = symbol_table_node.FindEntry(name, GetLocalHeap(), object_.file->io);
+    cstd::optional<offset_t> entry_addr = symbol_table_node.FindEntry(name, GetLocalHeap(), object_.file->io);
 
     if (!entry_addr) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     return Object(object_.file, base_addr + *entry_addr);

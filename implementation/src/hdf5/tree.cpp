@@ -73,11 +73,11 @@ uint16_t BTreeNode::EntriesUsed() const {
     }, entries);
 }
 
-std::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, const LocalHeap& heap) const { // NOLINT(*-no-recursion
-    std::optional<uint16_t> child_index = FindGroupIndex(name, heap, file.io);
+cstd::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, const LocalHeap& heap) const { // NOLINT(*-no-recursion
+    cstd::optional<uint16_t> child_index = FindGroupIndex(name, heap, file.io);
 
     if (!child_index) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     const auto& group_entries = std::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
@@ -97,11 +97,11 @@ std::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, co
     return child_node.Get(name, file, heap);
 }
 
-std::optional<offset_t> BTreeNode::GetChunk(const ChunkCoordinates& chunk_coords, FileLink& file) const { // NOLINT(*-no-recursion)
-    std::optional<uint16_t> child_index = FindChunkedIndex(chunk_coords);
+cstd::optional<offset_t> BTreeNode::GetChunk(const ChunkCoordinates& chunk_coords, FileLink& file) const { // NOLINT(*-no-recursion)
+    cstd::optional<uint16_t> child_index = FindChunkedIndex(chunk_coords);
 
     if (!child_index) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     const auto& chunk_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
@@ -113,7 +113,7 @@ std::optional<offset_t> BTreeNode::GetChunk(const ChunkCoordinates& chunk_coords
         if (key.chunk_offset_in_dataset.coords == chunk_coords.coords) {
             return chunk_entries.child_pointers.at(*child_index);
         }
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     // recursively search the tree
@@ -141,9 +141,9 @@ void WriteEntries(const BTreeEntries<K>& entries, Serializer& s) {
     s.Write(entries.keys.back());
 }
 
-std::optional<uint16_t> BTreeNode::FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
+cstd::optional<uint16_t> BTreeNode::FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
     if (!std::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     // TODO: can we binary search here?
@@ -154,7 +154,7 @@ std::optional<uint16_t> BTreeNode::FindGroupIndex(std::string_view key, const Lo
 
     if (entries_ct == 0) {
         // empty node, no entries
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     // find correct child pointer
@@ -175,7 +175,7 @@ std::optional<uint16_t> BTreeNode::FindGroupIndex(std::string_view key, const Lo
 
     if (child_index == entries_ct + 1) {
         // name is greater than all keys
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     return child_index;
@@ -211,9 +211,9 @@ uint16_t BTreeNode::GroupInsertionPosition(std::string_view key, const LocalHeap
     return child_index;
 }
 
-std::optional<uint16_t> BTreeNode::FindChunkedIndex(const ChunkCoordinates& chunk_coords) const {
+cstd::optional<uint16_t> BTreeNode::FindChunkedIndex(const ChunkCoordinates& chunk_coords) const {
     if (!std::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     const auto& chunk_entries = std::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
@@ -222,7 +222,7 @@ std::optional<uint16_t> BTreeNode::FindChunkedIndex(const ChunkCoordinates& chun
 
     if (entries_ct == 0) {
         // empty node, no entries
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     // find correct child pointer
@@ -252,7 +252,7 @@ std::optional<uint16_t> BTreeNode::FindChunkedIndex(const ChunkCoordinates& chun
 
     if (child_index == entries_ct + 1) {
         // coords are greater than all keys
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     return child_index;
@@ -581,8 +581,8 @@ void BTreeNode::RecurseChunked(const std::function<void(const BTreeChunkedRawDat
     }
 }
 
-std::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
-    std::optional<SplitResult> res{};
+cstd::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
+    cstd::optional<SplitResult> res{};
 
     std::string name_str = heap.ReadString(name_offset, file.io);
 
@@ -639,7 +639,7 @@ std::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_t
 
         WriteNodeGetAllocSize(this_offset, file, k);
     } else {
-        std::optional<uint16_t> child_idx = FindGroupIndex(name_str, heap, file.io);
+        cstd::optional<uint16_t> child_idx = FindGroupIndex(name_str, heap, file.io);
 
         if (!child_idx) {
             throw std::runtime_error("BTreeNode::Insert: could not find child index");
@@ -650,7 +650,7 @@ std::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_t
         file.io.SetPosition(child_offset);
         auto child = ReadChild(file.io);
 
-        std::optional<SplitResult> child_ins = child.InsertGroup(child_offset, name_offset, obj_header_ptr, file, heap);
+        cstd::optional<SplitResult> child_ins = child.InsertGroup(child_offset, name_offset, obj_header_ptr, file, heap);
 
         if (child_ins.has_value()) {
             if (AtCapacity(k)) {
@@ -685,13 +685,13 @@ std::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_t
     return res;
 }
 
-std::optional<SplitResultChunked> BTreeNode::InsertChunked(
+cstd::optional<SplitResultChunked> BTreeNode::InsertChunked(
     offset_t this_offset,
     const BTreeChunkedRawDataNodeKey& key,
     offset_t data_ptr,
     FileLink& file
 ) {
-    std::optional<SplitResultChunked> res{};
+    cstd::optional<SplitResultChunked> res{};
 
     const KValues k {
         .leaf = kChunkedRawDataK,
@@ -741,7 +741,7 @@ std::optional<SplitResultChunked> BTreeNode::InsertChunked(
 
         WriteNodeGetAllocSize(this_offset, file, k);
     } else {
-        std::optional<uint16_t> child_idx = FindChunkedIndex(key.chunk_offset_in_dataset);
+        cstd::optional<uint16_t> child_idx = FindChunkedIndex(key.chunk_offset_in_dataset);
 
         if (!child_idx) {
             throw std::runtime_error("BTreeNode::InsertChunked: could not find child index");
@@ -752,7 +752,7 @@ std::optional<SplitResultChunked> BTreeNode::InsertChunked(
         file.io.SetPosition(file.superblock.base_addr + child_offset);
         auto child = ReadChild(file.io);
 
-        std::optional<SplitResultChunked> child_ins = child.InsertChunked(child_offset, key, data_ptr, file);
+        cstd::optional<SplitResultChunked> child_ins = child.InsertChunked(child_offset, key, data_ptr, file);
 
         if (child_ins.has_value()) {
             if (AtCapacity(k)) {
@@ -785,11 +785,11 @@ std::optional<SplitResultChunked> BTreeNode::InsertChunked(
     return res;
 }
 
-std::optional<offset_t> GroupBTree::Get(std::string_view name) const {
-    std::optional<BTreeNode> root = ReadRoot();
+cstd::optional<offset_t> GroupBTree::Get(std::string_view name) const {
+    cstd::optional<BTreeNode> root = ReadRoot();
 
     if (!root.has_value()) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     return root->Get(name, *file_, heap_);
@@ -801,7 +801,7 @@ void GroupBTree::InsertGroup(offset_t name_offset, offset_t object_header_ptr) {
         .internal = file_->superblock.group_internal_node_k
     };
 
-    std::optional<BTreeNode> root = ReadRoot();
+    cstd::optional<BTreeNode> root = ReadRoot();
 
     if (!root.has_value()) {
         BTreeEntries<BTreeGroupNodeKey> entries{};
@@ -822,7 +822,7 @@ void GroupBTree::InsertGroup(offset_t name_offset, offset_t object_header_ptr) {
         return;
     }
 
-    std::optional<SplitResult> split = root->InsertGroup(*addr_, name_offset, object_header_ptr, *file_, heap_);
+    cstd::optional<SplitResult> split = root->InsertGroup(*addr_, name_offset, object_header_ptr, *file_, heap_);
 
     if (split.has_value()) {
         BTreeEntries<BTreeGroupNodeKey> entries{};
@@ -854,7 +854,7 @@ void ChunkedBTree::InsertChunk(const ChunkCoordinates& chunk_coords, uint32_t ch
         .internal = BTreeNode::kChunkedRawDataK
     };
 
-    std::optional<BTreeNode> root = ReadRoot();
+    cstd::optional<BTreeNode> root = ReadRoot();
 
     BTreeChunkedRawDataNodeKey new_key {
         .chunk_size = chunk_size,
@@ -866,7 +866,7 @@ void ChunkedBTree::InsertChunk(const ChunkCoordinates& chunk_coords, uint32_t ch
         throw std::logic_error("should have been created elsewhere");
     }
 
-    std::optional<SplitResultChunked> split = root->InsertChunked(*addr_, new_key, data_ptr, *file_);
+    cstd::optional<SplitResultChunked> split = root->InsertChunked(*addr_, new_key, data_ptr, *file_);
 
     if (split.has_value()) {
         BTreeEntries<BTreeChunkedRawDataNodeKey> entries{};
@@ -893,11 +893,11 @@ void ChunkedBTree::InsertChunk(const ChunkCoordinates& chunk_coords, uint32_t ch
     }
 }
 
-std::optional<offset_t> ChunkedBTree::GetChunk(const ChunkCoordinates& chunk_coords) const {
-    std::optional<BTreeNode> root = ReadRoot();
+cstd::optional<offset_t> ChunkedBTree::GetChunk(const ChunkCoordinates& chunk_coords) const {
+    cstd::optional<BTreeNode> root = ReadRoot();
     
     if (!root.has_value()) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
     
     return root->GetChunk(chunk_coords, *file_);
@@ -906,7 +906,7 @@ std::optional<offset_t> ChunkedBTree::GetChunk(const ChunkCoordinates& chunk_coo
 std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> ChunkedBTree::Offsets() const {
     std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> result{};
     
-    std::optional<BTreeNode> root = ReadRoot();
+    cstd::optional<BTreeNode> root = ReadRoot();
     
     if (!root.has_value()) {
         return result;
@@ -939,9 +939,9 @@ offset_t ChunkedBTree::CreateNew(const std::shared_ptr<FileLink>& file, const st
     return BTreeNode { .level = 0, .entries = entries }.AllocateAndWrite(*file, k);
 }
 
-std::optional<BTreeNode> ChunkedBTree::ReadRoot() const {
+cstd::optional<BTreeNode> ChunkedBTree::ReadRoot() const {
     if (!addr_.has_value()) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     file_->io.SetPosition(file_->superblock.base_addr + *addr_);
@@ -950,7 +950,7 @@ std::optional<BTreeNode> ChunkedBTree::ReadRoot() const {
 }
 
 size_t GroupBTree::Size() const {
-    std::optional<BTreeNode> root = ReadRoot();
+    cstd::optional<BTreeNode> root = ReadRoot();
 
     if (!root.has_value()) {
         return 0;
@@ -964,7 +964,7 @@ size_t GroupBTree::Size() const {
 }
 
 std::vector<offset_t> GroupBTree::Elements() const {
-    std::optional<BTreeNode> root = ReadRoot();
+    cstd::optional<BTreeNode> root = ReadRoot();
 
     if (!root.has_value()) {
         return {};
@@ -977,9 +977,9 @@ std::vector<offset_t> GroupBTree::Elements() const {
     return elems;
 }
 
-std::optional<BTreeNode> GroupBTree::ReadRoot() const {
+cstd::optional<BTreeNode> GroupBTree::ReadRoot() const {
     if (!addr_.has_value()) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     file_->io.SetPosition(*addr_);

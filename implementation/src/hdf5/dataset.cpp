@@ -200,10 +200,10 @@ void ProcessChunkedHyperslab(
             chunk_coords.coords[dim] = chunk_offset;
         }
 
-        std::optional<offset_t> chunk_file_offset = chunked_tree.GetChunk(chunk_coords);
+        cstd::optional<offset_t> chunk_file_offset = chunked_tree.GetChunk(chunk_coords);
 
         // Calculate element file offset if chunk exists
-        std::optional<offset_t> element_file_offset;
+        cstd::optional<offset_t> element_file_offset;
         if (chunk_file_offset.has_value()) {
             element_file_offset = *chunk_file_offset + within_chunk_offset * element_size;
         }
@@ -287,7 +287,7 @@ void Dataset::ReadHyperslab(
     } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
         ProcessChunkedHyperslab(
             chunked, iterator, element_size, object_.file,
-            [&](const std::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) {
+            [&](const cstd::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) {
                 if (!element_file_offset.has_value()) {
                     // chunk doesn't exist (sparse dataset)
                     std::fill_n(buffer.data() + buffer_offset, element_size, byte_t{0});
@@ -355,7 +355,7 @@ void Dataset::WriteHyperslab(
     } else if (const auto* chunked = std::get_if<ChunkedStorageProperty>(&props)) {
         ProcessChunkedHyperslab(
             chunked, iterator, element_size, object_.file,
-            [&](const std::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) {
+            [&](const cstd::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) {
                 if (!element_file_offset.has_value()) {
                     // Chunk doesn't exist (sparse dataset) - this is an error for writing
                     // In HDF5, writing to a non-existent chunk should create the chunk,
@@ -446,7 +446,7 @@ std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::GetHyperslab
         }
         
         ChunkCoordinates chunk_coords(current_combination);
-        std::optional<offset_t> chunk_file_offset = chunked_tree.GetChunk(chunk_coords);
+        cstd::optional<offset_t> chunk_file_offset = chunked_tree.GetChunk(chunk_coords);
         
         if (chunk_file_offset.has_value()) {
             result.emplace_back(std::move(chunk_coords), *chunk_file_offset, chunk_size_bytes);

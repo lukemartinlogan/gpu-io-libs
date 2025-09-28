@@ -1,8 +1,6 @@
 #pragma once
 #include <chrono>
 #include <cstdint>
-#include <optional>
-#include <variant>
 #include <vector>
 
 #include "types.h"
@@ -60,10 +58,10 @@ public:
 };
 
 struct LinkInfoMessage {
-    std::optional<uint64_t> max_creation_index;
+    cstd::optional<uint64_t> max_creation_index;
     offset_t fractal_heap_addr = kUndefinedOffset;
     offset_t index_names_btree_addr = kUndefinedOffset;
-    std::optional<offset_t> creation_order_btree_addr;
+    cstd::optional<offset_t> creation_order_btree_addr;
 
     void Serialize(Serializer& s) const;
 
@@ -118,7 +116,7 @@ struct FillValueMessage {
         kIfExplicit = 2,
     } write_time;
 
-    std::optional<std::vector<byte_t>> fill_value;
+    cstd::optional<std::vector<byte_t>> fill_value;
 
     void Serialize(Serializer& s) const;
 
@@ -199,13 +197,13 @@ struct BogusMessage {
 
 struct GroupInfoMessage {
     // maximum number of links to store "compactly"
-    std::optional<uint16_t> max_compact;
+    cstd::optional<uint16_t> max_compact;
     // minimum number of links to store "densely"
-    std::optional<uint16_t> min_dense;
+    cstd::optional<uint16_t> min_dense;
     // estimated number of entries in the group
-    std::optional<uint16_t> est_num_entries;
+    cstd::optional<uint16_t> est_num_entries;
     // estimated length of entry name
-    std::optional<uint16_t> est_entries_name_len;
+    cstd::optional<uint16_t> est_entries_name_len;
 
     [[nodiscard]] uint16_t GetEstimatedNumberOfEntries() const {
         return est_num_entries.value_or(4);
@@ -460,13 +458,13 @@ public:
 
 struct AttributeInfoMessage {
     // maximum creation order index value for attributes on object
-    std::optional<uint16_t> max_creation_index;
+    cstd::optional<uint16_t> max_creation_index;
     // address of fractal heap for dense attributes
     offset_t fractal_heap_addr = kUndefinedOffset;
     // address of v2 b-tree for names of densely stored attributes
     offset_t name_btree_addr = kUndefinedOffset;
     // addr of v2 b-tree to index creation order of desnsely stored attributes
-    std::optional<offset_t> creation_order_btree_addr;
+    cstd::optional<offset_t> creation_order_btree_addr;
 
     void Serialize(Serializer& s) const;
 
@@ -528,9 +526,9 @@ struct FileSpaceInfoMessage {
     offset_t eoa{};
 
     // 6 small-sized free-space managers
-    std::optional<std::array<offset_t, 6>> small_managers;
+    cstd::optional<std::array<offset_t, 6>> small_managers;
     // 6 large-sized free-space managers
-    std::optional<std::array<offset_t, 6>> large_managers;
+    cstd::optional<std::array<offset_t, 6>> large_managers;
 
     [[nodiscard]] bool PersistingFreeSpace() const {
         if (small_managers.has_value() != large_managers.has_value()) {

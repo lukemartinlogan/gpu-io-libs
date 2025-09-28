@@ -129,7 +129,7 @@ LinkInfoMessage LinkInfoMessage::Deserialize(Deserializer& de) {
     if (flag_bits.test(0)) {
         msg.max_creation_index = de.Read<uint64_t>();
     } else {
-        msg.max_creation_index = std::nullopt;
+        msg.max_creation_index = cstd::nullopt;
     }
 
     msg.fractal_heap_addr = de.Read<offset_t>();
@@ -138,7 +138,7 @@ LinkInfoMessage LinkInfoMessage::Deserialize(Deserializer& de) {
     if (flag_bits.test(1)) {
         msg.creation_order_btree_addr = de.Read<offset_t>();
     } else {
-        msg.creation_order_btree_addr = std::nullopt;
+        msg.creation_order_btree_addr = cstd::nullopt;
     }
 
     return msg;
@@ -184,7 +184,7 @@ FillValueMessage FillValueMessage::Deserialize(Deserializer& de) {
 
     auto defined = de.Read<uint8_t>();
     if (defined == 0) {
-        msg.fill_value = std::nullopt;
+        msg.fill_value = cstd::nullopt;
     } else if (defined == 1) {
         auto size = de.Read<uint32_t>();
 
@@ -616,7 +616,7 @@ AttributeInfoMessage AttributeInfoMessage::Deserialize(Deserializer& de) {
     if (flag_bits.test(0)) {
         msg.max_creation_index = de.Read<uint16_t>();
     } else {
-        msg.max_creation_index = std::nullopt;
+        msg.max_creation_index = cstd::nullopt;
     }
 
     msg.fractal_heap_addr = de.Read<offset_t>();
@@ -625,7 +625,7 @@ AttributeInfoMessage AttributeInfoMessage::Deserialize(Deserializer& de) {
     if (flag_bits.test(1)) {
         msg.creation_order_btree_addr = de.Read<offset_t>();
     } else {
-        msg.creation_order_btree_addr = std::nullopt;
+        msg.creation_order_btree_addr = cstd::nullopt;
     }
 
     return msg;

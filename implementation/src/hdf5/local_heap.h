@@ -30,12 +30,12 @@ private:
     };
 
     struct SuitableFreeSpace {
-        std::optional<offset_t> prev_block_offset;
+        cstd::optional<offset_t> prev_block_offset;
         offset_t this_offset;
         FreeListBlock block;
     };
 
-    std::optional<SuitableFreeSpace> FindFreeSpace(len_t required_size, Deserializer& de) const;
+    cstd::optional<SuitableFreeSpace> FindFreeSpace(len_t required_size, Deserializer& de) const;
 
     offset_t WriteBytes(std::span<const byte_t> data, FileLink& file);
 

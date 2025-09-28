@@ -5,7 +5,7 @@
 constexpr uint32_t kPrefixSize = 8;
 
 // TODO: take predicate lambda?
-std::optional<Object::Space> Object::FindMessageRecursive(  // NOLINT(*-no-recursion
+cstd::optional<Object::Space> Object::FindMessageRecursive(  // NOLINT(*-no-recursion
     Deserializer& de,
     offset_t sb_base_addr,
     uint16_t& messages_read,
@@ -31,7 +31,7 @@ std::optional<Object::Space> Object::FindMessageRecursive(  // NOLINT(*-no-recur
             offset_t return_pos = de.GetPosition();
             de.SetPosition(sb_base_addr + cont.offset);
 
-            std::optional<Space> found = FindMessageRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, msg_type);
+            cstd::optional<Space> found = FindMessageRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, msg_type);
 
             if (found.has_value()) {
                 return found;
@@ -54,10 +54,10 @@ std::optional<Object::Space> Object::FindMessageRecursive(  // NOLINT(*-no-recur
         }
     }
 
-    return std::nullopt;
+    return cstd::nullopt;
 }
 
-std::optional<Object::Space> Object::FindSpaceRecursive(  // NOLINT(*-no-recursion
+cstd::optional<Object::Space> Object::FindSpaceRecursive(  // NOLINT(*-no-recursion
     Deserializer& de,
     offset_t sb_base_addr,
     uint16_t& messages_read,
@@ -68,7 +68,7 @@ std::optional<Object::Space> Object::FindSpaceRecursive(  // NOLINT(*-no-recursi
 ) {
     uint32_t bytes_read = 0;
 
-    std::optional<Space> smallest_found{};
+    cstd::optional<Space> smallest_found{};
 
     while (bytes_read < size_limit && messages_read < total_message_ct) {
         auto type = de.Read<uint16_t>();
@@ -86,7 +86,7 @@ std::optional<Object::Space> Object::FindSpaceRecursive(  // NOLINT(*-no-recursi
             offset_t return_pos = de.GetPosition();
             de.SetPosition(sb_base_addr + cont.offset);
 
-            std::optional<Space> res = FindSpaceRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, search_size, must_be_nil);
+            cstd::optional<Space> res = FindSpaceRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, search_size, must_be_nil);
 
             if (
                 res.has_value() && res->size >= search_size // FIXME: technically the second check is redundant
@@ -121,7 +121,7 @@ std::optional<Object::Space> Object::FindSpaceRecursive(  // NOLINT(*-no-recursi
     return smallest_found;
 }
 
-std::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) const {
+cstd::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) const {
     JumpToRelativeOffset(0);
 
     file->io.Skip<2>();
@@ -180,7 +180,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     // TODO: chunk message writes
     std::vector<byte_t> msg_bytes = WriteMessageToBuffer(msg);
 
-    std::optional<Space> nil_space = FindSpace(msg_bytes.size(), true);
+    cstd::optional<Space> nil_space = FindSpace(msg_bytes.size(), true);
 
     JumpToRelativeOffset(2);
     auto written_ct = file->io.Read<uint16_t>();
@@ -216,7 +216,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
         }
     } else {
         size_t cont_size = sizeof(ObjectHeaderContinuationMessage) + kPrefixSize;
-        std::optional<Space> space_cont;
+        cstd::optional<Space> space_cont;
 
         if (cont_size < msg_bytes.size()) {
             space_cont = FindSpace(cont_size, true);
@@ -285,7 +285,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             // overwriting this message
             written_ct -= 1;
 
-            std::optional<Space> space = FindSpace(cont_size, false);
+            cstd::optional<Space> space = FindSpace(cont_size, false);
 
             if (!space.has_value()) {
                 throw std::logic_error("there should always be an object header message that can be moved");
@@ -360,7 +360,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     file->io.Write(written_ct);
 }
 
-std::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
+cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     JumpToRelativeOffset(0);
 
     file->io.Skip<2>();
@@ -376,10 +376,10 @@ std::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
 
     uint16_t messages_read = 0;
 
-    std::optional<Space> found = FindMessageRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, msg_type);
+    cstd::optional<Space> found = FindMessageRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, msg_type);
 
     if (!found.has_value()) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     file->io.SetPosition(found->offset);
@@ -399,7 +399,7 @@ std::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
 }
 
 // TODO: fix code duplication
-std::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
+cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
     JumpToRelativeOffset(0);
 
     file->io.Skip<2>();
@@ -415,10 +415,10 @@ std::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
 
     uint16_t messages_read = 0;
 
-    std::optional<Space> found = FindMessageRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, msg_type);
+    cstd::optional<Space> found = FindMessageRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, msg_type);
 
     if (!found.has_value()) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     file->io.SetPosition(found->offset);
