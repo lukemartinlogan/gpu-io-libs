@@ -98,7 +98,7 @@ DataspaceMessage::DataspaceMessage(const std::vector<DimensionInfo>& dimensions,
 void LinkInfoMessage::Serialize(Serializer& s) const {
     s.Write(kVersionNumber);
 
-    std::bitset<2> flags;
+    cstd::bitset<2> flags;
     flags.set(0, max_creation_index.has_value());
     flags.set(1, creation_order_btree_addr.has_value());
 
@@ -124,7 +124,7 @@ LinkInfoMessage LinkInfoMessage::Deserialize(Deserializer& de) {
     LinkInfoMessage msg{};
 
     auto flags = de.Read<uint8_t>();
-    std::bitset<2> flag_bits(flags);
+    cstd::bitset<2> flag_bits(flags);
 
     if (flag_bits.test(0)) {
         msg.max_creation_index = de.Read<uint64_t>();
@@ -250,7 +250,7 @@ ExternalDataFilesMessage ExternalDataFilesMessage::Deserialize(Deserializer& de)
 void GroupInfoMessage::Serialize(Serializer& s) const {
     s.Write(kVersionNumber);
 
-    std::bitset<2> flags;
+    cstd::bitset<2> flags;
     flags.set(0, max_compact.has_value());
 
     if (max_compact.has_value() != min_dense.has_value()) {
@@ -283,7 +283,7 @@ GroupInfoMessage GroupInfoMessage::Deserialize(Deserializer& de) {
     GroupInfoMessage msg;
 
     auto flags = de.Read<uint8_t>();
-    std::bitset<2> flags_bits(flags);
+    cstd::bitset<2> flags_bits(flags);
 
     if (flags_bits.test(0)) {
         msg.max_compact = de.Read<uint16_t>();
@@ -585,7 +585,7 @@ DriverInfoMessage DriverInfoMessage::Deserialize(Deserializer& de) {
 void AttributeInfoMessage::Serialize(Serializer& s) const {
     s.Write(kVersionNumber);
 
-    std::bitset<2> flags;
+    cstd::bitset<2> flags;
     flags.set(0, max_creation_index.has_value());
     flags.set(1, creation_order_btree_addr.has_value());
 
@@ -611,7 +611,7 @@ AttributeInfoMessage AttributeInfoMessage::Deserialize(Deserializer& de) {
     AttributeInfoMessage msg{};
 
     auto flags = de.Read<uint8_t>();
-    std::bitset<8> flag_bits(flags);
+    cstd::bitset<8> flag_bits(flags);
 
     if (flag_bits.test(0)) {
         msg.max_creation_index = de.Read<uint16_t>();

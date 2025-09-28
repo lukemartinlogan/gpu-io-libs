@@ -41,7 +41,7 @@ struct FixedPoint {
 
     static FixedPoint Deserialize(Deserializer& de);
 private:
-    std::bitset<4> bitset_{};
+    cstd::bitset<4> bitset_{};
 };
 
 // TODO: don't use a bitset internally for the enums?
@@ -118,7 +118,7 @@ private:
     );
 
 private:
-    std::bitset<7> bitset_{};
+    cstd::bitset<7> bitset_{};
 };
 
 struct DatatypeMessage;

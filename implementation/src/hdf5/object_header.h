@@ -50,7 +50,7 @@ struct DataspaceMessage {
     DataspaceMessage() = default;
 
 private:
-    std::bitset<2> bitset_;
+    cstd::bitset<2> bitset_;
 
     static constexpr uint8_t kVersionNumber = 0x01;
 public:
@@ -655,7 +655,7 @@ struct ObjectHeaderMessage {
     static ObjectHeaderMessage Deserialize(Deserializer& de);
 
 private:
-    std::bitset<8> flags_{};
+    cstd::bitset<8> flags_{};
 };
 
 struct ObjectHeader {
