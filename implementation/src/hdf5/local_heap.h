@@ -15,7 +15,7 @@ struct LocalHeap {
 
     offset_t WriteString(std::string_view string, FileLink& file);
 
-    static std::pair<LocalHeap, offset_t> AllocateNew(FileLink& file, len_t min_size);
+    static cstd::pair<LocalHeap, offset_t> AllocateNew(FileLink& file, len_t min_size);
 
     void RewriteToFile(ReaderWriter& rw) const;
 

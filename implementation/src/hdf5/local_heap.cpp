@@ -149,7 +149,7 @@ offset_t LocalHeap::WriteString(std::string_view string, FileLink& file) {
     );
 }
 
-std::pair<LocalHeap, offset_t> LocalHeap::AllocateNew(FileLink& file, len_t min_size) {
+cstd::pair<LocalHeap, offset_t> LocalHeap::AllocateNew(FileLink& file, len_t min_size) {
     len_t aligned_size = std::max(EightBytesAlignedSize(min_size), sizeof(FreeListBlock));
 
     offset_t heap_offset = file.AllocateAtEOF(kHeaderSize + aligned_size);
