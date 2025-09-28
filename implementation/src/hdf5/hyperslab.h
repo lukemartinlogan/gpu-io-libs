@@ -18,7 +18,7 @@
  */
 class HyperslabIterator {
 public:
-    using coord_t = std::vector<uint64_t>;
+    using coord_t = hdf5::dim_vector<uint64_t>;
 
     /**
      * @brief Constructs a hyperslab iterator.

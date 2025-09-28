@@ -919,7 +919,7 @@ std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> ChunkedBTree::Offset
     return result;
 }
 
-offset_t ChunkedBTree::CreateNew(const std::shared_ptr<FileLink>& file, const std::vector<uint64_t>& max_size) {
+offset_t ChunkedBTree::CreateNew(const std::shared_ptr<FileLink>& file, const hdf5::dim_vector<uint64_t>& max_size) {
     BTreeNode::KValues k{
         .leaf = BTreeNode::kChunkedRawDataK,
         .internal = BTreeNode::kChunkedRawDataK

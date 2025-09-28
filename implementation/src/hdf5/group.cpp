@@ -37,9 +37,9 @@ Dataset Group::OpenDataset(std::string_view dataset_name) const {
 
 Dataset Group::CreateDataset(
     std::string_view dataset_name,
-    const std::vector<len_t>& dimension_sizes,
+    const hdf5::dim_vector<len_t>& dimension_sizes,
     const DatatypeMessage& type,
-    cstd::optional<std::vector<uint32_t>> chunk_dims,
+    cstd::optional<hdf5::dim_vector<uint32_t>> chunk_dims,
     cstd::optional<std::vector<byte_t>> fill_value
 ) {
     if (Get(dataset_name)) {
@@ -51,7 +51,7 @@ Dataset Group::CreateDataset(
     Object new_ds = Object::AllocateEmptyAtEOF(128 + 24, object_.file);
 
     // turn the span of lens into a vec of dimension info
-    std::vector<DimensionInfo> dims(dimension_sizes.size());
+    hdf5::dim_vector<DimensionInfo> dims(dimension_sizes.size());
 
     for (size_t i = 0; i < dimension_sizes.size(); ++i) {
         dims[i] = DimensionInfo {

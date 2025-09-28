@@ -16,9 +16,9 @@ public:
 
     Dataset CreateDataset(
         std::string_view dataset_name,
-        const std::vector<len_t>& dimension_sizes,
+        const hdf5::dim_vector<len_t>& dimension_sizes,
         const DatatypeMessage& type,
-        cstd::optional<std::vector<uint32_t>> chunk_dims = cstd::nullopt,
+        cstd::optional<hdf5::dim_vector<uint32_t>> chunk_dims = cstd::nullopt,
         cstd::optional<std::vector<byte_t>> fill_value = cstd::nullopt
     );
 

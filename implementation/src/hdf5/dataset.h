@@ -58,18 +58,18 @@ public:
 
     void ReadHyperslab(
         std::span<byte_t> buffer,
-        const std::vector<uint64_t>& start,
-        const std::vector<uint64_t>& count,
-        const std::vector<uint64_t>& stride = {},
-        const std::vector<uint64_t>& block = {}
+        const hdf5::dim_vector<uint64_t>& start,
+        const hdf5::dim_vector<uint64_t>& count,
+        const hdf5::dim_vector<uint64_t>& stride = {},
+        const hdf5::dim_vector<uint64_t>& block = {}
     ) const;
 
     template<typename T>
     std::vector<T> ReadHyperslab(
-        const std::vector<uint64_t>& start,
-        const std::vector<uint64_t>& count,
-        const std::vector<uint64_t>& stride = {},
-        const std::vector<uint64_t>& block = {}
+        const hdf5::dim_vector<uint64_t>& start,
+        const hdf5::dim_vector<uint64_t>& count,
+        const hdf5::dim_vector<uint64_t>& stride = {},
+        const hdf5::dim_vector<uint64_t>& block = {}
     ) const {
         size_t total_elements = TotalElements(count, block);
 
@@ -103,19 +103,19 @@ public:
 
     void WriteHyperslab(
         std::span<const byte_t> data,
-        const std::vector<uint64_t>& start,
-        const std::vector<uint64_t>& count,
-        const std::vector<uint64_t>& stride = {},
-        const std::vector<uint64_t>& block = {}
+        const hdf5::dim_vector<uint64_t>& start,
+        const hdf5::dim_vector<uint64_t>& count,
+        const hdf5::dim_vector<uint64_t>& stride = {},
+        const hdf5::dim_vector<uint64_t>& block = {}
     ) const;
 
     template<typename T>
     void WriteHyperslab(
         std::span<const T> data,
-        const std::vector<uint64_t>& start,
-        const std::vector<uint64_t>& count,
-        const std::vector<uint64_t>& stride = {},
-        const std::vector<uint64_t>& block = {}
+        const hdf5::dim_vector<uint64_t>& start,
+        const hdf5::dim_vector<uint64_t>& count,
+        const hdf5::dim_vector<uint64_t>& stride = {},
+        const hdf5::dim_vector<uint64_t>& block = {}
     ) const {
         WriteHyperslab(
             std::span(
@@ -132,14 +132,14 @@ public:
     [[nodiscard]] std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> RawOffsets() const;
 
     [[nodiscard]] std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> GetHyperslabChunkRawOffsets(
-        const std::vector<uint64_t>& start,
-        const std::vector<uint64_t>& count,
-        const std::vector<uint64_t>& stride = {},
-        const std::vector<uint64_t>& block = {}
+        const hdf5::dim_vector<uint64_t>& start,
+        const hdf5::dim_vector<uint64_t>& count,
+        const hdf5::dim_vector<uint64_t>& stride = {},
+        const hdf5::dim_vector<uint64_t>& block = {}
     ) const;
 
 private:
-    static size_t TotalElements(const std::vector<uint64_t>& count, const std::vector<uint64_t>& block) {
+    static size_t TotalElements(const hdf5::dim_vector<uint64_t>& count, const hdf5::dim_vector<uint64_t>& block) {
         size_t total_elements = 1;
         for (size_t i = 0; i < count.size(); ++i) {
             size_t effective_block = block.empty() ? 1 : block[i];

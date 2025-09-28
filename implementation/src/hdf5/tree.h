@@ -34,12 +34,12 @@ static_assert(
 );
 
 struct ChunkCoordinates {
-    std::vector<uint64_t> coords;
+    hdf5::dim_vector<uint64_t> coords;
 
     ChunkCoordinates() = default;
 
-    explicit ChunkCoordinates(const std::vector<uint64_t>& coordinates) : coords(coordinates) {}
-    explicit ChunkCoordinates(std::vector<uint64_t>&& coordinates) : coords(std::move(coordinates)) {}
+    explicit ChunkCoordinates(const hdf5::dim_vector<uint64_t>& coordinates) : coords(coordinates) {}
+    explicit ChunkCoordinates(hdf5::dim_vector<uint64_t>&& coordinates) : coords(std::move(coordinates)) {}
 
    bool operator==(const ChunkCoordinates& other) const {
        return coords == other.coords;
@@ -264,7 +264,7 @@ struct ChunkedBTree {
 
     [[nodiscard]] std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> Offsets() const;
 
-    static offset_t CreateNew(const std::shared_ptr<FileLink>& file, const std::vector<uint64_t>& max_size);
+    static offset_t CreateNew(const std::shared_ptr<FileLink>& file, const hdf5::dim_vector<uint64_t>& max_size);
 
 private:
     ChunkedBTree() = default;

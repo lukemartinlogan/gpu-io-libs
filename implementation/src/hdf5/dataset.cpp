@@ -132,13 +132,13 @@ std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::RawOffsets(
     if (const auto* compact = cstd::get_if<CompactStorageProperty>(&props)) {
         // For compact storage, return a single entry with zero coordinates matching dataset dimensionality
         ChunkCoordinates coords;
-        coords.coords = std::vector<uint64_t>(space_.dimensions.size(), 0);
+        coords.coords = hdf5::dim_vector<uint64_t>(space_.dimensions.size(), 0);
         return { {coords, 0, static_cast<len_t>(compact->raw_data.size())} };
 
     } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
         // For contiguous storage, return a single entry with zero coordinates matching dataset dimensionality
         ChunkCoordinates coords;
-        coords.coords = std::vector<uint64_t>(space_.dimensions.size(), 0);
+        coords.coords = hdf5::dim_vector<uint64_t>(space_.dimensions.size(), 0);
         return { {coords, contiguous->address, contiguous->size} };
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
@@ -218,16 +218,16 @@ void ProcessChunkedHyperslab(
 
 void Dataset::ReadHyperslab(
     std::span<byte_t> buffer,
-    const std::vector<uint64_t>& start,
-    const std::vector<uint64_t>& count,
-    const std::vector<uint64_t>& stride,
-    const std::vector<uint64_t>& block
+    const hdf5::dim_vector<uint64_t>& start,
+    const hdf5::dim_vector<uint64_t>& count,
+    const hdf5::dim_vector<uint64_t>& stride,
+    const hdf5::dim_vector<uint64_t>& block
 ) const {
     if (type_.class_v == DatatypeMessage::Class::kVariableLength) {
         throw std::logic_error("Variable length datatypes are not supported yet");
     }
 
-    std::vector<uint64_t> dataset_dims(space_.dimensions.size());
+    hdf5::dim_vector<uint64_t> dataset_dims(space_.dimensions.size());
 
     std::ranges::transform(
         space_.dimensions,
@@ -303,16 +303,16 @@ void Dataset::ReadHyperslab(
 
 void Dataset::WriteHyperslab(
     std::span<const byte_t> data,
-    const std::vector<uint64_t>& start,
-    const std::vector<uint64_t>& count,
-    const std::vector<uint64_t>& stride,
-    const std::vector<uint64_t>& block
+    const hdf5::dim_vector<uint64_t>& start,
+    const hdf5::dim_vector<uint64_t>& count,
+    const hdf5::dim_vector<uint64_t>& stride,
+    const hdf5::dim_vector<uint64_t>& block
 ) const {
     if (type_.class_v == DatatypeMessage::Class::kVariableLength) {
         throw std::logic_error("Variable length datatypes are not supported yet");
     }
 
-    std::vector<uint64_t> dataset_dims(space_.dimensions.size());
+    hdf5::dim_vector<uint64_t> dataset_dims(space_.dimensions.size());
 
     std::ranges::transform(
         space_.dimensions,
@@ -372,10 +372,10 @@ void Dataset::WriteHyperslab(
 }
 
 std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::GetHyperslabChunkRawOffsets(
-    const std::vector<uint64_t>& start,
-    const std::vector<uint64_t>& count,
-    const std::vector<uint64_t>& stride,
-    const std::vector<uint64_t>& block
+    const hdf5::dim_vector<uint64_t>& start,
+    const hdf5::dim_vector<uint64_t>& count,
+    const hdf5::dim_vector<uint64_t>& stride,
+    const hdf5::dim_vector<uint64_t>& block
 ) const {
     std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> result;
 
@@ -399,7 +399,7 @@ std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::GetHypersla
         std::multiplies{}
     );
 
-    std::vector<std::vector<uint64_t>> chunks_per_dim(dimensionality);
+    hdf5::dim_vector<std::vector<uint64_t>> chunks_per_dim(dimensionality);
     
     for (size_t dim = 0; dim < dimensionality; ++dim) {
         uint64_t chunk_size = chunked.dimension_sizes[dim];
@@ -436,8 +436,8 @@ std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::GetHypersla
         std::ranges::sort(dim_chunks); // sort for consistent ordering
     }
 
-    std::vector<uint64_t> current_combination(dimensionality);
-    std::vector<size_t> indices(dimensionality, 0);
+    hdf5::dim_vector<uint64_t> current_combination(dimensionality);
+    hdf5::dim_vector<size_t> indices(dimensionality, 0);
     
     for (;;) {
         // get current combination

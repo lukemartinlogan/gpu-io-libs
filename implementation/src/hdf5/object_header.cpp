@@ -84,7 +84,7 @@ DataspaceMessage DataspaceMessage::Deserialize(Deserializer& de) {
     return msg;
 }
 
-DataspaceMessage::DataspaceMessage(const std::vector<DimensionInfo>& dimensions, bool max_dim_present, bool perm_indices_present) {
+DataspaceMessage::DataspaceMessage(const hdf5::dim_vector<DimensionInfo>& dimensions, bool max_dim_present, bool perm_indices_present) {
     if (dimensions.size() > 255) {
         throw std::logic_error("DataspaceMessage cannot have more than 255 dimensions");
     }

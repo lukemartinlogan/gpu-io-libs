@@ -28,9 +28,9 @@ struct DimensionInfo {
 };
 
 struct DataspaceMessage {
-    std::vector<DimensionInfo> dimensions;
+    hdf5::dim_vector<DimensionInfo> dimensions;
 
-    DataspaceMessage(const std::vector<DimensionInfo>&, bool max_dim_present, bool perm_indices_present);
+    DataspaceMessage(const hdf5::dim_vector<DimensionInfo>&, bool max_dim_present, bool perm_indices_present);
 
     [[nodiscard]] bool IsMaxDimensionsPresent() const {
         return bitset_.test(0);
@@ -255,7 +255,7 @@ struct ContiguousStorageProperty {
 struct ChunkedStorageProperty {
     offset_t b_tree_addr = kUndefinedOffset;
     // units of array elements, not bytes
-    std::vector<uint32_t> dimension_sizes;
+    hdf5::dim_vector<uint32_t> dimension_sizes;
     uint32_t elem_size_bytes;
 
     void Serialize(Serializer& s) const;
