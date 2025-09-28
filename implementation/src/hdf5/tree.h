@@ -41,7 +41,29 @@ struct ChunkCoordinates {
     explicit ChunkCoordinates(const std::vector<uint64_t>& coordinates) : coords(coordinates) {}
     explicit ChunkCoordinates(std::vector<uint64_t>&& coordinates) : coords(std::move(coordinates)) {}
 
-    auto operator<=>(const ChunkCoordinates&) const = default;
+   bool operator==(const ChunkCoordinates& other) const {
+       return coords == other.coords;
+   }
+
+   bool operator!=(const ChunkCoordinates& other) const {
+       return !(*this == other);
+   }
+
+   bool operator<(const ChunkCoordinates& other) const {
+       return coords < other.coords;
+   }
+
+   bool operator<=(const ChunkCoordinates& other) const {
+       return other >= *this;
+   }
+
+   bool operator>(const ChunkCoordinates& other) const {
+       return other < *this;
+   }
+
+   bool operator>=(const ChunkCoordinates& other) const {
+       return !(*this < other);
+   }
 
     [[nodiscard]] size_t Dimensions() const {
         return coords.size();
