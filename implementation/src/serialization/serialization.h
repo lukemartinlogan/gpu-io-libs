@@ -70,7 +70,7 @@ public:
 
     template<size_t count>
     void Skip() {
-        std::array<byte_t, count> buf{};
+        cstd::array<byte_t, count> buf{};
         auto _ = ReadBuffer(buf);
     }
 

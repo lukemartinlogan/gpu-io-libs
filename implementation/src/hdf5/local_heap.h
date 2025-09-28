@@ -50,6 +50,6 @@ private:
     static constexpr offset_t kLastFreeBlock = 1;
     static constexpr len_t kHeaderSize = 32;
 
-    static constexpr std::array<uint8_t, 4> kSignature = { 'H', 'E', 'A', 'P' };
+    static constexpr cstd::array<uint8_t, 4> kSignature = { 'H', 'E', 'A', 'P' };
     static constexpr uint8_t kVersionNumber = 0x00;
 };

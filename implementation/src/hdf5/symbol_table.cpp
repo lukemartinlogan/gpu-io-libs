@@ -19,7 +19,7 @@ SymbolTableEntry SymbolTableEntry::Deserialize(Deserializer& de) {
     ent.cache_ty = static_cast<SymbolTableEntryCacheType>(de.Read<uint32_t>());
     // 4 bytes to align scratch pad on 16 byte boundary
     de.Skip<uint32_t>();
-    ent.scratch_pad_space = de.Read<std::array<byte_t, 16>>();
+    ent.scratch_pad_space = de.Read<cstd::array<byte_t, 16>>();
 
     constexpr uint8_t kCacheTyAllowedValues = 3;
     if (static_cast<uint8_t>(ent.cache_ty) >= kCacheTyAllowedValues) {
@@ -59,7 +59,7 @@ void SymbolTableNode::Serialize(Serializer& s) const {
 }
 
 SymbolTableNode SymbolTableNode::Deserialize(Deserializer& de) {
-    if (de.Read<std::array<uint8_t, 4>>() != kSignature) {
+    if (de.Read<cstd::array<uint8_t, 4>>() != kSignature) {
         throw std::runtime_error("symbol table node signature was invalid");
     }
 

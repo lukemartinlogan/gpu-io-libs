@@ -526,9 +526,9 @@ struct FileSpaceInfoMessage {
     offset_t eoa{};
 
     // 6 small-sized free-space managers
-    cstd::optional<std::array<offset_t, 6>> small_managers;
+    cstd::optional<cstd::array<offset_t, 6>> small_managers;
     // 6 large-sized free-space managers
-    cstd::optional<std::array<offset_t, 6>> large_managers;
+    cstd::optional<cstd::array<offset_t, 6>> large_managers;
 
     [[nodiscard]] bool PersistingFreeSpace() const {
         if (small_managers.has_value() != large_managers.has_value()) {

@@ -229,7 +229,7 @@ void LocalHeap::Serialize(Serializer& s) const {
     s.Write(kVersionNumber);
 
     // reserved (zero)
-    s.Write<std::array<byte_t, 3>>({});
+    s.Write<cstd::array<byte_t, 3>>({});
 
     s.Write<len_t>(data_segment_size);
     s.Write(free_list_head_offset);
@@ -239,7 +239,7 @@ void LocalHeap::Serialize(Serializer& s) const {
 LocalHeap LocalHeap::Deserialize(Deserializer& de) {
     offset_t this_offset = de.GetPosition();
 
-    if (de.Read<std::array<uint8_t, 4>>() != kSignature) {
+    if (de.Read<cstd::array<uint8_t, 4>>() != kSignature) {
         throw std::runtime_error("Superblock signature was invalid");
     }
 

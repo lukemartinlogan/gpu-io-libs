@@ -382,7 +382,7 @@ void BTreeNode::Serialize(Serializer& s) const {
 }
 
 BTreeNode BTreeNode::DeserializeGroup(Deserializer& de) {
-    if (de.Read<std::array<uint8_t, 4>>() != kSignature) {
+    if (de.Read<cstd::array<uint8_t, 4>>() != kSignature) {
         throw std::runtime_error("BTree signature was invalid");
     }
 
@@ -419,7 +419,7 @@ BTreeNode BTreeNode::DeserializeGroup(Deserializer& de) {
 }
 
 BTreeNode BTreeNode::DeserializeChunked(Deserializer& de, ChunkedKeyTerminatorInfo term_info) {
-    if (de.Read<std::array<uint8_t, 4>>() != kSignature) {
+    if (de.Read<cstd::array<uint8_t, 4>>() != kSignature) {
         throw std::runtime_error("BTree signature was invalid");
     }
 

@@ -145,14 +145,14 @@ void WriteHeader(Serializer& s, uint16_t type, uint16_t size, uint8_t flags) {
     s.Write(size);
 
     s.Write(flags);
-    s.Write<std::array<byte_t, 3>>({});
+    s.Write<cstd::array<byte_t, 3>>({});
 }
 
 std::vector<byte_t> WriteMessageToBuffer(const HeaderMessageVariant& msg) {
     DynamicBufferSerializer msg_data;
 
     // reserve eight bytes for prefix
-    msg_data.Write<std::array<byte_t, kPrefixSize>>({});
+    msg_data.Write<cstd::array<byte_t, kPrefixSize>>({});
 
     std::visit([&msg_data](const auto& m) { msg_data.WriteComplex(m); }, msg);
 

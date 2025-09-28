@@ -400,7 +400,7 @@ void WriteEightBytePaddedFields(Serializer& s, std::span<const byte_t> buf) {
 
     size_t leftover = (8 - buf.size() % 8) % 8;
 
-    static std::array<const byte_t, 8> extra_padding{};
+    static cstd::array<const byte_t, 8> extra_padding{};
     s.WriteBuffer(std::span(extra_padding.data(), leftover));
 }
 
@@ -440,7 +440,7 @@ void ReadEightBytePaddedData(Deserializer& de, std::span<byte_t> buffer) {
 
     size_t leftover = (8 - buffer.size() % 8) % 8;
 
-    static std::array<byte_t, 8> leftover_buf;
+    static cstd::array<byte_t, 8> leftover_buf;
     de.ReadBuffer(std::span(leftover_buf.data(), leftover));
 }
 
@@ -570,7 +570,7 @@ DriverInfoMessage DriverInfoMessage::Deserialize(Deserializer& de) {
     DriverInfoMessage msg{};
 
     // read id
-    std::array<char, kDriverIdSize> id{};
+    cstd::array<char, kDriverIdSize> id{};
     de.ReadBuffer(std::span(reinterpret_cast<byte_t*>(id.data()), id.size()));
     msg.driver_id = std::string(id.data(), id.size());
 
@@ -673,8 +673,8 @@ FileSpaceInfoMessage FileSpaceInfoMessage::Deserialize(Deserializer& de) {
     msg.eoa = de.Read<offset_t>();
 
     if (persisting_free_space) {
-        msg.small_managers = de.Read<std::array<offset_t, 6>>();
-        msg.large_managers = de.Read<std::array<offset_t, 6>>();
+        msg.small_managers = de.Read<cstd::array<offset_t, 6>>();
+        msg.large_managers = de.Read<cstd::array<offset_t, 6>>();
     }
 
     return msg;
@@ -840,7 +840,7 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
             throw std::runtime_error("shouldn't be more than 8 bytes to pad to 8 bytes");
         }
 
-        std::array<byte_t, 8> padding{};
+        cstd::array<byte_t, 8> padding{};
 
         de.ReadBuffer(std::span(padding.data(), padding_ct));
     }

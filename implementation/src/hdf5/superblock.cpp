@@ -32,7 +32,7 @@ void SuperblockV0::Serialize(Serializer& s) const {
 }
 
 SuperblockV0 SuperblockV0::Deserialize(Deserializer& de) {
-    if (de.Read<std::array<uint8_t, 8>>() != kSuperblockSignature) {
+    if (de.Read<cstd::array<uint8_t, 8>>() != kSuperblockSignature) {
         throw std::runtime_error("Superblock signature was invalid");
     }
 
@@ -85,7 +85,7 @@ void SuperblockV2::Serialize(Serializer& s) const {
 }
 
 SuperblockV2 SuperblockV2::Deserialize(Deserializer& de) {
-    if (de.Read<std::array<uint8_t, 8>>() != kSuperblockSignature) {
+    if (de.Read<cstd::array<uint8_t, 8>>() != kSuperblockSignature) {
         throw std::runtime_error("Superblock signature was invalid");
     }
 
@@ -116,7 +116,7 @@ SuperblockV2 SuperblockV2::Deserialize(Deserializer& de) {
 
 uint32_t SuperblockV2::Checksum() const { // NOLINT
     struct ChecksumData {
-        std::array<uint8_t, 8> signature = kSuperblockSignature;
+        cstd::array<uint8_t, 8> signature = kSuperblockSignature;
         uint8_t version_number= kVersionNumber;
         SuperblockV2 sb;
     };

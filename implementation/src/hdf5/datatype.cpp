@@ -222,7 +222,7 @@ void WritePaddedString(std::string_view name, Serializer&s) {
 
     // pad to 8 bytes
     size_t padding = (name_size / 8 + 1) * 8 - name_size;
-    static constexpr std::array<byte_t, 8> nul_bytes{};
+    static constexpr cstd::array<byte_t, 8> nul_bytes{};
 
     s.WriteBuffer(std::span(nul_bytes.data(), padding));
 }
@@ -377,7 +377,7 @@ std::string ReadPaddedString(Deserializer& de) {
 
     for (;;) {
         // 8 byte blocks
-        std::array<byte_t, 8> buf{};
+        cstd::array<byte_t, 8> buf{};
 
         if (!de.ReadBuffer(buf)) {
             throw std::runtime_error("failed to read string block");
