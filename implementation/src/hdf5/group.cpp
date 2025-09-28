@@ -93,7 +93,7 @@ Dataset Group::CreateDataset(
     }
 
     new_ds.WriteMessage(ObjectModificationTimeMessage {
-        .modification_time = std::chrono::system_clock::now(),
+        .modification_time = cstd::chrono::system_clock::now(),
     });
 
     SymbolTableEntry ent {

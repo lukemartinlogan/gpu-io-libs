@@ -521,7 +521,7 @@ void ObjectModificationTimeMessage::Serialize(Serializer& s) const {
     s.Write<uint8_t>(0);
     s.Write<uint8_t>(0);
 
-    auto seconds_since_epoch = std::chrono::duration_cast<std::chrono::seconds>(
+    auto seconds_since_epoch = cstd::chrono::duration_cast<cstd::chrono::seconds>(
         modification_time.time_since_epoch()
     ).count();
 
@@ -539,7 +539,7 @@ ObjectModificationTimeMessage ObjectModificationTimeMessage::Deserialize(Deseria
     auto seconds_since_epoch = de.Read<uint32_t>();
 
     return {
-        .modification_time = std::chrono::system_clock::time_point{ std::chrono::seconds{seconds_since_epoch} }
+        .modification_time = cstd::chrono::system_clock::time_point{ cstd::chrono::seconds{seconds_since_epoch} }
     };
 }
 

@@ -396,7 +396,7 @@ struct SymbolTableMessage {
 };
 
 struct ObjectModificationTimeMessage {
-    std::chrono::system_clock::time_point modification_time;
+    cstd::chrono::system_clock::time_point modification_time;
 
     void Serialize(Serializer& s) const;
 
