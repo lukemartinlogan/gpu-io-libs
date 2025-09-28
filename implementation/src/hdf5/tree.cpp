@@ -903,8 +903,8 @@ cstd::optional<offset_t> ChunkedBTree::GetChunk(const ChunkCoordinates& chunk_co
     return root->GetChunk(chunk_coords, *file_);
 }
 
-std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> ChunkedBTree::Offsets() const {
-    std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> result{};
+std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> ChunkedBTree::Offsets() const {
+    std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> result{};
     
     cstd::optional<BTreeNode> root = ReadRoot();
     

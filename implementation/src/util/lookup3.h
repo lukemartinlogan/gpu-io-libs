@@ -22,7 +22,7 @@ namespace lookup3 {
         return hashlittle(data.data(), data.size(), init_val);
     }
 
-    inline cstd::pair<uint32_t, uint32_t> HashLittle2(std::span<const byte_t> data, uint32_t init_val1 = 0, uint32_t init_val2 = 0) {
+    inline cstd::tuple<uint32_t, uint32_t> HashLittle2(std::span<const byte_t> data, uint32_t init_val1 = 0, uint32_t init_val2 = 0) {
         hashlittle2(data.data(), data.size(), &init_val1, &init_val2);
         return { init_val1, init_val2 };
     }

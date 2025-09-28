@@ -126,7 +126,7 @@ void Dataset::Write(std::span<const byte_t> data, size_t start_index) const {
     }
 }
 
-std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::RawOffsets() const {
+std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::RawOffsets() const {
     auto props = layout_.properties;
 
     if (const auto* compact = cstd::get_if<CompactStorageProperty>(&props)) {
@@ -371,13 +371,13 @@ void Dataset::WriteHyperslab(
     }
 }
 
-std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::GetHyperslabChunkRawOffsets(
+std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> Dataset::GetHyperslabChunkRawOffsets(
     const std::vector<uint64_t>& start,
     const std::vector<uint64_t>& count,
     const std::vector<uint64_t>& stride,
     const std::vector<uint64_t>& block
 ) const {
-    std::vector<std::tuple<ChunkCoordinates, offset_t, len_t>> result;
+    std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> result;
 
     if (!cstd::holds_alternative<ChunkedStorageProperty>(layout_.properties)) {
         return RawOffsets();

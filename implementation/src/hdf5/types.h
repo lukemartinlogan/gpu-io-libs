@@ -17,6 +17,7 @@ constexpr offset_t kUndefinedOffset = std::numeric_limits<offset_t>::max();
     #include <cuda/std/span>
     #include <cuda/std/utility>
     #include <cuda/std/bitset>
+    #include <cuda/std/tuple>
 
     namespace cstd = cuda::std;
 #endif
