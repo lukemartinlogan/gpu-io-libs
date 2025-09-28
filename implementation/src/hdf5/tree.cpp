@@ -927,13 +927,10 @@ offset_t ChunkedBTree::CreateNew(const std::shared_ptr<FileLink>& file, const st
 
     BTreeEntries<BTreeChunkedRawDataNodeKey> entries{};
 
-    ChunkCoordinates end_coords;
-    end_coords.coords = std::vector(max_size.begin(), max_size.end());
-
     entries.keys.push_back({
         .chunk_size = 0,
         .filter_mask = 0,
-        .chunk_offset_in_dataset = end_coords
+        .chunk_offset_in_dataset = ChunkCoordinates(max_size),
     });
 
     return BTreeNode { .level = 0, .entries = entries }.AllocateAndWrite(*file, k);
