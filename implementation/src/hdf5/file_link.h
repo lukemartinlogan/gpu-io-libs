@@ -1,5 +1,4 @@
 #pragma once
-#include <mutex>
 
 #include "superblock.h"
 #include "../serialization/stdio.h"
@@ -9,15 +8,8 @@ struct FileLink {
     StdioReaderWriter io;
     SuperblockV0 superblock;
 
-
     FileLink(StdioReaderWriter file_io, const SuperblockV0& superblock)
         : io(std::move(file_io)), superblock(superblock) {}
 
     offset_t AllocateAtEOF(len_t size_bytes);
-
-    std::lock_guard<std::mutex> Lock() {
-        return std::lock_guard(mtx);
-    }
-private:
-    std::mutex mtx{};
 };
