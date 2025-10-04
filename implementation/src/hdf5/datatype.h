@@ -59,7 +59,7 @@ struct FloatingPoint {
 
     enum class ByteOrder : uint8_t { kLittleEndian, kBigEndian, kVAXEndian };
 
-    [[nodiscard]] ByteOrder GetByteOrder() const {
+    [[nodiscard]] hdf5::expected<ByteOrder> GetByteOrder() const {
         const bool _0 = bitset_.test(0);
         const bool _6 = bitset_.test(6);
 
@@ -73,7 +73,7 @@ struct FloatingPoint {
             return ByteOrder::kVAXEndian;
         }
 
-        throw std::logic_error("Invalid byte order");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Invalid byte order");
     }
 
     [[nodiscard]] bool LowPadding() const {
@@ -90,13 +90,13 @@ struct FloatingPoint {
 
     enum class MantissaNormalization : uint8_t { kNone, kMSBSet, kMSBImpliedSet };
 
-    [[nodiscard]] MantissaNormalization GetMantissaNormalization() const {
+    [[nodiscard]] hdf5::expected<MantissaNormalization> GetMantissaNormalization() const {
         // get bits 4 & 5
         switch ((bitset_.to_ulong() >> 4) & 0b11) {
             case 0: return MantissaNormalization::kNone;
             case 1: return MantissaNormalization::kMSBSet;
             case 2: return MantissaNormalization::kMSBImpliedSet;
-            default: throw std::logic_error("invalid mantissa normalization");
+            default: return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Invalid mantissa normalization");
         }
     }
 
