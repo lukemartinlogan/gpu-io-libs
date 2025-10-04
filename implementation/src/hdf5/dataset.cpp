@@ -249,7 +249,13 @@ hdf5::expected<void> Dataset::ReadHyperslab(
     HyperslabIterator iterator = std::move(*iterator_result);
 
     size_t element_size = type_.Size();
-    uint64_t total_elements = iterator.GetTotalElements();
+    auto total_elements_result = iterator.GetTotalElements();
+
+    if (!total_elements_result) {
+        return cstd::unexpected(total_elements_result.error());
+    }
+
+    uint64_t total_elements = *total_elements_result;
 
     if (buffer.size() < total_elements * element_size) {
         return hdf5::error(hdf5::HDF5ErrorCode::BufferTooSmall, "Buffer too small for hyperslab data");
@@ -264,8 +270,13 @@ hdf5::expected<void> Dataset::ReadHyperslab(
         size_t buffer_offset = 0;
 
         while (!iterator.IsAtEnd()) {
-            uint64_t linear_index = iterator.GetLinearIndex();
-            size_t data_offset = linear_index * element_size;
+            auto linear_index_result = iterator.GetLinearIndex();
+
+            if (!linear_index_result) {
+                return cstd::unexpected(linear_index_result.error());
+            }
+
+            size_t data_offset = *linear_index_result * element_size;
 
             if (data_offset + element_size > compact->raw_data.size()) {
                 return hdf5::error(hdf5::HDF5ErrorCode::SelectionOutOfBounds, "Hyperslab selection exceeds compact storage bounds");
@@ -285,8 +296,13 @@ hdf5::expected<void> Dataset::ReadHyperslab(
         size_t buffer_offset = 0;
 
         while (!iterator.IsAtEnd()) {
-            uint64_t linear_index = iterator.GetLinearIndex();
-            offset_t file_offset = contiguous->address + linear_index * element_size;
+            auto linear_index = iterator.GetLinearIndex();
+
+            if (!linear_index) {
+                return cstd::unexpected(linear_index.error());
+            }
+
+            offset_t file_offset = contiguous->address + *linear_index * element_size;
 
             object_.file->io.SetPosition(file_offset);
             object_.file->io.ReadBuffer(std::span(buffer.data() + buffer_offset, element_size));
@@ -340,7 +356,13 @@ hdf5::expected<void> Dataset::WriteHyperslab(
     HyperslabIterator iterator = std::move(*iterator_result);
 
     size_t element_size = type_.Size();
-    uint64_t total_elements = iterator.GetTotalElements();
+    auto total_elements_result = iterator.GetTotalElements();
+
+    if (!total_elements_result) {
+        return cstd::unexpected(total_elements_result.error());
+    }
+
+    uint64_t total_elements = *total_elements_result;
 
     if (data.size() < total_elements * element_size) {
         return hdf5::error(hdf5::HDF5ErrorCode::BufferTooSmall, "Data buffer too small for hyperslab");
@@ -359,8 +381,13 @@ hdf5::expected<void> Dataset::WriteHyperslab(
         size_t data_offset = 0;
 
         while (!iterator.IsAtEnd()) {
-            uint64_t linear_index = iterator.GetLinearIndex();
-            offset_t file_offset = contiguous->address + linear_index * element_size;
+            auto linear_index = iterator.GetLinearIndex();
+
+            if (!linear_index) {
+                return cstd::unexpected(linear_index.error());
+            }
+
+            offset_t file_offset = contiguous->address + *linear_index * element_size;
 
             object_.file->io.SetPosition(file_offset);
             object_.file->io.WriteBuffer(std::span(data.data() + data_offset, element_size));

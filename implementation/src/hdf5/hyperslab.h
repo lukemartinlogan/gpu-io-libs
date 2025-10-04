@@ -21,7 +21,7 @@ public:
     using coord_t = hdf5::dim_vector<uint64_t>;
 
     /**
-     * @brief Constructs a hyperslab iterator.
+     * @brief Creates a hyperslab iterator.
      *
      * @param start Starting coordinate for each dimension
      * @param count Number of blocks to select in each dimension
@@ -29,9 +29,9 @@ public:
      * @param block Size of each block in each dimension (defaults to 1 if empty)
      * @param dataset_dims Dimensions of the dataset
      *
-     * @throws std::invalid_argument if parameters are invalid
+     * @return expected containing the iterator or an error if parameters are invalid
      */
-    HyperslabIterator(
+    static hdf5::expected<HyperslabIterator> New(
             const coord_t& start,
             const coord_t& count,
             const coord_t& stride,
@@ -65,13 +65,13 @@ public:
      * @brief Get the linear index of the current coordinate.
      * @return Linear index in row-major order
      */
-    [[nodiscard]] uint64_t GetLinearIndex() const;
+    [[nodiscard]] hdf5::expected<uint64_t> GetLinearIndex() const;
 
     /**
      * @brief Get the total number of elements in the hyperslab selection.
      * @return Total element count
      */
-    [[nodiscard]] uint64_t GetTotalElements() const;
+    [[nodiscard]] hdf5::expected<uint64_t> GetTotalElements() const;
 
     /**
      * @brief Reset iterator to the beginning of the selection.
@@ -79,7 +79,7 @@ public:
     void Reset();
 
 private:
-    static void ValidateParams(
+    HyperslabIterator(
         const coord_t& start,
         const coord_t& count,
         const coord_t& stride,
@@ -87,7 +87,14 @@ private:
         const coord_t& dataset_dims
     );
 
-private:
+    static cstd::optional<hdf5::HDF5Error> ValidateParams(
+        const coord_t& start,
+        const coord_t& count,
+        const coord_t& stride,
+        const coord_t& block,
+        const coord_t& dataset_dims
+    );
+
     coord_t start_;
     coord_t count_;
     coord_t stride_;

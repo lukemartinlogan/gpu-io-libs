@@ -2,8 +2,26 @@
 
 #include <algorithm>
 #include <numeric>
-#include <stdexcept>
 #include <string>
+
+hdf5::expected<HyperslabIterator> HyperslabIterator::New(
+    const coord_t& start,
+    const coord_t& count,
+    const coord_t& stride,
+    const coord_t& block,
+    const coord_t& dataset_dims
+) {
+    size_t n_dims = dataset_dims.size();
+
+    coord_t norm_stride = stride.empty() ? coord_t(n_dims, 1) : stride;
+    coord_t norm_block  = block.empty() ? coord_t(n_dims, 1) : block;
+
+    if (auto error = ValidateParams(start, count, norm_stride, norm_block, dataset_dims)) {
+        return cstd::unexpected(*error);
+    }
+
+    return HyperslabIterator(start, count, std::move(norm_stride), std::move(norm_block), dataset_dims);
+}
 
 HyperslabIterator::HyperslabIterator(
     const coord_t& start,
@@ -14,21 +32,13 @@ HyperslabIterator::HyperslabIterator(
 ) :
     start_(start),
     count_(count),
+    stride_(stride),
+    block_(block),
     dataset_dims_(dataset_dims),
     current_coord_(start),
     at_end_(false)
 {
-
     size_t n_dims = dataset_dims.size();
-
-    coord_t norm_stride = stride.empty() ? coord_t(n_dims, 1) : stride;
-    coord_t norm_block  = block.empty() ? coord_t(n_dims, 1) : block;
-
-    ValidateParams(start, count, norm_stride, norm_block, dataset_dims);
-
-    stride_ = std::move(norm_stride);
-    block_ = std::move(norm_block);
-
     block_index_.resize(n_dims, 0);
     count_index_.resize(n_dims, 0);
 }
@@ -71,9 +81,9 @@ bool HyperslabIterator::Advance() {
     return false;
 }
 
-uint64_t HyperslabIterator::GetLinearIndex() const {
+hdf5::expected<uint64_t> HyperslabIterator::GetLinearIndex() const {
     if (at_end_) {
-        throw std::runtime_error("Iterator is at end");
+        return hdf5::error(hdf5::HDF5ErrorCode::IteratorAtEnd, "Iterator is at end");
     }
 
     const coord_t& coords = current_coord_;
@@ -85,7 +95,7 @@ uint64_t HyperslabIterator::GetLinearIndex() const {
     // last dimension changes fastest
     for (int dim = static_cast<int>(dims.size()) - 1; dim >= 0; --dim) {
         if (coords[dim] >= dims[dim]) {
-            throw std::invalid_argument("Coordinate exceeds dimension bounds");
+            return hdf5::error(hdf5::HDF5ErrorCode::CoordinateOutOfBounds, "Coordinate exceeds dimension bounds");
         }
 
         linear_index += coords[dim] * multiplier;
@@ -95,16 +105,16 @@ uint64_t HyperslabIterator::GetLinearIndex() const {
     return linear_index;
 }
 
-uint64_t HyperslabIterator::GetTotalElements() const {
+hdf5::expected<uint64_t> HyperslabIterator::GetTotalElements() const {
     if (count_.empty()) {
-        return 0;
+        return hdf5::error(hdf5::HDF5ErrorCode::EmptyParameter, "Count is empty");
     }
 
     uint64_t total_elements = 1;
 
     for (size_t dim = 0; dim < count_.size(); ++dim) {
         if (total_elements > std::numeric_limits<uint64_t>::max() / (count_[dim] * block_[dim])) {
-            throw std::overflow_error("Hyperslab selection too large");
+            return hdf5::error(hdf5::HDF5ErrorCode::SelectionOverflow, "Hyperslab selection too large");
         }
 
         total_elements *= count_[dim] * block_[dim];
