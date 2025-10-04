@@ -1,8 +1,6 @@
 #include "hyperslab.h"
 
 #include <algorithm>
-#include <numeric>
-#include <string>
 
 hdf5::expected<HyperslabIterator> HyperslabIterator::New(
     const coord_t& start,
