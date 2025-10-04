@@ -122,7 +122,7 @@ void HyperslabIterator::Reset() {
     current_coord_ = start_;
 }
 
-void HyperslabIterator::ValidateParams(
+cstd::optional<hdf5::HDF5Error> HyperslabIterator::ValidateParams(
     const coord_t& start,
     const coord_t& count,
     const coord_t& stride,
@@ -132,55 +132,57 @@ void HyperslabIterator::ValidateParams(
     const size_t n_dims = dataset_dims.size();
 
     if (n_dims == 0) {
-        throw std::invalid_argument("Dataset must have at least one dimension");
+        return hdf5::HDF5Error{hdf5::HDF5ErrorCode::EmptyParameter, "Dataset must have at least one dimension"};
     }
 
     if (start.size() != n_dims) {
-        throw std::invalid_argument("Start must have same dimensionality as dataset");
+        return hdf5::HDF5Error{hdf5::HDF5ErrorCode::DimensionMismatch, "Start must have same dimensionality as dataset"};
     }
 
     if (count.size() != n_dims) {
-        throw std::invalid_argument("Count must have same dimensionality as dataset");
+        return hdf5::HDF5Error{hdf5::HDF5ErrorCode::DimensionMismatch, "Count must have same dimensionality as dataset"};
     }
 
     if (stride.size() != n_dims) {
-        throw std::invalid_argument("Stride must have same dimensionality as dataset");
+        return hdf5::HDF5Error{hdf5::HDF5ErrorCode::DimensionMismatch, "Stride must have same dimensionality as dataset"};
     }
 
     if (block.size() != n_dims) {
-        throw std::invalid_argument("Block must have same dimensionality as dataset");
+        return hdf5::HDF5Error{hdf5::HDF5ErrorCode::DimensionMismatch, "Block must have same dimensionality as dataset"};
     }
 
     for (size_t dim = 0; dim < n_dims; ++dim) {
         if (dataset_dims[dim] == 0) {
-            throw std::invalid_argument("Dataset dimension cannot be zero");
+            return hdf5::HDF5Error{hdf5::HDF5ErrorCode::ZeroParameter, "Dataset dimension cannot be zero"};
         }
 
         if (count[dim] == 0) {
-            throw std::invalid_argument("Count cannot be zero");
+            return hdf5::HDF5Error{hdf5::HDF5ErrorCode::ZeroParameter, "Count cannot be zero"};
         }
 
         if (stride[dim] == 0) {
-            throw std::invalid_argument("Stride cannot be zero");
+            return hdf5::HDF5Error{hdf5::HDF5ErrorCode::ZeroParameter, "Stride cannot be zero"};
         }
 
         if (block[dim] == 0) {
-            throw std::invalid_argument("Block cannot be zero");
+            return hdf5::HDF5Error{hdf5::HDF5ErrorCode::ZeroParameter, "Block cannot be zero"};
         }
 
         if (start[dim] >= dataset_dims[dim]) {
-            throw std::invalid_argument("Start coordinate exceeds dataset bounds");
+            return hdf5::HDF5Error{hdf5::HDF5ErrorCode::CoordinateOutOfBounds, "Start coordinate exceeds dataset bounds"};
         }
 
         if (stride[dim] < block[dim]) {
-            throw std::invalid_argument("Hyperslab blocks overlap: stride < block in dimension " + std::to_string(dim));
+            return hdf5::HDF5Error{hdf5::HDF5ErrorCode::BlockOverlap, "Hyperslab blocks overlap: stride < block"};
         }
 
         uint64_t last_block_start = start[dim] + (count[dim] - 1) * stride[dim];
         uint64_t last_element = last_block_start + block[dim] - 1;
 
         if (last_element >= dataset_dims[dim]) {
-            throw std::invalid_argument("Hyperslab selection exceeds dataset bounds");
+            return hdf5::HDF5Error{hdf5::HDF5ErrorCode::SelectionOutOfBounds, "Hyperslab selection exceeds dataset bounds"};
         }
     }
+
+    return cstd::nullopt;
 }
