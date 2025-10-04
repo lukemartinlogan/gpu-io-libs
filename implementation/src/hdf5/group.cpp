@@ -2,9 +2,7 @@
 
 #include "symbol_table.h"
 
-Group::Group(const Object& object)
-    : object_(object)
-{
+hdf5::expected<Group> Group::New(const Object& object) {
     ObjectHeader header = object.GetHeader();
 
     auto symb_tbl_msg = std::ranges::find_if(
@@ -15,27 +13,28 @@ Group::Group(const Object& object)
     );
 
     if (symb_tbl_msg == header.messages.end()) {
-        throw std::runtime_error("Object is not a group header");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Object is not a group header");
     }
 
     auto symb_tbl = cstd::get<SymbolTableMessage>(symb_tbl_msg->message);
 
-    object_.file->io.SetPosition(object_.file->superblock.base_addr + symb_tbl.local_heap_addr);
-    auto local_heap = object_.file->io.ReadComplex<LocalHeap>();
+    object.file->io.SetPosition(object.file->superblock.base_addr + symb_tbl.local_heap_addr);
+    auto local_heap = object.file->io.ReadComplex<LocalHeap>();
 
-    table_ = GroupBTree(symb_tbl.b_tree_addr, object_.file, local_heap);
+    GroupBTree table(symb_tbl.b_tree_addr, object.file, local_heap);
+
+    return Group(object, std::move(table));
 }
 
-Dataset Group::OpenDataset(std::string_view dataset_name) const {
+hdf5::expected<Dataset> Group::OpenDataset(std::string_view dataset_name) const {
     if (const auto object = Get(dataset_name)) {
-        return Dataset(*object);
+        return Dataset::New(*object);
     }
 
-    // TODO: better error handling
-    throw std::runtime_error(std::format("Dataset \"{}\" not found", dataset_name));
+    return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Dataset not found");
 }
 
-Dataset Group::CreateDataset(
+hdf5::expected<Dataset> Group::CreateDataset(
     std::string_view dataset_name,
     const hdf5::dim_vector<len_t>& dimension_sizes,
     const DatatypeMessage& type,
@@ -43,7 +42,7 @@ Dataset Group::CreateDataset(
     cstd::optional<std::vector<byte_t>> fill_value
 ) {
     if (Get(dataset_name)) {
-        throw std::runtime_error(std::format("Dataset \"{}\" already exists", dataset_name));
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Dataset already exists");
     }
 
     offset_t name_offset = GetLocalHeap().WriteString(dataset_name, *object_.file);
@@ -121,21 +120,20 @@ Dataset Group::CreateDataset(
 
     UpdateBTreePointer();
 
-    return Dataset(new_ds);
+    return Dataset::New(new_ds);
 }
 
-Group Group::OpenGroup(std::string_view group_name) const {
+hdf5::expected<Group> Group::OpenGroup(std::string_view group_name) const {
     if (const auto object = Get(group_name)) {
-        return Group(*object);
+        return New(*object);
     }
 
-    // TODO: better error handling
-    throw std::runtime_error(std::format("Group \"{}\" not found", group_name));
+    return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Group not found");
 }
 
-Group Group::CreateGroup(std::string_view name) {
+hdf5::expected<Group> Group::CreateGroup(std::string_view name) {
     if (Get(name)) {
-        throw std::runtime_error(std::format("Dataset \"{}\" already exists", name));
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Group already exists");
     }
 
     offset_t name_offset = GetLocalHeap().WriteString(name, *object_.file);
@@ -188,7 +186,7 @@ Group Group::CreateGroup(std::string_view name) {
 
     UpdateBTreePointer();
 
-    return Group(new_group_obj);
+    return New(new_group_obj);
 }
 
 cstd::optional<Object> Group::Get(std::string_view name) const {
@@ -220,21 +218,21 @@ void Group::Insert(std::string_view name, offset_t object_header_ptr) {
     UpdateBTreePointer();
 }
 
-SymbolTableNode Group::GetSymbolTableNode() const {
+hdf5::expected<SymbolTableNode> Group::GetSymbolTableNode() const {
     BTreeNode table = table_.ReadRoot().value();
 
     if (!table.IsLeaf()) {
-        throw std::logic_error("traversing tree not implemented");
+        return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "traversing tree not implemented");
     }
 
     const auto* entries = cstd::get_if<BTreeEntries<BTreeGroupNodeKey>>(&table.entries);
 
     if (!entries) {
-        throw std::runtime_error("Group table does not contain group node keys");
+        return hdf5::error(hdf5::HDF5ErrorCode::WrongNodeType, "Group table does not contain group node keys");
     }
 
     if (entries->child_pointers.size() != 1) {
-        throw std::runtime_error("nodes at level zero should only have one child pointer");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "nodes at level zero should only have one child pointer");
     }
 
     offset_t sym_tbl_node = entries->child_pointers.front();
