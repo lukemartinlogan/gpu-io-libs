@@ -165,7 +165,7 @@ hdf5::expected<std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Data
 }
 
 template<typename Visitor>
-void ProcessChunkedHyperslab(
+hdf5::expected<void> ProcessChunkedHyperslab(
     const ChunkedStorageProperty* chunked,
     HyperslabIterator& iterator,
     size_t element_size,
@@ -216,11 +216,16 @@ void ProcessChunkedHyperslab(
         }
 
         // Process this element using the provided processor
-        visitor(element_file_offset, buffer_offset, chunk_coords);
+        auto visitor_result = visitor(element_file_offset, buffer_offset, chunk_coords);
+        if (!visitor_result) {
+            return cstd::unexpected(visitor_result.error());
+        }
 
         buffer_offset += element_size;
         iterator.Advance();
     }
+
+    return {};
 }
 
 hdf5::expected<void> Dataset::ReadHyperslab(
@@ -312,9 +317,9 @@ hdf5::expected<void> Dataset::ReadHyperslab(
         }
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
-        ProcessChunkedHyperslab(
+        auto process_result = ProcessChunkedHyperslab(
             chunked, iterator, element_size, object_.file,
-            [&](const cstd::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) {
+            [&](const cstd::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) -> hdf5::expected<void> {
                 if (!element_file_offset.has_value()) {
                     // chunk doesn't exist (sparse dataset)
                     std::fill_n(buffer.data() + buffer_offset, element_size, byte_t{0});
@@ -322,7 +327,11 @@ hdf5::expected<void> Dataset::ReadHyperslab(
                     object_.file->io.SetPosition(*element_file_offset);
                     object_.file->io.ReadBuffer(std::span(buffer.data() + buffer_offset, element_size));
                 }
+                return {};
             });
+        if (!process_result) {
+            return cstd::unexpected(process_result.error());
+        }
     } else {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidVariantState, "Unknown storage type in dataset");
     }
@@ -397,21 +406,23 @@ hdf5::expected<void> Dataset::WriteHyperslab(
         }
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
-        ProcessChunkedHyperslab(
+        auto process_result = ProcessChunkedHyperslab(
             chunked, iterator, element_size, object_.file,
-            [&](const cstd::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) {
+            [&](const cstd::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) -> hdf5::expected<void> {
                 if (!element_file_offset.has_value()) {
                     // Chunk doesn't exist (sparse dataset) - this is an error for writing
                     // In HDF5, writing to a non-existent chunk should create the chunk,
                     // but our current implementation doesn't support chunk creation
-
-                    // TODO(expected): we can't return from within this lambda
-                    // throw std::logic_error("Cannot write to non-existent chunk (chunk creation not implemented)");
+                    return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "Cannot write to non-existent chunk (chunk creation not implemented)");
                 }
 
                 object_.file->io.SetPosition(*element_file_offset);
                 object_.file->io.WriteBuffer(std::span(data.data() + buffer_offset, element_size));
+                return {};
             });
+        if (!process_result) {
+            return cstd::unexpected(process_result.error());
+        }
     } else {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidVariantState, "Unknown storage type in dataset");
     }
