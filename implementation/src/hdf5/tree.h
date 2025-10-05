@@ -147,7 +147,7 @@ struct BTreeNode {
         return level == 0;
     }
 
-    [[nodiscard]] cstd::optional<offset_t> Get(std::string_view name, FileLink& file, const LocalHeap& heap) const;
+    [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> Get(std::string_view name, FileLink& file, const LocalHeap& heap) const;
 
     [[nodiscard]] cstd::optional<offset_t> GetChunk(const ChunkCoordinates& chunk_coords, FileLink& file) const;
 
@@ -174,7 +174,7 @@ private:
 
     [[nodiscard]] BTreeNode Split(KValues k);
 
-    cstd::optional<SplitResult> InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
+    hdf5::expected<cstd::optional<SplitResult>> InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
 
     cstd::optional<SplitResultChunked> InsertChunked(
         offset_t this_offset,
@@ -183,13 +183,13 @@ private:
         FileLink& file
     );
 
-    cstd::optional<uint16_t> FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
+    hdf5::expected<cstd::optional<uint16_t>> FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
     [[nodiscard]] cstd::optional<uint16_t> FindChunkedIndex(const ChunkCoordinates& chunk_coords) const;
 
     [[nodiscard]] bool AtCapacity(KValues k) const;
 
-    uint16_t GroupInsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
+    hdf5::expected<uint16_t> GroupInsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
     [[nodiscard]] uint16_t ChunkedInsertionPosition(const ChunkCoordinates& chunk_coords) const;
 
@@ -229,9 +229,9 @@ struct GroupBTree {
     explicit GroupBTree(offset_t addr, std::shared_ptr<FileLink> file, const LocalHeap& heap)
         : file_(std::move(file)), heap_(heap), addr_(addr) {}
 
-    [[nodiscard]] cstd::optional<offset_t> Get(std::string_view name) const;
+    [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> Get(std::string_view name) const;
 
-    void InsertGroup(offset_t name_offset, offset_t object_header_ptr);
+    hdf5::expected<void> InsertGroup(offset_t name_offset, offset_t object_header_ptr);
 
     [[nodiscard]] size_t Size() const;
 

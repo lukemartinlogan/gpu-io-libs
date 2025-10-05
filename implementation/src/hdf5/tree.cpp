@@ -73,8 +73,12 @@ uint16_t BTreeNode::EntriesUsed() const {
     }, entries);
 }
 
-cstd::optional<offset_t> BTreeNode::Get(std::string_view name, FileLink& file, const LocalHeap& heap) const { // NOLINT(*-no-recursion
-    cstd::optional<uint16_t> child_index = FindGroupIndex(name, heap, file.io);
+hdf5::expected<cstd::optional<offset_t>> BTreeNode::Get(std::string_view name, FileLink& file, const LocalHeap& heap) const { // NOLINT(*-no-recursion
+    auto child_index_result = FindGroupIndex(name, heap, file.io);
+    if (!child_index_result) {
+        return cstd::unexpected(child_index_result.error());
+    }
+    cstd::optional<uint16_t> child_index = *child_index_result;
 
     if (!child_index) {
         return cstd::nullopt;
@@ -141,7 +145,7 @@ void WriteEntries(const BTreeEntries<K>& entries, Serializer& s) {
     s.Write(entries.keys.back());
 }
 
-cstd::optional<uint16_t> BTreeNode::FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
+hdf5::expected<cstd::optional<uint16_t>> BTreeNode::FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
     if (!cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         return cstd::nullopt;
     }
@@ -160,10 +164,18 @@ cstd::optional<uint16_t> BTreeNode::FindGroupIndex(std::string_view key, const L
     // find correct child pointer
     uint16_t child_index = entries_ct + 1;
 
-    std::string prev = heap.ReadString(group_entries.keys.front().first_object_name, de);
+    auto prev_result = heap.ReadString(group_entries.keys.front().first_object_name, de);
+    if (!prev_result) {
+        return cstd::unexpected(prev_result.error());
+    }
+    std::string prev = *prev_result;
 
     for (size_t i = 1; i < group_entries.keys.size(); ++i) {
-        std::string next = heap.ReadString(group_entries.keys[i].first_object_name, de);
+        auto next_result = heap.ReadString(group_entries.keys[i].first_object_name, de);
+        if (!next_result) {
+            return cstd::unexpected(next_result.error());
+        }
+        std::string next = *next_result;
 
         if (prev < key && key <= next) {
             child_index = i - 1;
@@ -181,9 +193,9 @@ cstd::optional<uint16_t> BTreeNode::FindGroupIndex(std::string_view key, const L
     return child_index;
 }
 
-uint16_t BTreeNode::GroupInsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
+hdf5::expected<uint16_t> BTreeNode::GroupInsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const {
     if (!cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
-        throw std::logic_error("InsertionPosition only supported for group nodes");
+        return hdf5::error(hdf5::HDF5ErrorCode::WrongNodeType, "InsertionPosition only supported for group nodes");
     }
 
     // TODO: can we binary search here?
@@ -200,7 +212,11 @@ uint16_t BTreeNode::GroupInsertionPosition(std::string_view key, const LocalHeap
     uint16_t child_index = entries_ct;
 
     for (size_t i = 0; i < entries_ct; ++i) {
-        std::string next = heap.ReadString(group_entries.keys.at(i + 1).first_object_name, de);
+        auto next_result = heap.ReadString(group_entries.keys.at(i + 1).first_object_name, de);
+        if (!next_result) {
+            return cstd::unexpected(next_result.error());
+        }
+        std::string next = *next_result;
 
         if (key <= next) {
             child_index = i;
@@ -581,10 +597,14 @@ void BTreeNode::RecurseChunked(const std::function<void(const BTreeChunkedRawDat
     }
 }
 
-cstd::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
+hdf5::expected<cstd::optional<SplitResult>> BTreeNode::InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
     cstd::optional<SplitResult> res{};
 
-    std::string name_str = heap.ReadString(name_offset, file.io);
+    auto name_str_result = heap.ReadString(name_offset, file.io);
+    if (!name_str_result) {
+        return cstd::unexpected(name_str_result.error());
+    }
+    std::string name_str = *name_str_result;
 
     const KValues k {
         .leaf = file.superblock.group_leaf_node_k,
@@ -593,11 +613,19 @@ cstd::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_
 
     auto& g_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
 
-    auto RawInsert = [&file, &heap](BTreeNode& node, BTreeGroupNodeKey key, offset_t child_ptr) -> void {
-        std::string key_str = heap.ReadString(key.first_object_name, file.io);
+    auto RawInsert = [&file, &heap](BTreeNode& node, BTreeGroupNodeKey key, offset_t child_ptr) -> hdf5::expected<void> {
+        auto key_str_result = heap.ReadString(key.first_object_name, file.io);
+        if (!key_str_result) {
+            return cstd::unexpected(key_str_result.error());
+        }
+        std::string key_str = *key_str_result;
 
         auto& ins_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(node.entries);
-        uint16_t ins_pos = node.GroupInsertionPosition(key_str, heap, file.io);
+        auto ins_pos_result = node.GroupInsertionPosition(key_str, heap, file.io);
+        if (!ins_pos_result) {
+            return cstd::unexpected(ins_pos_result.error());
+        }
+        uint16_t ins_pos = *ins_pos_result;
 
         ins_entries.child_pointers.insert(
             ins_entries.child_pointers.begin() + ins_pos,
@@ -608,6 +636,8 @@ cstd::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_
             ins_entries.keys.begin() + ins_pos + 1,
             key
         );
+
+        return {};
     };
 
     if (IsLeaf()) {
@@ -618,13 +648,23 @@ cstd::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_
             BTreeGroupNodeKey promoted_key = g_entries.keys.at(mid_index);
             BTreeNode new_node = Split(k);
 
-            std::string promoted_key_str = heap.ReadString(promoted_key.first_object_name, file.io);
+            auto promoted_key_str_result = heap.ReadString(promoted_key.first_object_name, file.io);
+            if (!promoted_key_str_result) {
+                return cstd::unexpected(promoted_key_str_result.error());
+            }
+            std::string promoted_key_str = *promoted_key_str_result;
 
             // TODO: is < or <= ?
             if (name_str <= promoted_key_str) {
-                RawInsert(*this, { name_offset }, obj_header_ptr);
+                auto insert_result = RawInsert(*this, { name_offset }, obj_header_ptr);
+                if (!insert_result) {
+                    return cstd::unexpected(insert_result.error());
+                }
             } else {
-                RawInsert(new_node, { name_offset }, obj_header_ptr);
+                auto insert_result = RawInsert(new_node, { name_offset }, obj_header_ptr);
+                if (!insert_result) {
+                    return cstd::unexpected(insert_result.error());
+                }
             }
 
             offset_t new_node_alloc = new_node.AllocateAndWrite(file, k);
@@ -634,15 +674,22 @@ cstd::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_
                 .new_node_offset = new_node_alloc,
             };
         } else {
-            RawInsert(*this, { name_offset }, obj_header_ptr);
+            auto insert_result = RawInsert(*this, { name_offset }, obj_header_ptr);
+            if (!insert_result) {
+                return cstd::unexpected(insert_result.error());
+            }
         }
 
         WriteNodeGetAllocSize(this_offset, file, k);
     } else {
-        cstd::optional<uint16_t> child_idx = FindGroupIndex(name_str, heap, file.io);
+        auto child_idx_result = FindGroupIndex(name_str, heap, file.io);
+        if (!child_idx_result) {
+            return cstd::unexpected(child_idx_result.error());
+        }
+        cstd::optional<uint16_t> child_idx = *child_idx_result;
 
         if (!child_idx) {
-            throw std::runtime_error("BTreeNode::Insert: could not find child index");
+            return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "BTreeNode::Insert: could not find child index");
         }
 
         offset_t child_offset = g_entries.child_pointers.at(*child_idx);
@@ -650,7 +697,11 @@ cstd::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_
         file.io.SetPosition(child_offset);
         auto child = ReadChild(file.io);
 
-        cstd::optional<SplitResult> child_ins = child.InsertGroup(child_offset, name_offset, obj_header_ptr, file, heap);
+        auto child_ins_result = child.InsertGroup(child_offset, name_offset, obj_header_ptr, file, heap);
+        if (!child_ins_result) {
+            return cstd::unexpected(child_ins_result.error());
+        }
+        cstd::optional<SplitResult> child_ins = *child_ins_result;
 
         if (child_ins.has_value()) {
             if (AtCapacity(k)) {
@@ -659,13 +710,23 @@ cstd::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_
                 BTreeGroupNodeKey promoted_key = g_entries.keys.at(mid_index);
                 BTreeNode new_node = Split(k);
 
-                std::string promoted_key_str = heap.ReadString(promoted_key.first_object_name, file.io);
+                auto promoted_key_str_result = heap.ReadString(promoted_key.first_object_name, file.io);
+                if (!promoted_key_str_result) {
+                    return cstd::unexpected(promoted_key_str_result.error());
+                }
+                std::string promoted_key_str = *promoted_key_str_result;
 
                 // TODO: is < or <= ?
                 if (name_str <= promoted_key_str) {
-                    RawInsert(*this, child_ins->promoted_key, child_ins->new_node_offset);
+                    auto insert_result = RawInsert(*this, child_ins->promoted_key, child_ins->new_node_offset);
+                    if (!insert_result) {
+                        return cstd::unexpected(insert_result.error());
+                    }
                 } else {
-                    RawInsert(new_node, child_ins->promoted_key, child_ins->new_node_offset);
+                    auto insert_result = RawInsert(new_node, child_ins->promoted_key, child_ins->new_node_offset);
+                    if (!insert_result) {
+                        return cstd::unexpected(insert_result.error());
+                    }
                 }
 
                 offset_t new_node_alloc = new_node.AllocateAndWrite(file, k);
@@ -675,7 +736,10 @@ cstd::optional<SplitResult> BTreeNode::InsertGroup(offset_t this_offset, offset_
                     .new_node_offset = new_node_alloc,
                 };
             } else {
-                RawInsert(*this, child_ins->promoted_key, child_ins->new_node_offset);
+                auto insert_result = RawInsert(*this, child_ins->promoted_key, child_ins->new_node_offset);
+                if (!insert_result) {
+                    return cstd::unexpected(insert_result.error());
+                }
             }
 
             WriteNodeGetAllocSize(this_offset, file, k);
@@ -785,7 +849,7 @@ cstd::optional<SplitResultChunked> BTreeNode::InsertChunked(
     return res;
 }
 
-cstd::optional<offset_t> GroupBTree::Get(std::string_view name) const {
+hdf5::expected<cstd::optional<offset_t>> GroupBTree::Get(std::string_view name) const {
     cstd::optional<BTreeNode> root = ReadRoot();
 
     if (!root.has_value()) {
@@ -795,7 +859,7 @@ cstd::optional<offset_t> GroupBTree::Get(std::string_view name) const {
     return root->Get(name, *file_, heap_);
 }
 
-void GroupBTree::InsertGroup(offset_t name_offset, offset_t object_header_ptr) {
+hdf5::expected<void> GroupBTree::InsertGroup(offset_t name_offset, offset_t object_header_ptr) {
     const BTreeNode::KValues k {
         .leaf = file_->superblock.group_leaf_node_k,
         .internal = file_->superblock.group_internal_node_k
@@ -806,7 +870,11 @@ void GroupBTree::InsertGroup(offset_t name_offset, offset_t object_header_ptr) {
     if (!root.has_value()) {
         BTreeEntries<BTreeGroupNodeKey> entries{};
 
-        offset_t empty_str_offset = heap_.WriteString("", *file_);
+        auto empty_str_offset_result = heap_.WriteString("", *file_);
+        if (!empty_str_offset_result) {
+            return cstd::unexpected(empty_str_offset_result.error());
+        }
+        offset_t empty_str_offset = *empty_str_offset_result;
 
         entries.keys.push_back({ empty_str_offset });
         entries.child_pointers.push_back(/* root: */ object_header_ptr);
@@ -819,10 +887,14 @@ void GroupBTree::InsertGroup(offset_t name_offset, offset_t object_header_ptr) {
 
         addr_ = new_root.AllocateAndWrite(*file_, k);
 
-        return;
+        return {};
     }
 
-    cstd::optional<SplitResult> split = root->InsertGroup(*addr_, name_offset, object_header_ptr, *file_, heap_);
+    auto split_result = root->InsertGroup(*addr_, name_offset, object_header_ptr, *file_, heap_);
+    if (!split_result) {
+        return cstd::unexpected(split_result.error());
+    }
+    cstd::optional<SplitResult> split = *split_result;
 
     if (split.has_value()) {
         BTreeEntries<BTreeGroupNodeKey> entries{};
@@ -836,7 +908,7 @@ void GroupBTree::InsertGroup(offset_t name_offset, offset_t object_header_ptr) {
         entries.keys.push_back(max);
 
         if (root->level == std::numeric_limits<uint8_t>::max()) {
-            throw std::runtime_error("BTree level overflow");
+            return hdf5::error(hdf5::HDF5ErrorCode::BTreeOverflow, "BTree level overflow");
         }
 
         BTreeNode new_root {
@@ -846,6 +918,8 @@ void GroupBTree::InsertGroup(offset_t name_offset, offset_t object_header_ptr) {
 
         addr_ = new_root.AllocateAndWrite(*file_, k);
     }
+
+    return {};
 }
 
 void ChunkedBTree::InsertChunk(const ChunkCoordinates& chunk_coords, uint32_t chunk_size, uint32_t filter_mask, offset_t data_ptr) {
