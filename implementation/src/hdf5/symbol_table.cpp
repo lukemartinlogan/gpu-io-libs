@@ -33,11 +33,14 @@ SymbolTableEntry SymbolTableEntry::Deserialize(Deserializer& de) {
     return ent;
 }
 
-cstd::optional<offset_t> SymbolTableNode::FindEntry(std::string_view name, const LocalHeap& heap, Deserializer& de) const {
+hdf5::expected<cstd::optional<offset_t>> SymbolTableNode::FindEntry(std::string_view name, const LocalHeap& heap, Deserializer& de) const {
     for (const auto& entry : entries) {
-        std::string entry_name = heap.ReadString(entry.link_name_offset, de);
+        auto entry_name = heap.ReadString(entry.link_name_offset, de);
+        if (!entry_name) {
+            return cstd::unexpected(entry_name.error());
+        }
 
-        if (entry_name == name) {
+        if (*entry_name == name) {
             return entry.object_header_addr;
         }
     }
