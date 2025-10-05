@@ -27,7 +27,12 @@ hdf5::expected<Group> Group::New(const Object& object) {
 }
 
 hdf5::expected<Dataset> Group::OpenDataset(std::string_view dataset_name) const {
-    if (const auto object = Get(dataset_name)) {
+    auto object_result = Get(dataset_name);
+    if (!object_result) {
+        return cstd::unexpected(object_result.error());
+    }
+
+    if (const auto& object = *object_result) {
         return Dataset::New(*object);
     }
 
@@ -41,7 +46,11 @@ hdf5::expected<Dataset> Group::CreateDataset(
     cstd::optional<hdf5::dim_vector<uint32_t>> chunk_dims,
     cstd::optional<std::vector<byte_t>> fill_value
 ) {
-    if (Get(dataset_name)) {
+    auto exists_result = Get(dataset_name);
+    if (!exists_result) {
+        return cstd::unexpected(exists_result.error());
+    }
+    if (*exists_result) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Dataset already exists");
     }
 
@@ -131,7 +140,12 @@ hdf5::expected<Dataset> Group::CreateDataset(
 }
 
 hdf5::expected<Group> Group::OpenGroup(std::string_view group_name) const {
-    if (const auto object = Get(group_name)) {
+    auto object_result = Get(group_name);
+    if (!object_result) {
+        return cstd::unexpected(object_result.error());
+    }
+
+    if (const auto& object = *object_result) {
         return New(*object);
     }
 
@@ -139,7 +153,11 @@ hdf5::expected<Group> Group::OpenGroup(std::string_view group_name) const {
 }
 
 hdf5::expected<Group> Group::CreateGroup(std::string_view name) {
-    if (Get(name)) {
+    auto exists_result = Get(name);
+    if (!exists_result) {
+        return cstd::unexpected(exists_result.error());
+    }
+    if (*exists_result) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Group already exists");
     }
 
@@ -207,11 +225,10 @@ hdf5::expected<Group> Group::CreateGroup(std::string_view name) {
     return New(new_group_obj);
 }
 
-cstd::optional<Object> Group::Get(std::string_view name) const {
+hdf5::expected<cstd::optional<Object>> Group::Get(std::string_view name) const {
     auto sym_table_node_ptr_result = table_.Get(name);
     if (!sym_table_node_ptr_result) {
-        // TODO(expected): Get can't return expected
-        return cstd::nullopt;
+        return cstd::unexpected(sym_table_node_ptr_result.error());
     }
     cstd::optional<offset_t> sym_table_node_ptr = *sym_table_node_ptr_result;
 
@@ -226,9 +243,7 @@ cstd::optional<Object> Group::Get(std::string_view name) const {
 
     auto entry_addr_result = symbol_table_node.FindEntry(name, GetLocalHeap(), object_.file->io);
     if (!entry_addr_result) {
-        // TODO(expected): Get can't return expected
-        // return cstd::unexpected(entry_addr_result.error());
-        return cstd::nullopt;
+        return cstd::unexpected(entry_addr_result.error());
     }
     cstd::optional<offset_t> entry_addr = *entry_addr_result;
 
@@ -239,22 +254,20 @@ cstd::optional<Object> Group::Get(std::string_view name) const {
     return Object(object_.file, base_addr + *entry_addr);
 }
 
-void Group::Insert(std::string_view name, offset_t object_header_ptr) {
+hdf5::expected<void> Group::Insert(std::string_view name, offset_t object_header_ptr) {
     auto name_offset_result = GetLocalHeap().WriteString(name, *object_.file);
     if (!name_offset_result) {
-        // TODO(expected): Insert can't return expected
-        // return cstd::unexpected(name_offset_result.error());
-        return;
+        return cstd::unexpected(name_offset_result.error());
     }
     offset_t name_offset = *name_offset_result;
 
     auto insert_result = table_.InsertGroup(name_offset, object_header_ptr);
     if (!insert_result) {
-        // TODO(expected): Insert can't return expected
-        return;
+        return cstd::unexpected(insert_result.error());
     }
 
     UpdateBTreePointer();
+    return {};
 }
 
 hdf5::expected<SymbolTableNode> Group::GetSymbolTableNode() const {

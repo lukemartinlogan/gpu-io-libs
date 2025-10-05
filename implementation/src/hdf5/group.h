@@ -26,10 +26,10 @@ public:
 
     hdf5::expected<Group> CreateGroup(std::string_view name);
 
-    [[nodiscard]] cstd::optional<Object> Get(std::string_view name) const;
+    [[nodiscard]] hdf5::expected<cstd::optional<Object>> Get(std::string_view name) const;
 
 private:
-    void Insert(std::string_view name, offset_t object_header_ptr);
+    hdf5::expected<void> Insert(std::string_view name, offset_t object_header_ptr);
 
     // FIXME: get rid of this method
     [[nodiscard]] const LocalHeap& GetLocalHeap() const {
