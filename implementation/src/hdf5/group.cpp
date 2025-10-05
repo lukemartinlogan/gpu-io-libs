@@ -45,7 +45,11 @@ hdf5::expected<Dataset> Group::CreateDataset(
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Dataset already exists");
     }
 
-    offset_t name_offset = GetLocalHeap().WriteString(dataset_name, *object_.file);
+    auto name_offset_result = GetLocalHeap().WriteString(dataset_name, *object_.file);
+    if (!name_offset_result) {
+        return cstd::unexpected(name_offset_result.error());
+    }
+    offset_t name_offset = *name_offset_result;
 
     Object new_ds = Object::AllocateEmptyAtEOF(128 + 24, object_.file);
 
@@ -116,7 +120,10 @@ hdf5::expected<Dataset> Group::CreateDataset(
     object_.file->io.SetPosition(node_alloc);
     object_.file->io.WriteBuffer(ser.buf);
 
-    table_.InsertGroup(name_offset, node_alloc);
+    auto insert_result = table_.InsertGroup(name_offset, node_alloc);
+    if (!insert_result) {
+        return cstd::unexpected(insert_result.error());
+    }
 
     UpdateBTreePointer();
 
@@ -136,7 +143,11 @@ hdf5::expected<Group> Group::CreateGroup(std::string_view name) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Group already exists");
     }
 
-    offset_t name_offset = GetLocalHeap().WriteString(name, *object_.file);
+    auto name_offset_result = GetLocalHeap().WriteString(name, *object_.file);
+    if (!name_offset_result) {
+        return cstd::unexpected(name_offset_result.error());
+    }
+    offset_t name_offset = *name_offset_result;
 
     Object new_group_obj = Object::AllocateEmptyAtEOF(24 + 24, object_.file);
 
@@ -147,7 +158,11 @@ hdf5::expected<Group> Group::CreateGroup(std::string_view name) {
 
     auto [heap, heap_offset] = LocalHeap::AllocateNew(*object_.file, 64);
 
-    offset_t empty_offset = heap.WriteString("", *object_.file);
+    auto empty_offset_result = heap.WriteString("", *object_.file);
+    if (!empty_offset_result) {
+        return cstd::unexpected(empty_offset_result.error());
+    }
+    offset_t empty_offset = *empty_offset_result;
 
     heap.RewriteToFile(object_.file->io);
 
@@ -182,7 +197,10 @@ hdf5::expected<Group> Group::CreateGroup(std::string_view name) {
     object_.file->io.SetPosition(node_alloc);
     object_.file->io.WriteBuffer(ser.buf);
 
-    table_.InsertGroup(name_offset, node_alloc);
+    auto insert_result = table_.InsertGroup(name_offset, node_alloc);
+    if (!insert_result) {
+        return cstd::unexpected(insert_result.error());
+    }
 
     UpdateBTreePointer();
 
@@ -190,7 +208,12 @@ hdf5::expected<Group> Group::CreateGroup(std::string_view name) {
 }
 
 cstd::optional<Object> Group::Get(std::string_view name) const {
-    cstd::optional<offset_t> sym_table_node_ptr = table_.Get(name);
+    auto sym_table_node_ptr_result = table_.Get(name);
+    if (!sym_table_node_ptr_result) {
+        // TODO(expected): Get can't return expected
+        return cstd::nullopt;
+    }
+    cstd::optional<offset_t> sym_table_node_ptr = *sym_table_node_ptr_result;
 
     if (!sym_table_node_ptr) {
         return cstd::nullopt;
@@ -201,7 +224,13 @@ cstd::optional<Object> Group::Get(std::string_view name) const {
     object_.file->io.SetPosition(base_addr + *sym_table_node_ptr);
     auto symbol_table_node = object_.file->io.ReadComplex<SymbolTableNode>();
 
-    cstd::optional<offset_t> entry_addr = symbol_table_node.FindEntry(name, GetLocalHeap(), object_.file->io);
+    auto entry_addr_result = symbol_table_node.FindEntry(name, GetLocalHeap(), object_.file->io);
+    if (!entry_addr_result) {
+        // TODO(expected): Get can't return expected
+        // return cstd::unexpected(entry_addr_result.error());
+        return cstd::nullopt;
+    }
+    cstd::optional<offset_t> entry_addr = *entry_addr_result;
 
     if (!entry_addr) {
         return cstd::nullopt;
@@ -211,9 +240,19 @@ cstd::optional<Object> Group::Get(std::string_view name) const {
 }
 
 void Group::Insert(std::string_view name, offset_t object_header_ptr) {
-    offset_t name_offset = GetLocalHeap().WriteString(name, *object_.file);
+    auto name_offset_result = GetLocalHeap().WriteString(name, *object_.file);
+    if (!name_offset_result) {
+        // TODO(expected): Insert can't return expected
+        // return cstd::unexpected(name_offset_result.error());
+        return;
+    }
+    offset_t name_offset = *name_offset_result;
 
-    table_.InsertGroup(name_offset, object_header_ptr);
+    auto insert_result = table_.InsertGroup(name_offset, object_header_ptr);
+    if (!insert_result) {
+        // TODO(expected): Insert can't return expected
+        return;
+    }
 
     UpdateBTreePointer();
 }
