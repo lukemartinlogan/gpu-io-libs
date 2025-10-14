@@ -13,7 +13,7 @@ void FixedPoint::Serialize(Serializer& s) const {
     s.Write(bit_precision);
 }
 
-FixedPoint FixedPoint::Deserialize(Deserializer& de) {
+hdf5::expected<FixedPoint> FixedPoint::Deserialize(Deserializer& de) {
     FixedPoint fp{};
 
     // first four bits are used
@@ -45,7 +45,7 @@ void FloatingPoint::Serialize(Serializer& s) const {
     s.Write(exponent_bias);
 }
 
-FloatingPoint FloatingPoint::Deserialize(Deserializer& de) {
+hdf5::expected<FloatingPoint> FloatingPoint::Deserialize(Deserializer& de) {
     FloatingPoint fp{};
 
     fp.bitset_ = de.Read<uint8_t>() & 0x7f;
@@ -161,7 +161,7 @@ void DatatypeMessage::Serialize(Serializer& s) const {
     cstd::visit([&s](const auto& data) { return data.Serialize(s); }, data);
 }
 
-DatatypeMessage DatatypeMessage::Deserialize(Deserializer& de) {
+hdf5::expected<DatatypeMessage> DatatypeMessage::Deserialize(Deserializer& de) {
     auto class_and_version = de.Read<uint8_t>();
 
     // high
@@ -170,11 +170,11 @@ DatatypeMessage DatatypeMessage::Deserialize(Deserializer& de) {
     uint8_t class_v = class_and_version & 0x0f;
 
     if (1 > version || version > 5) {
-        throw std::runtime_error("invalid datatype version");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "invalid datatype version");
     }
 
     if (class_v >= 11) {
-        throw std::runtime_error("invalid datatype class");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidClass, "invalid datatype class");
     }
 
     DatatypeMessage msg{};
@@ -184,23 +184,31 @@ DatatypeMessage DatatypeMessage::Deserialize(Deserializer& de) {
 
     switch (msg.class_v) {
         case Class::kFixedPoint: {
-            msg.data = de.ReadComplex<FixedPoint>();
+            auto result = de.ReadComplex<FixedPoint>();
+            if (!result) return cstd::unexpected(result.error());
+            msg.data = *result;
             break;
         }
         case Class::kFloatingPoint: {
-            msg.data = de.ReadComplex<FloatingPoint>();
+            auto result = de.ReadComplex<FloatingPoint>();
+            if (!result) return cstd::unexpected(result.error());
+            msg.data = *result;
             break;
         }
         case Class::kCompound: {
-            msg.data = de.ReadComplex<CompoundDatatype>();
+            auto result = de.ReadComplex<CompoundDatatype>();
+            if (!result) return cstd::unexpected(result.error());
+            msg.data = *result;
             break;
         }
         case Class::kVariableLength: {
-            msg.data = de.ReadComplex<VariableLength>();
+            auto result = de.ReadComplex<VariableLength>();
+            if (!result) return cstd::unexpected(result.error());
+            msg.data = *result;
             break;
         }
         default: {
-            throw std::logic_error("datatype message ty not implemented");
+            return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "datatype message type not implemented");
         }
     }
 
@@ -278,7 +286,7 @@ void VariableLength::Serialize(Serializer& s) const {
     }
 }
 
-VariableLength VariableLength::Deserialize(Deserializer& de) {
+hdf5::expected<VariableLength> VariableLength::Deserialize(Deserializer& de) {
     auto bitset_1 = de.Read<uint8_t>();
 
     VariableLength vl{};
@@ -287,7 +295,7 @@ VariableLength VariableLength::Deserialize(Deserializer& de) {
     auto type = bitset_1 & 0b1111;
 
     if (type >= 2) {
-        throw std::runtime_error("type wasn't valid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "type wasn't valid");
     }
 
     vl.type = static_cast<Type>(type);
@@ -296,7 +304,7 @@ VariableLength VariableLength::Deserialize(Deserializer& de) {
     auto padding_ty = (bitset_1 >> 4) & 0b1111;
 
     if (padding_ty >= 3) {
-        throw std::runtime_error("padding type wasn't valid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "padding type wasn't valid");
     }
 
     vl.padding = static_cast<PaddingType>(padding_ty);
@@ -305,7 +313,7 @@ VariableLength VariableLength::Deserialize(Deserializer& de) {
     auto charset = de.Read<uint8_t>() & 0b1111;
 
     if (charset >= 2) {
-        throw std::runtime_error("charset wasn't valid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "charset wasn't valid");
     }
 
     vl.charset = static_cast<Charset>(charset);
@@ -316,8 +324,9 @@ VariableLength VariableLength::Deserialize(Deserializer& de) {
     vl.size = de.Read<uint32_t>();
 
     if (vl.type != Type::kString) {
-        auto datatype_message = de.ReadComplex<DatatypeMessage>();
-        vl.parent_type = std::make_unique<DatatypeMessage>(datatype_message);
+        auto datatype_result = de.ReadComplex<DatatypeMessage>();
+        if (!datatype_result) return cstd::unexpected(datatype_result.error());
+        vl.parent_type = std::make_unique<DatatypeMessage>(*datatype_result);
     }
 
     return vl;
@@ -372,7 +381,7 @@ void CompoundMember::Serialize(Serializer& s) const {
     s.WriteComplex(*message);
 }
 
-std::string ReadPaddedString(Deserializer& de) {
+hdf5::expected<std::string> ReadPaddedString(Deserializer& de) {
     std::string name;
 
     for (;;) {
@@ -380,7 +389,7 @@ std::string ReadPaddedString(Deserializer& de) {
         cstd::array<byte_t, 8> buf{};
 
         if (!de.ReadBuffer(buf)) {
-            throw std::runtime_error("failed to read string block");
+            return hdf5::error(hdf5::HDF5ErrorCode::BufferTooSmall, "failed to read string block");
         }
 
         auto nul_pos = std::ranges::find(buf, static_cast<byte_t>('\0'));
@@ -398,10 +407,13 @@ std::string ReadPaddedString(Deserializer& de) {
     return name;
 }
 
-CompoundMember CompoundMember::Deserialize(Deserializer& de) {
+hdf5::expected<CompoundMember> CompoundMember::Deserialize(Deserializer& de) {
     CompoundMember mem{};
 
-    mem.name = ReadPaddedString(de);
+    auto name_result = ReadPaddedString(de);
+    if (!name_result) return cstd::unexpected(name_result.error());
+    mem.name = *name_result;
+
     mem.byte_offset = de.Read<uint32_t>();
 
     auto dimensionality = de.Read<uint8_t>();
@@ -420,9 +432,10 @@ CompoundMember CompoundMember::Deserialize(Deserializer& de) {
         }
     }
 
-    auto msg = de.ReadComplex<DatatypeMessage>();
+    auto msg_result = de.ReadComplex<DatatypeMessage>();
+    if (!msg_result) return cstd::unexpected(msg_result.error());
 
-    mem.message = std::make_unique<DatatypeMessage>(msg);
+    mem.message = std::make_unique<DatatypeMessage>(*msg_result);
 
     return mem;
 }
@@ -441,7 +454,7 @@ void CompoundDatatype::Serialize(Serializer& s) const {
     }
 }
 
-CompoundDatatype CompoundDatatype::Deserialize(Deserializer& de) {
+hdf5::expected<CompoundDatatype> CompoundDatatype::Deserialize(Deserializer& de) {
     auto num_members = de.Read<uint16_t>();
     // reserved (zero)
     de.Skip<uint8_t>();
@@ -452,7 +465,9 @@ CompoundDatatype CompoundDatatype::Deserialize(Deserializer& de) {
     comp.size = de.Read<uint32_t>();
 
     for (uint16_t i = 0; i < num_members; ++i) {
-        comp.members.push_back(de.Read<CompoundMember>());
+        auto member_result = de.ReadComplex<CompoundMember>();
+        if (!member_result) return cstd::unexpected(member_result.error());
+        comp.members.push_back(*member_result);
     }
 
     return comp;

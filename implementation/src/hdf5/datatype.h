@@ -39,7 +39,7 @@ struct FixedPoint {
 
     void Serialize(Serializer& s) const;
 
-    static FixedPoint Deserialize(Deserializer& de);
+    static hdf5::expected<FixedPoint> Deserialize(Deserializer& de);
 private:
     cstd::bitset<4> bitset_{};
 };
@@ -102,7 +102,7 @@ struct FloatingPoint {
 
     void Serialize(Serializer& s) const;
 
-    static FloatingPoint Deserialize(Deserializer& de);
+    static hdf5::expected<FloatingPoint> Deserialize(Deserializer& de);
 
     static const FloatingPoint f32_t;
 
@@ -141,7 +141,7 @@ struct VariableLength {
     VariableLength& operator=(VariableLength&& other) noexcept = default;
 
     void Serialize(Serializer& s) const;
-    static VariableLength Deserialize(Deserializer& de);
+    static hdf5::expected<VariableLength> Deserialize(Deserializer& de);
 };
 
 struct CompoundMember {
@@ -166,7 +166,7 @@ struct CompoundMember {
 
     void Serialize(Serializer& s) const;
 
-    static CompoundMember Deserialize(Deserializer& de);
+    static hdf5::expected<CompoundMember> Deserialize(Deserializer& de);
 };
 
 struct CompoundDatatype {
@@ -175,7 +175,7 @@ struct CompoundDatatype {
 
     void Serialize(Serializer& s) const;
 
-    static CompoundDatatype Deserialize(Deserializer& de);
+    static hdf5::expected<CompoundDatatype> Deserialize(Deserializer& de);
 };
 
 // TODO: make meaningful data accessible
@@ -222,7 +222,7 @@ struct DatatypeMessage {
 
     void Serialize(Serializer& s) const;
 
-    static DatatypeMessage Deserialize(Deserializer& de);
+    static hdf5::expected<DatatypeMessage> Deserialize(Deserializer& de);
 
 public:
     static const DatatypeMessage f32_t;
