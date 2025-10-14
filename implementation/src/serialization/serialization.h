@@ -55,7 +55,7 @@ public:
     }
 
     template<typename T>
-    T ReadComplex() {
+    auto ReadComplex() {
         return T::Deserialize(*this);
     }
 
