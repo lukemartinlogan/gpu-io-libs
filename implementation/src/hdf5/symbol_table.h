@@ -33,7 +33,7 @@ struct SymbolTableEntry {
 
     void Serialize(Serializer& s) const;
 
-    static SymbolTableEntry Deserialize(Deserializer& de);
+    static hdf5::expected<SymbolTableEntry> Deserialize(Deserializer& de);
 };
 
 struct SymbolTableNode {
@@ -43,7 +43,7 @@ struct SymbolTableNode {
 
     void Serialize(Serializer& s) const;
 
-    static SymbolTableNode Deserialize(Deserializer& de);
+    static hdf5::expected<SymbolTableNode> Deserialize(Deserializer& de);
 private:
     static constexpr uint8_t kVersionNumber = 0x01;
     static constexpr cstd::array<uint8_t, 4> kSignature = { 'S', 'N', 'O', 'D' };
