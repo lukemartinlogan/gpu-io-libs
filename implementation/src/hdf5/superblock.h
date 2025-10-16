@@ -55,7 +55,7 @@ struct SuperblockV0 {
 
     void Serialize(Serializer& s) const;
 
-    static SuperblockV0 Deserialize(Deserializer& de);
+    static hdf5::expected<SuperblockV0> Deserialize(Deserializer& de);
 private:
     static constexpr uint8_t kVersionNumber = 0x00;
 };
@@ -83,7 +83,7 @@ struct SuperblockV2 {
 
     void Serialize(Serializer& s) const;
 
-    static SuperblockV2 Deserialize(Deserializer& de);
+    static hdf5::expected<SuperblockV2> Deserialize(Deserializer& de);
 
 private:
     [[nodiscard]] uint32_t Checksum() const;
