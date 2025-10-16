@@ -383,7 +383,12 @@ cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     }
 
     file->io.SetPosition(found->offset);
-    auto msg = file->io.ReadComplex<ObjectHeaderMessage>();
+    auto msg_result = file->io.ReadComplex<ObjectHeaderMessage>();
+
+    // TODO(refactor-exceptions): this method should return an expected
+    if (!msg_result) {
+        return cstd::nullopt;
+    }
 
     if (file->io.GetPosition() > found->offset + found->size) {
         throw std::logic_error("Read too many bytes for message");
@@ -395,7 +400,7 @@ cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     WriteHeader(file->io, NilMessage::kType, nil_size, 0);
     file->io.WriteComplex(NilMessage { .size = nil_size, });
 
-    return msg;
+    return *msg_result;
 }
 
 // TODO: fix code duplication
@@ -422,13 +427,17 @@ cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
     }
 
     file->io.SetPosition(found->offset);
-    auto msg = file->io.ReadComplex<ObjectHeaderMessage>();
+    auto msg_result = file->io.ReadComplex<ObjectHeaderMessage>();
+
+    if (!msg_result) {
+        return cstd::nullopt;
+    }
 
     if (file->io.GetPosition() > found->offset + found->size) {
         throw std::logic_error("Read too many bytes for message");
     }
 
-    return msg;
+    return *msg_result;
 }
 
 inline len_t EmptyHeaderMessagesSize(len_t min_size) {
