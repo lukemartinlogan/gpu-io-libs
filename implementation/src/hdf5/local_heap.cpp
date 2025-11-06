@@ -23,9 +23,9 @@ std::string ReadNullTerminatedString(Deserializer& de, cstd::optional<size_t> ma
     return { reinterpret_cast<const char*>(buf.data()), buf.size() };
 }
 
-std::string LocalHeap::ReadString(offset_t offset, Deserializer& de) const {
+hdf5::expected<std::string> LocalHeap::ReadString(offset_t offset, Deserializer& de) const {
     if (offset >= data_segment_size) {
-        throw std::runtime_error("LocalHeap: offset out of bounds");
+        return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "LocalHeap: offset out of bounds");
     }
 
     auto rem_size = data_segment_size - offset;
@@ -35,7 +35,7 @@ std::string LocalHeap::ReadString(offset_t offset, Deserializer& de) const {
     return ReadNullTerminatedString(de, rem_size);
 }
 
-cstd::optional<LocalHeap::SuitableFreeSpace> LocalHeap::FindFreeSpace(len_t required_size, Deserializer& de) const {
+hdf5::expected<cstd::optional<LocalHeap::SuitableFreeSpace>> LocalHeap::FindFreeSpace(len_t required_size, Deserializer& de) const {
     static_assert(sizeof(FreeListBlock) == 2 * sizeof(len_t), "mismatch between spec");
 
     if (free_list_head_offset == kUndefinedOffset) {
@@ -47,7 +47,7 @@ cstd::optional<LocalHeap::SuitableFreeSpace> LocalHeap::FindFreeSpace(len_t requ
 
     while (current_offset != kLastFreeBlock) {
         if (current_offset + sizeof(FreeListBlock) > data_segment_size) {
-            throw std::runtime_error("LocalHeap: free list offset out of bounds");
+            return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "LocalHeap: free list offset out of bounds");
         }
 
         de.SetPosition(data_segment_address + current_offset);
@@ -68,18 +68,26 @@ cstd::optional<LocalHeap::SuitableFreeSpace> LocalHeap::FindFreeSpace(len_t requ
     return cstd::nullopt;
 }
 
-offset_t LocalHeap::WriteBytes(std::span<const byte_t> data, FileLink& file) {
+hdf5::expected<offset_t> LocalHeap::WriteBytes(std::span<const byte_t> data, FileLink& file) {
     len_t aligned_size = EightBytesAlignedSize(data.size());
 
-    auto free = FindFreeSpace(aligned_size, file.io);
+    auto free_result = FindFreeSpace(aligned_size, file.io);
+    if (!free_result) {
+        return cstd::unexpected(free_result.error());
+    }
+    auto free = *free_result;
 
     if (!free) {
         ReserveAdditional(file, aligned_size);
 
-        free = FindFreeSpace(aligned_size, file.io);
+        free_result = FindFreeSpace(aligned_size, file.io);
+        if (!free_result) {
+            return cstd::unexpected(free_result.error());
+        }
+        free = *free_result;
 
         if (!free) {
-            throw std::logic_error("LocalHeap: failed to allocate space after reserving more");
+            return hdf5::error(hdf5::HDF5ErrorCode::AllocationMismatch, "LocalHeap: failed to allocate space after reserving more");
         }
     }
 
@@ -137,7 +145,7 @@ offset_t LocalHeap::WriteBytes(std::span<const byte_t> data, FileLink& file) {
     return free->this_offset;
 }
 
-offset_t LocalHeap::WriteString(std::string_view string, FileLink& file) {
+hdf5::expected<offset_t> LocalHeap::WriteString(std::string_view string, FileLink& file) {
     std::string null_terminated(string);
 
     return WriteBytes(
@@ -236,15 +244,15 @@ void LocalHeap::Serialize(Serializer& s) const {
     s.Write(data_segment_address);
 }
 
-LocalHeap LocalHeap::Deserialize(Deserializer& de) {
+hdf5::expected<LocalHeap> LocalHeap::Deserialize(Deserializer& de) {
     offset_t this_offset = de.GetPosition();
 
     if (de.Read<cstd::array<uint8_t, 4>>() != kSignature) {
-        throw std::runtime_error("Superblock signature was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "LocalHeap signature was invalid");
     }
 
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("Superblock version number was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "LocalHeap version number was invalid");
     }
     // reserved (zero)
     de.Skip<uint8_t>();

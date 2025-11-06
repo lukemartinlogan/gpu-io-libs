@@ -2,10 +2,10 @@
 
 #include "symbol_table.h"
 
-Group::Group(const Object& object)
-    : object_(object)
-{
-    ObjectHeader header = object.GetHeader();
+hdf5::expected<Group> Group::New(const Object& object) {
+    auto header_result = object.GetHeader();
+    if (!header_result) return cstd::unexpected(header_result.error());
+    ObjectHeader header = *header_result;
 
     auto symb_tbl_msg = std::ranges::find_if(
         header.messages,
@@ -15,38 +15,53 @@ Group::Group(const Object& object)
     );
 
     if (symb_tbl_msg == header.messages.end()) {
-        throw std::runtime_error("Object is not a group header");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Object is not a group header");
     }
 
     auto symb_tbl = cstd::get<SymbolTableMessage>(symb_tbl_msg->message);
 
-    object_.file->io.SetPosition(object_.file->superblock.base_addr + symb_tbl.local_heap_addr);
-    auto local_heap = object_.file->io.ReadComplex<LocalHeap>();
+    object.file->io.SetPosition(object.file->superblock.base_addr + symb_tbl.local_heap_addr);
+    auto local_heap_result = object.file->io.ReadComplex<LocalHeap>();
+    if (!local_heap_result) return cstd::unexpected(local_heap_result.error());
 
-    table_ = GroupBTree(symb_tbl.b_tree_addr, object_.file, local_heap);
+    GroupBTree table(symb_tbl.b_tree_addr, object.file, *local_heap_result);
+
+    return Group(object, std::move(table));
 }
 
-Dataset Group::OpenDataset(std::string_view dataset_name) const {
-    if (const auto object = Get(dataset_name)) {
-        return Dataset(*object);
+hdf5::expected<Dataset> Group::OpenDataset(std::string_view dataset_name) const {
+    auto object_result = Get(dataset_name);
+    if (!object_result) {
+        return cstd::unexpected(object_result.error());
     }
 
-    // TODO: better error handling
-    throw std::runtime_error(std::format("Dataset \"{}\" not found", dataset_name));
+    if (const auto& object = *object_result) {
+        return Dataset::New(*object);
+    }
+
+    return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Dataset not found");
 }
 
-Dataset Group::CreateDataset(
+hdf5::expected<Dataset> Group::CreateDataset(
     std::string_view dataset_name,
     const hdf5::dim_vector<len_t>& dimension_sizes,
     const DatatypeMessage& type,
     cstd::optional<hdf5::dim_vector<uint32_t>> chunk_dims,
     cstd::optional<std::vector<byte_t>> fill_value
 ) {
-    if (Get(dataset_name)) {
-        throw std::runtime_error(std::format("Dataset \"{}\" already exists", dataset_name));
+    auto exists_result = Get(dataset_name);
+    if (!exists_result) {
+        return cstd::unexpected(exists_result.error());
+    }
+    if (*exists_result) {
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Dataset already exists");
     }
 
-    offset_t name_offset = GetLocalHeap().WriteString(dataset_name, *object_.file);
+    auto name_offset_result = GetLocalHeap().WriteString(dataset_name, *object_.file);
+    if (!name_offset_result) {
+        return cstd::unexpected(name_offset_result.error());
+    }
+    offset_t name_offset = *name_offset_result;
 
     Object new_ds = Object::AllocateEmptyAtEOF(128 + 24, object_.file);
 
@@ -117,28 +132,43 @@ Dataset Group::CreateDataset(
     object_.file->io.SetPosition(node_alloc);
     object_.file->io.WriteBuffer(ser.buf);
 
-    table_.InsertGroup(name_offset, node_alloc);
+    auto insert_result = table_.InsertGroup(name_offset, node_alloc);
+    if (!insert_result) {
+        return cstd::unexpected(insert_result.error());
+    }
 
     UpdateBTreePointer();
 
-    return Dataset(new_ds);
+    return Dataset::New(new_ds);
 }
 
-Group Group::OpenGroup(std::string_view group_name) const {
-    if (const auto object = Get(group_name)) {
-        return Group(*object);
+hdf5::expected<Group> Group::OpenGroup(std::string_view group_name) const {
+    auto object_result = Get(group_name);
+    if (!object_result) {
+        return cstd::unexpected(object_result.error());
     }
 
-    // TODO: better error handling
-    throw std::runtime_error(std::format("Group \"{}\" not found", group_name));
+    if (const auto& object = *object_result) {
+        return New(*object);
+    }
+
+    return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Group not found");
 }
 
-Group Group::CreateGroup(std::string_view name) {
-    if (Get(name)) {
-        throw std::runtime_error(std::format("Dataset \"{}\" already exists", name));
+hdf5::expected<Group> Group::CreateGroup(std::string_view name) {
+    auto exists_result = Get(name);
+    if (!exists_result) {
+        return cstd::unexpected(exists_result.error());
+    }
+    if (*exists_result) {
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Group already exists");
     }
 
-    offset_t name_offset = GetLocalHeap().WriteString(name, *object_.file);
+    auto name_offset_result = GetLocalHeap().WriteString(name, *object_.file);
+    if (!name_offset_result) {
+        return cstd::unexpected(name_offset_result.error());
+    }
+    offset_t name_offset = *name_offset_result;
 
     Object new_group_obj = Object::AllocateEmptyAtEOF(24 + 24, object_.file);
 
@@ -149,7 +179,11 @@ Group Group::CreateGroup(std::string_view name) {
 
     auto [heap, heap_offset] = LocalHeap::AllocateNew(*object_.file, 64);
 
-    offset_t empty_offset = heap.WriteString("", *object_.file);
+    auto empty_offset_result = heap.WriteString("", *object_.file);
+    if (!empty_offset_result) {
+        return cstd::unexpected(empty_offset_result.error());
+    }
+    offset_t empty_offset = *empty_offset_result;
 
     heap.RewriteToFile(object_.file->io);
 
@@ -184,15 +218,22 @@ Group Group::CreateGroup(std::string_view name) {
     object_.file->io.SetPosition(node_alloc);
     object_.file->io.WriteBuffer(ser.buf);
 
-    table_.InsertGroup(name_offset, node_alloc);
+    auto insert_result = table_.InsertGroup(name_offset, node_alloc);
+    if (!insert_result) {
+        return cstd::unexpected(insert_result.error());
+    }
 
     UpdateBTreePointer();
 
-    return Group(new_group_obj);
+    return New(new_group_obj);
 }
 
-cstd::optional<Object> Group::Get(std::string_view name) const {
-    cstd::optional<offset_t> sym_table_node_ptr = table_.Get(name);
+hdf5::expected<cstd::optional<Object>> Group::Get(std::string_view name) const {
+    auto sym_table_node_ptr_result = table_.Get(name);
+    if (!sym_table_node_ptr_result) {
+        return cstd::unexpected(sym_table_node_ptr_result.error());
+    }
+    cstd::optional<offset_t> sym_table_node_ptr = *sym_table_node_ptr_result;
 
     if (!sym_table_node_ptr) {
         return cstd::nullopt;
@@ -201,40 +242,60 @@ cstd::optional<Object> Group::Get(std::string_view name) const {
     offset_t base_addr = object_.file->superblock.base_addr;
 
     object_.file->io.SetPosition(base_addr + *sym_table_node_ptr);
-    auto symbol_table_node = object_.file->io.ReadComplex<SymbolTableNode>();
+    auto symbol_table_node_result = object_.file->io.ReadComplex<SymbolTableNode>();
+    if (!symbol_table_node_result) return cstd::unexpected(symbol_table_node_result.error());
 
-    cstd::optional<offset_t> entry_addr = symbol_table_node.FindEntry(name, GetLocalHeap(), object_.file->io);
+    auto entry_addr_result = symbol_table_node_result->FindEntry(name, GetLocalHeap(), object_.file->io);
+    if (!entry_addr_result) {
+        return cstd::unexpected(entry_addr_result.error());
+    }
+    cstd::optional<offset_t> entry_addr = *entry_addr_result;
 
     if (!entry_addr) {
         return cstd::nullopt;
     }
 
-    return Object(object_.file, base_addr + *entry_addr);
+    return Object::New(object_.file, base_addr + *entry_addr);
 }
 
-void Group::Insert(std::string_view name, offset_t object_header_ptr) {
-    offset_t name_offset = GetLocalHeap().WriteString(name, *object_.file);
+hdf5::expected<void> Group::Insert(std::string_view name, offset_t object_header_ptr) {
+    auto name_offset_result = GetLocalHeap().WriteString(name, *object_.file);
+    if (!name_offset_result) {
+        return cstd::unexpected(name_offset_result.error());
+    }
+    offset_t name_offset = *name_offset_result;
 
-    table_.InsertGroup(name_offset, object_header_ptr);
+    auto insert_result = table_.InsertGroup(name_offset, object_header_ptr);
+    if (!insert_result) {
+        return cstd::unexpected(insert_result.error());
+    }
 
     UpdateBTreePointer();
+    return {};
 }
 
-SymbolTableNode Group::GetSymbolTableNode() const {
-    BTreeNode table = table_.ReadRoot().value();
+hdf5::expected<SymbolTableNode> Group::GetSymbolTableNode() const {
+    auto root_result = table_.ReadRoot();
+    if (!root_result) return cstd::unexpected(root_result.error());
+
+    if (!root_result->has_value()) {
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "BTree root is null");
+    }
+
+    BTreeNode& table = **root_result;
 
     if (!table.IsLeaf()) {
-        throw std::logic_error("traversing tree not implemented");
+        return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "traversing tree not implemented");
     }
 
     const auto* entries = cstd::get_if<BTreeEntries<BTreeGroupNodeKey>>(&table.entries);
 
     if (!entries) {
-        throw std::runtime_error("Group table does not contain group node keys");
+        return hdf5::error(hdf5::HDF5ErrorCode::WrongNodeType, "Group table does not contain group node keys");
     }
 
     if (entries->child_pointers.size() != 1) {
-        throw std::runtime_error("nodes at level zero should only have one child pointer");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "nodes at level zero should only have one child pointer");
     }
 
     offset_t sym_tbl_node = entries->child_pointers.front();

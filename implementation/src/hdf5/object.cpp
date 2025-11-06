@@ -168,9 +168,7 @@ std::vector<byte_t> WriteMessageToBuffer(const HeaderMessageVariant& msg) {
 
     WriteHeader(prefix_s, kType, msg_size - kPrefixSize, /* FIXME: support flags */ 0);
 
-    if (prefix_s.cursor != kPrefixSize) { // NOLINT: isn't actually always true
-        throw std::runtime_error("prefix size was not eight bytes");
-    }
+    ASSERT(prefix_s.cursor == kPrefixSize, "prefix size was not eight bytes");
 
     // ReSharper disable once CppDFAUnreachableCode : for some reason, it thinks the cursor prefix size check always throws
     return msg_data.buf;
@@ -199,7 +197,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             uint16_t total_nil_size = nil_space->size - msg_bytes.size();
 
             if (total_nil_size < kPrefixSize) {
-                throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+                UNREACHABLE("FindFreeSpace didn't return enough size for a nil message header");
             }
 
             uint16_t nil_size = total_nil_size - kPrefixSize;
@@ -211,9 +209,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             written_ct += 1;
         }
 
-        if (file->io.GetPosition() > nil_space->offset + nil_space->size) {
-            throw std::logic_error("wrote more bytes than the nil space allowed");
-        }
+        ASSERT(file->io.GetPosition() <= nil_space->offset + nil_space->size, "wrote more bytes than the nil space allowed");
     } else {
         size_t cont_size = sizeof(ObjectHeaderContinuationMessage) + kPrefixSize;
         cstd::optional<Space> space_cont;
@@ -247,7 +243,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
                 uint16_t total_nil_size = space_cont->size - cont_size;
 
                 if (total_nil_size < kPrefixSize) {
-                    throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+                    UNREACHABLE("FindFreeSpace didn't return enough size for a nil message header");
                 }
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
@@ -270,7 +266,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
                 uint16_t total_nil_size = cont.length - msg_bytes.size();
 
                 if (total_nil_size < kPrefixSize) {
-                    throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+                    UNREACHABLE("FindFreeSpace didn't return enough size for a nil message header");
                 }
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
@@ -287,9 +283,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
             cstd::optional<Space> space = FindSpace(cont_size, false);
 
-            if (!space.has_value()) {
-                throw std::logic_error("there should always be an object header message that can be moved");
-            }
+            ASSERT(space.has_value(), "there should always be an object header message that can be moved");
 
             // move the bytes into write buffer
             std::vector<byte_t> moving(space->size);
@@ -319,7 +313,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
                 uint16_t total_nil_size = space->size - cont_size;
 
                 if (total_nil_size < kPrefixSize) {
-                    throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+                    UNREACHABLE("FindFreeSpace didn't return enough size for a nil message header");
                 }
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
@@ -342,7 +336,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
                 uint16_t total_nil_size = cont.length - msg_bytes.size();
 
                 if (total_nil_size < kPrefixSize) {
-                    throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+                    UNREACHABLE("FindFreeSpace didn't return enough size for a nil message header");
                 }
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
@@ -383,11 +377,14 @@ cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     }
 
     file->io.SetPosition(found->offset);
-    auto msg = file->io.ReadComplex<ObjectHeaderMessage>();
+    auto msg_result = file->io.ReadComplex<ObjectHeaderMessage>();
 
-    if (file->io.GetPosition() > found->offset + found->size) {
-        throw std::logic_error("Read too many bytes for message");
+    // TODO(refactor-exceptions): this method should return an expected
+    if (!msg_result) {
+        return cstd::nullopt;
     }
+
+    ASSERT(file->io.GetPosition() <= found->offset + found->size, "Read too many bytes for message");
 
     file->io.SetPosition(found->offset);
     uint16_t nil_size = found->size - kPrefixSize;
@@ -395,7 +392,7 @@ cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     WriteHeader(file->io, NilMessage::kType, nil_size, 0);
     file->io.WriteComplex(NilMessage { .size = nil_size, });
 
-    return msg;
+    return *msg_result;
 }
 
 // TODO: fix code duplication
@@ -422,13 +419,15 @@ cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
     }
 
     file->io.SetPosition(found->offset);
-    auto msg = file->io.ReadComplex<ObjectHeaderMessage>();
+    auto msg_result = file->io.ReadComplex<ObjectHeaderMessage>();
 
-    if (file->io.GetPosition() > found->offset + found->size) {
-        throw std::logic_error("Read too many bytes for message");
+    if (!msg_result) {
+        return cstd::nullopt;
     }
 
-    return msg;
+    ASSERT(file->io.GetPosition() <= found->offset + found->size, "Read too many bytes for message");
+
+    return *msg_result;
 }
 
 inline len_t EmptyHeaderMessagesSize(len_t min_size) {
@@ -471,9 +470,7 @@ Object Object::AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink
 
     len_t bytes_written = file->io.GetPosition() - alloc_start;
 
-    if (bytes_written != alloc_size) {
-        throw std::logic_error("AllocateEmptyAtEOF: size mismatch");
-    }
+    ASSERT(bytes_written == alloc_size, "AllocateEmptyAtEOF: size mismatch");
 
     return Object(file, alloc_start);
 }

@@ -39,7 +39,7 @@ struct FixedPoint {
 
     void Serialize(Serializer& s) const;
 
-    static FixedPoint Deserialize(Deserializer& de);
+    static hdf5::expected<FixedPoint> Deserialize(Deserializer& de);
 private:
     cstd::bitset<4> bitset_{};
 };
@@ -59,7 +59,7 @@ struct FloatingPoint {
 
     enum class ByteOrder : uint8_t { kLittleEndian, kBigEndian, kVAXEndian };
 
-    [[nodiscard]] ByteOrder GetByteOrder() const {
+    [[nodiscard]] hdf5::expected<ByteOrder> GetByteOrder() const {
         const bool _0 = bitset_.test(0);
         const bool _6 = bitset_.test(6);
 
@@ -73,7 +73,7 @@ struct FloatingPoint {
             return ByteOrder::kVAXEndian;
         }
 
-        throw std::logic_error("Invalid byte order");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Invalid byte order");
     }
 
     [[nodiscard]] bool LowPadding() const {
@@ -90,19 +90,19 @@ struct FloatingPoint {
 
     enum class MantissaNormalization : uint8_t { kNone, kMSBSet, kMSBImpliedSet };
 
-    [[nodiscard]] MantissaNormalization GetMantissaNormalization() const {
+    [[nodiscard]] hdf5::expected<MantissaNormalization> GetMantissaNormalization() const {
         // get bits 4 & 5
         switch ((bitset_.to_ulong() >> 4) & 0b11) {
             case 0: return MantissaNormalization::kNone;
             case 1: return MantissaNormalization::kMSBSet;
             case 2: return MantissaNormalization::kMSBImpliedSet;
-            default: throw std::logic_error("invalid mantissa normalization");
+            default: return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Invalid mantissa normalization");
         }
     }
 
     void Serialize(Serializer& s) const;
 
-    static FloatingPoint Deserialize(Deserializer& de);
+    static hdf5::expected<FloatingPoint> Deserialize(Deserializer& de);
 
     static const FloatingPoint f32_t;
 
@@ -141,7 +141,7 @@ struct VariableLength {
     VariableLength& operator=(VariableLength&& other) noexcept = default;
 
     void Serialize(Serializer& s) const;
-    static VariableLength Deserialize(Deserializer& de);
+    static hdf5::expected<VariableLength> Deserialize(Deserializer& de);
 };
 
 struct CompoundMember {
@@ -166,7 +166,7 @@ struct CompoundMember {
 
     void Serialize(Serializer& s) const;
 
-    static CompoundMember Deserialize(Deserializer& de);
+    static hdf5::expected<CompoundMember> Deserialize(Deserializer& de);
 };
 
 struct CompoundDatatype {
@@ -175,7 +175,7 @@ struct CompoundDatatype {
 
     void Serialize(Serializer& s) const;
 
-    static CompoundDatatype Deserialize(Deserializer& de);
+    static hdf5::expected<CompoundDatatype> Deserialize(Deserializer& de);
 };
 
 // TODO: make meaningful data accessible
@@ -222,7 +222,7 @@ struct DatatypeMessage {
 
     void Serialize(Serializer& s) const;
 
-    static DatatypeMessage Deserialize(Deserializer& de);
+    static hdf5::expected<DatatypeMessage> Deserialize(Deserializer& de);
 
 public:
     static const DatatypeMessage f32_t;

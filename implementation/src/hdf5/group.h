@@ -10,11 +10,11 @@
 
 class Group {
 public:
-    explicit Group(const Object& object);
+    static hdf5::expected<Group> New(const Object& object);
 
-    [[nodiscard]] Dataset OpenDataset(std::string_view dataset_name) const;
+    [[nodiscard]] hdf5::expected<Dataset> OpenDataset(std::string_view dataset_name) const;
 
-    Dataset CreateDataset(
+    hdf5::expected<Dataset> CreateDataset(
         std::string_view dataset_name,
         const hdf5::dim_vector<len_t>& dimension_sizes,
         const DatatypeMessage& type,
@@ -22,16 +22,14 @@ public:
         cstd::optional<std::vector<byte_t>> fill_value = cstd::nullopt
     );
 
-    [[nodiscard]] Group OpenGroup(std::string_view group_name) const;
+    [[nodiscard]] hdf5::expected<Group> OpenGroup(std::string_view group_name) const;
 
-    Group CreateGroup(std::string_view name);
+    hdf5::expected<Group> CreateGroup(std::string_view name);
 
-    [[nodiscard]] cstd::optional<Object> Get(std::string_view name) const;
+    [[nodiscard]] hdf5::expected<cstd::optional<Object>> Get(std::string_view name) const;
 
 private:
-    Group() = default;
-
-    void Insert(std::string_view name, offset_t object_header_ptr);
+    hdf5::expected<void> Insert(std::string_view name, offset_t object_header_ptr);
 
     // FIXME: get rid of this method
     [[nodiscard]] const LocalHeap& GetLocalHeap() const {
@@ -44,9 +42,14 @@ private:
     }
 
     // FIXME: get rid of this method
-    [[nodiscard]] SymbolTableNode GetSymbolTableNode() const;
+    [[nodiscard]] hdf5::expected<SymbolTableNode> GetSymbolTableNode() const;
 
     void UpdateBTreePointer();
+
+    Group() = default;
+
+    Group(Object object, GroupBTree table)
+        : object_(std::move(object)), table_(std::move(table)) {}
 
 private:
 public:

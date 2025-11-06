@@ -52,9 +52,9 @@ void DataspaceMessage::Serialize(Serializer& s) const {
     }
 }
 
-DataspaceMessage DataspaceMessage::Deserialize(Deserializer& de) {
+hdf5::expected<DataspaceMessage> DataspaceMessage::Deserialize(Deserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("Version number was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }
 
     DataspaceMessage msg{};
@@ -85,9 +85,7 @@ DataspaceMessage DataspaceMessage::Deserialize(Deserializer& de) {
 }
 
 DataspaceMessage::DataspaceMessage(const hdf5::dim_vector<DimensionInfo>& dimensions, bool max_dim_present, bool perm_indices_present) {
-    if (dimensions.size() > 255) {
-        throw std::logic_error("DataspaceMessage cannot have more than 255 dimensions");
-    }
+    ASSERT(dimensions.size() <= 255, "DataspaceMessage cannot have more than 255 dimensions");
 
     this->dimensions = dimensions;
 
@@ -116,9 +114,9 @@ void LinkInfoMessage::Serialize(Serializer& s) const {
     }
 }
 
-LinkInfoMessage LinkInfoMessage::Deserialize(Deserializer& de) {
+hdf5::expected<LinkInfoMessage> LinkInfoMessage::Deserialize(Deserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("Version number was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }
 
     LinkInfoMessage msg{};
@@ -159,9 +157,9 @@ void FillValueMessage::Serialize(Serializer& s) const {
     }
 }
 
-FillValueMessage FillValueMessage::Deserialize(Deserializer& de) {
+hdf5::expected<FillValueMessage> FillValueMessage::Deserialize(Deserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("Version number was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }
 
     FillValueMessage msg{};
@@ -169,7 +167,7 @@ FillValueMessage FillValueMessage::Deserialize(Deserializer& de) {
     // space allocation time
     auto space_alloc = de.Read<uint8_t>();
     if (space_alloc >= 4) {
-        throw std::runtime_error("space alloc time was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "space alloc time was invalid");
     }
 
     msg.space_alloc_time = static_cast<SpaceAllocTime>(space_alloc);
@@ -177,7 +175,7 @@ FillValueMessage FillValueMessage::Deserialize(Deserializer& de) {
     // fv write time
     auto write_time = de.Read<uint8_t>();
     if (write_time >= 3) {
-        throw std::runtime_error("fill value write time was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "fill value write time was invalid");
     }
 
     msg.write_time = static_cast<ValWriteTime>(write_time);
@@ -193,7 +191,7 @@ FillValueMessage FillValueMessage::Deserialize(Deserializer& de) {
 
         msg.fill_value = fv;
     } else {
-        throw std::runtime_error("invalid fill value defined state");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "invalid fill value defined state");
     }
 
     return msg;
@@ -219,9 +217,9 @@ void ExternalDataFilesMessage::Serialize(Serializer& s) const {
     }
 }
 
-ExternalDataFilesMessage ExternalDataFilesMessage::Deserialize(Deserializer& de) {
+hdf5::expected<ExternalDataFilesMessage> ExternalDataFilesMessage::Deserialize(Deserializer& de) {
     if (de.Read<uint8_t>() != 1) {
-        throw std::runtime_error("ExternalDataFilesMessage: unsupported version");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "ExternalDataFilesMessage: unsupported version");
     }
 
     de.Skip<3>(); // reserved
@@ -233,7 +231,7 @@ ExternalDataFilesMessage ExternalDataFilesMessage::Deserialize(Deserializer& de)
 
     if (allocated_slots != used_slots) {
         // "The current library simply uses the number of Used Slots for this message"
-        throw std::logic_error("ExternalDataFilesMessage: allocated slots does not match used slots");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "ExternalDataFilesMessage: allocated slots does not match used slots");
     }
 
     msg.heap_address = de.Read<offset_t>();
@@ -253,15 +251,11 @@ void GroupInfoMessage::Serialize(Serializer& s) const {
     cstd::bitset<2> flags;
     flags.set(0, max_compact.has_value());
 
-    if (max_compact.has_value() != min_dense.has_value()) {
-        throw std::logic_error("max_compact and min_dense must both be present or absent");
-    }
+    ASSERT((max_compact.has_value() == min_dense.has_value()), "max_compact and min_dense must both be present or absent");
 
     flags.set(1, est_num_entries.has_value());
 
-    if (est_num_entries.has_value() != est_entries_name_len.has_value()) {
-        throw std::logic_error("est_num_entries and est_entries_name_len must both be present or absent");
-    }
+    ASSERT((est_num_entries.has_value() == est_entries_name_len.has_value()), "est_num_entries and est_entries_name_len must both be present or absent");
 
     s.Write(static_cast<uint8_t>(flags.to_ulong()));
 
@@ -275,9 +269,9 @@ void GroupInfoMessage::Serialize(Serializer& s) const {
     }
 }
 
-GroupInfoMessage GroupInfoMessage::Deserialize(Deserializer& de) {
+hdf5::expected<GroupInfoMessage> GroupInfoMessage::Deserialize(Deserializer& de) {
     if (de.Read<uint8_t>() != 0) {
-        throw std::runtime_error("Invalid version number for GroupInfoMessage");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Invalid version number for GroupInfoMessage");
     }
 
     GroupInfoMessage msg;
@@ -302,7 +296,7 @@ void CompactStorageProperty::Serialize(Serializer& s) const {
     s.WriteBuffer(raw_data);
 }
 
-CompactStorageProperty CompactStorageProperty::Deserialize(Deserializer& de) {
+hdf5::expected<CompactStorageProperty> CompactStorageProperty::Deserialize(Deserializer& de) {
     auto size = de.Read<uint16_t>();
 
     CompactStorageProperty msg{};
@@ -318,7 +312,7 @@ void ContiguousStorageProperty::Serialize(Serializer& s) const {
     s.Write(size);
 }
 
-ContiguousStorageProperty ContiguousStorageProperty::Deserialize(Deserializer& de) {
+hdf5::expected<ContiguousStorageProperty> ContiguousStorageProperty::Deserialize(Deserializer& de) {
     ContiguousStorageProperty prop{};
 
     prop.address = de.Read<offset_t>();
@@ -339,7 +333,7 @@ void ChunkedStorageProperty::Serialize(Serializer& s) const {
     s.Write(elem_size_bytes);
 }
 
-ChunkedStorageProperty ChunkedStorageProperty::Deserialize(Deserializer& de) {
+hdf5::expected<ChunkedStorageProperty> ChunkedStorageProperty::Deserialize(Deserializer& de) {
     auto dimensionality = de.Read<uint8_t>() - 1;
 
     ChunkedStorageProperty prop{};
@@ -369,13 +363,13 @@ void DataLayoutMessage::Serialize(Serializer& s) const {
         s.Write<uint8_t>(kChunked);
         s.WriteComplex(cstd::get<ChunkedStorageProperty>(properties));
     } else {
-        throw std::runtime_error("invalid data layout class");
+        UNREACHABLE("invalid data layout class");
     }
 }
 
-DataLayoutMessage DataLayoutMessage::Deserialize(Deserializer& de) {
+hdf5::expected<DataLayoutMessage> DataLayoutMessage::Deserialize(Deserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("Version number was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }
 
     auto layout_class = de.Read<uint8_t>();
@@ -383,13 +377,19 @@ DataLayoutMessage DataLayoutMessage::Deserialize(Deserializer& de) {
     DataLayoutMessage msg{};
 
     if (layout_class == kCompact) {
-        msg.properties = de.ReadComplex<CompactStorageProperty>();
+        auto result = CompactStorageProperty::Deserialize(de);
+        if (!result) return cstd::unexpected(result.error());
+        msg.properties = *result;
     } else if (layout_class == kContiguous) {
-        msg.properties = de.ReadComplex<ContiguousStorageProperty>();
+        auto result = ContiguousStorageProperty::Deserialize(de);
+        if (!result) return cstd::unexpected(result.error());
+        msg.properties = *result;
     } else if (layout_class == kChunked) {
-        msg.properties = de.ReadComplex<ChunkedStorageProperty>();
+        auto result = ChunkedStorageProperty::Deserialize(de);
+        if (!result) return cstd::unexpected(result.error());
+        msg.properties = *result;
     } else {
-        throw std::runtime_error("invalid data layout class");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidClass, "invalid data layout class");
     }
 
     return msg;
@@ -444,9 +444,9 @@ void ReadEightBytePaddedData(Deserializer& de, std::span<byte_t> buffer) {
     de.ReadBuffer(std::span(leftover_buf.data(), leftover));
 }
 
-AttributeMessage AttributeMessage::Deserialize(Deserializer& de) {
+hdf5::expected<AttributeMessage> AttributeMessage::Deserialize(Deserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("Version number was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }
     // reserved (zero)
     de.Skip<uint8_t>();
@@ -464,7 +464,7 @@ AttributeMessage AttributeMessage::Deserialize(Deserializer& de) {
     ReadEightBytePaddedData(de, std::span(buf.data(), name_size));
 
     if (buf.at(name_size - 1) != static_cast<byte_t>('\0')) {
-        throw std::runtime_error("string read was not null-terminated");
+        return hdf5::error(hdf5::HDF5ErrorCode::StringNotNullTerminated, "string read was not null-terminated");
     }
 
     msg.name = std::string(reinterpret_cast<const char*>(buf.data()), name_size - 1);
@@ -473,13 +473,18 @@ AttributeMessage AttributeMessage::Deserialize(Deserializer& de) {
     std::span datatype_buf(buf.data(), datatype_size);
     ReadEightBytePaddedData(de, datatype_buf);
 
-    msg.datatype = BufferDeserializer(datatype_buf).ReadComplex<DatatypeMessage>();
+    auto datatype_result = BufferDeserializer(datatype_buf).ReadComplex<DatatypeMessage>();
+    if (!datatype_result) return cstd::unexpected(datatype_result.error());
+    msg.datatype = *datatype_result;
 
     // read dataspace
     std::span dataspace_buf(buf.data(), dataspace_size);
     ReadEightBytePaddedData(de, dataspace_buf);
 
-    msg.dataspace = BufferDeserializer(dataspace_buf).ReadComplex<DataspaceMessage>();
+    auto dataspace_result = BufferDeserializer(dataspace_buf).ReadComplex<DataspaceMessage>();
+    if (!dataspace_result) return cstd::unexpected(dataspace_result.error());
+    msg.dataspace = *dataspace_result;
+
 
     size_t data_size = msg.datatype.Size() * msg.dataspace.MaxElements();
     msg.data.resize(data_size);
@@ -496,7 +501,7 @@ void ObjectCommentMessage::Serialize(Serializer& s) const {
     ));
 }
 
-ObjectCommentMessage ObjectCommentMessage::Deserialize(Deserializer& de) {
+hdf5::expected<ObjectCommentMessage> ObjectCommentMessage::Deserialize(Deserializer& de) {
     std::vector<byte_t> buf;
 
     while (true) {
@@ -509,7 +514,7 @@ ObjectCommentMessage ObjectCommentMessage::Deserialize(Deserializer& de) {
         buf.push_back(c);
     }
 
-    return {
+    return ObjectCommentMessage{
         .comment = std::string(reinterpret_cast<const char*>(buf.data()), buf.size())
     };
 }
@@ -528,9 +533,9 @@ void ObjectModificationTimeMessage::Serialize(Serializer& s) const {
     s.Write(static_cast<uint32_t>(seconds_since_epoch));
 }
 
-ObjectModificationTimeMessage ObjectModificationTimeMessage::Deserialize(Deserializer& de) {
+hdf5::expected<ObjectModificationTimeMessage> ObjectModificationTimeMessage::Deserialize(Deserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("Version number was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }
 
     // reserved (zero)
@@ -538,7 +543,7 @@ ObjectModificationTimeMessage ObjectModificationTimeMessage::Deserialize(Deseria
 
     auto seconds_since_epoch = de.Read<uint32_t>();
 
-    return {
+    return ObjectModificationTimeMessage{
         .modification_time = cstd::chrono::system_clock::time_point{ cstd::chrono::seconds{seconds_since_epoch} }
     };
 }
@@ -547,9 +552,10 @@ void DriverInfoMessage::Serialize(Serializer& s) const {
     s.Write(kVersionNumber);
 
     // check that driver_id has len kDriverIdSize and is all ascii
-    if (driver_id.size() != kDriverIdSize || !std::ranges::all_of(driver_id, [](char c) { return c >= 0 && c <= 127; })) {
-        throw std::runtime_error("DriverInfoMessage: driver_id must be exactly eight ASCII characters");
-    }
+    ASSERT(
+        driver_id.size() == kDriverIdSize && std::ranges::all_of(driver_id, [](char c) { return c >= 0 && c <= 127; }),
+        "DriverInfoMessage: driver_id must be exactly eight ASCII characters"
+    );
 
     s.WriteBuffer(std::span(
         reinterpret_cast<const byte_t*>(driver_id.data()),
@@ -561,9 +567,9 @@ void DriverInfoMessage::Serialize(Serializer& s) const {
     s.WriteBuffer(driver_info);
 }
 
-DriverInfoMessage DriverInfoMessage::Deserialize(Deserializer& de) {
+hdf5::expected<DriverInfoMessage> DriverInfoMessage::Deserialize(Deserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("DriverInfoMessage: unsupported version");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "DriverInfoMessage: unsupported version");
     }
 
     // read 8 bytes, then make a string out of it
@@ -603,9 +609,9 @@ void AttributeInfoMessage::Serialize(Serializer& s) const {
     }
 }
 
-AttributeInfoMessage AttributeInfoMessage::Deserialize(Deserializer& de) {
+hdf5::expected<AttributeInfoMessage> AttributeInfoMessage::Deserialize(Deserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("AttributeInfoMessage: unsupported version");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "AttributeInfoMessage: unsupported version");
     }
 
     AttributeInfoMessage msg{};
@@ -649,9 +655,9 @@ void FileSpaceInfoMessage::Serialize(Serializer& s) const {
     }
 }
 
-FileSpaceInfoMessage FileSpaceInfoMessage::Deserialize(Deserializer& de) {
+hdf5::expected<FileSpaceInfoMessage> FileSpaceInfoMessage::Deserialize(Deserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("FileSpaceInfoMessage: invalid version");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "FileSpaceInfoMessage: invalid version");
     }
 
     FileSpaceInfoMessage msg{};
@@ -660,7 +666,7 @@ FileSpaceInfoMessage FileSpaceInfoMessage::Deserialize(Deserializer& de) {
 
     constexpr uint16_t kStrategyCt = 4;
     if (strategy >= kStrategyCt) {
-        throw std::runtime_error("FileSpaceInfoMessage: invalid strategy");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "FileSpaceInfoMessage: invalid strategy");
     }
 
     msg.strategy = static_cast<Strategy>(strategy);
@@ -683,9 +689,7 @@ FileSpaceInfoMessage FileSpaceInfoMessage::Deserialize(Deserializer& de) {
 uint16_t ObjectHeaderMessage::MessageType() const {
     auto index = cstd::visit([]<typename T>(const T&) { return T::kType; }, message);
 
-    if (index != message.index()) {
-        throw std::runtime_error("mismatch between variant index and message type");
-    }
+    ASSERT(index == message.index(), "mismatch between variant index and message type");
 
     return index;
 }
@@ -704,14 +708,25 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
     cstd::visit([&s](const auto& msg) { s.WriteComplex(msg); }, message);
 }
 
-ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
+template<typename T>
+hdf5::expected<HeaderMessageVariant> DeserializeMessageType(Deserializer& de) {
+    auto result = T::Deserialize(de);
+
+    if (!result) {
+        return cstd::unexpected(result.error());
+    }
+
+    return HeaderMessageVariant(*result);
+}
+
+hdf5::expected<ObjectHeaderMessage> ObjectHeaderMessage::Deserialize(Deserializer& de) {
     ObjectHeaderMessage msg{};
 
     auto type = de.Read<uint16_t>();
 
     constexpr uint16_t kMessageTypeCt = 0x18;
     if (type >= kMessageTypeCt) {
-        throw std::runtime_error("Not a valid message type");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidType, "Not a valid message type");
     }
 
     msg.size = de.Read<uint16_t>();
@@ -720,124 +735,83 @@ ObjectHeaderMessage ObjectHeaderMessage::Deserialize(Deserializer& de) {
 
     auto start = de.GetPosition();
 
-    switch (type) {
-        case NilMessage::kType: {
-            // FIXME: this can be optimized
-            for (uint16_t i = 0; i < msg.size; ++i) {
-                de.Skip<uint8_t>();
+    auto message_result = [&]() -> hdf5::expected<HeaderMessageVariant> {
+        switch (type) {
+            case NilMessage::kType: {
+                // FIXME: this can be optimized
+                for (uint16_t i = 0; i < msg.size; ++i) {
+                    de.Skip<uint8_t>();
+                }
+                return HeaderMessageVariant(NilMessage { .size = msg.size });
             }
+            case DataspaceMessage::kType:
+                return DeserializeMessageType<DataspaceMessage>(de);
+            case LinkInfoMessage::kType:
+                return DeserializeMessageType<LinkInfoMessage>(de);
+            case DatatypeMessage::kType:
+                return DeserializeMessageType<DatatypeMessage>(de);
+            case FillValueOldMessage::kType:
+                return DeserializeMessageType<FillValueOldMessage>(de);
+            case FillValueMessage::kType:
+                return DeserializeMessageType<FillValueMessage>(de);
+            case LinkMessage::kType:
+                return DeserializeMessageType<LinkMessage>(de);
+            case ExternalDataFilesMessage::kType:
+                return DeserializeMessageType<ExternalDataFilesMessage>(de);
+            case DataLayoutMessage::kType:
+                return DeserializeMessageType<DataLayoutMessage>(de);
+            case BogusMessage::kType:
+                return DeserializeMessageType<BogusMessage>(de);
+            case GroupInfoMessage::kType:
+                return DeserializeMessageType<GroupInfoMessage>(de);
+            case FilterPipelineMessage::kType:
+                return DeserializeMessageType<FilterPipelineMessage>(de);
+            case AttributeMessage::kType:
+                return DeserializeMessageType<AttributeMessage>(de);
+            case ObjectCommentMessage::kType:
+                return DeserializeMessageType<ObjectCommentMessage>(de);
+            case ObjectModificationTimeOldMessage::kType:
+                return DeserializeMessageType<ObjectModificationTimeOldMessage>(de);
+            case SharedMessageTableMessage::kType:
+                return DeserializeMessageType<SharedMessageTableMessage>(de);
+            case ObjectHeaderContinuationMessage::kType:
+                return DeserializeMessageType<ObjectHeaderContinuationMessage>(de);
+            case SymbolTableMessage::kType:
+                return DeserializeMessageType<SymbolTableMessage>(de);
+            case ObjectModificationTimeMessage::kType:
+                return DeserializeMessageType<ObjectModificationTimeMessage>(de);
+            case BTreeKValuesMessage::kType:
+                return DeserializeMessageType<BTreeKValuesMessage>(de);
+            case DriverInfoMessage::kType:
+                return DeserializeMessageType<DriverInfoMessage>(de);
+            case AttributeInfoMessage::kType:
+                return DeserializeMessageType<AttributeInfoMessage>(de);
+            case ObjectReferenceCountMessage::kType:
+                return DeserializeMessageType<ObjectReferenceCountMessage>(de);
+            case FileSpaceInfoMessage::kType:
+                return DeserializeMessageType<FileSpaceInfoMessage>(de);
+            default:
+                return hdf5::error(hdf5::HDF5ErrorCode::InvalidType, "invalid object header message type");
+        }
+    }();
 
-            msg.message = NilMessage { .size = msg.size };
-            break;
-        }
-        case DataspaceMessage::kType: {
-            msg.message = de.ReadComplex<DataspaceMessage>();
-            break;
-        }
-        case LinkInfoMessage::kType: {
-            msg.message = de.ReadComplex<LinkInfoMessage>();
-            break;
-        }
-        case DatatypeMessage::kType: {
-            msg.message = de.ReadComplex<DatatypeMessage>();
-            break;
-        }
-        case FillValueOldMessage::kType: {
-            msg.message = de.ReadComplex<FillValueOldMessage>();
-            break;
-        }
-        case FillValueMessage::kType: {
-            msg.message = de.ReadComplex<FillValueMessage>();
-            break;
-        }
-        case LinkMessage::kType: {
-            msg.message = de.ReadComplex<LinkMessage>();
-            break;
-        }
-        case ExternalDataFilesMessage::kType: {
-            msg.message = de.ReadComplex<ExternalDataFilesMessage>();
-            break;
-        }
-        case DataLayoutMessage::kType: {
-            msg.message = de.ReadComplex<DataLayoutMessage>();
-            break;
-        }
-        case BogusMessage::kType: {
-            msg.message = de.ReadComplex<BogusMessage>();
-            break;
-        }
-        case GroupInfoMessage::kType: {
-            msg.message = de.ReadComplex<GroupInfoMessage>();
-            break;
-        }
-        case FilterPipelineMessage::kType: {
-            msg.message = de.ReadComplex<FilterPipelineMessage>();
-            break;
-        }
-        case AttributeMessage::kType: {
-            msg.message = de.ReadComplex<AttributeMessage>();
-            break;
-        }
-        case ObjectCommentMessage::kType: {
-            msg.message = de.ReadComplex<ObjectCommentMessage>();
-            break;
-        }
-        case ObjectModificationTimeOldMessage::kType: {
-            msg.message = de.ReadComplex<ObjectModificationTimeOldMessage>();
-            break;
-        }
-        case SharedMessageTableMessage::kType: {
-            msg.message = de.ReadComplex<SharedMessageTableMessage>();
-            break;
-        }
-        case ObjectHeaderContinuationMessage::kType: {
-            msg.message = de.ReadComplex<ObjectHeaderContinuationMessage>();
-            break;
-        }
-        case SymbolTableMessage::kType: {
-            msg.message = de.ReadComplex<SymbolTableMessage>();
-            break;
-        }
-        case ObjectModificationTimeMessage::kType: {
-            msg.message = de.ReadComplex<ObjectModificationTimeMessage>();
-            break;
-        }
-        case BTreeKValuesMessage::kType: {
-            msg.message = de.ReadComplex<BTreeKValuesMessage>();
-            break;
-        }
-        case DriverInfoMessage::kType: {
-            msg.message = de.ReadComplex<DriverInfoMessage>();
-            break;
-        }
-        case AttributeInfoMessage::kType: {
-            msg.message = de.ReadComplex<AttributeInfoMessage>();
-            break;
-        }
-        case ObjectReferenceCountMessage::kType: {
-            msg.message = de.ReadComplex<ObjectReferenceCountMessage>();
-            break;
-        }
-        case FileSpaceInfoMessage::kType: {
-            msg.message = de.ReadComplex<FileSpaceInfoMessage>();
-            break;
-        }
-        default: {
-            throw std::logic_error("invalid object header message type");
-        }
+    if (!message_result) {
+        return cstd::unexpected(message_result.error());
     }
+
+    msg.message = *message_result;
 
     auto difference = de.GetPosition() - start;
 
     if (difference > msg.size) {
-        throw std::runtime_error("read an incorrect number of bytes!");
+        return hdf5::error(hdf5::HDF5ErrorCode::IncorrectByteCount, "read an incorrect number of bytes");
     }
 
     if (msg.size > difference) {
         auto padding_ct = msg.size - difference;
 
         if (padding_ct >= 8) {
-            throw std::runtime_error("shouldn't be more than 8 bytes to pad to 8 bytes");
+            return hdf5::error(hdf5::HDF5ErrorCode::IncorrectByteCount, "shouldn't be more than 8 bytes to pad to 8 bytes");
         }
 
         cstd::array<byte_t, 8> padding{};
@@ -863,13 +837,17 @@ void ObjectHeader::Serialize(Serializer& s) const {
     }
 }
 
-void ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& de, uint32_t size_limit, uint16_t total_message_ct) { // NOLINT(*-no-recursion)
+hdf5::expected<void> ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& de, uint32_t size_limit, uint16_t total_message_ct) { // NOLINT(*-no-recursion)
     uint32_t bytes_read = 0;
 
     while (bytes_read < size_limit && hd.messages.size() < total_message_ct) {
         size_t before_read = de.GetPosition();
 
-        hd.messages.push_back(de.ReadComplex<ObjectHeaderMessage>());
+        auto msg_result = de.ReadComplex<ObjectHeaderMessage>();
+        if (!msg_result) {
+            return cstd::unexpected(msg_result.error());
+        }
+        hd.messages.push_back(*msg_result);
 
         bytes_read += de.GetPosition() - before_read;
 
@@ -878,16 +856,19 @@ void ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& de, uint32_t size
 
             de.SetPosition(/* TODO: sb.base_addr + */ cont->offset);
 
-            ParseObjectHeaderMessages(hd, de, cont->length, total_message_ct);
+            auto result = ParseObjectHeaderMessages(hd, de, cont->length, total_message_ct);
+            if (!result) return cstd::unexpected(result.error());
 
             de.SetPosition(return_pos);
         }
     }
+
+    return {};
 }
 
-ObjectHeader ObjectHeader::Deserialize(Deserializer& de) {
+hdf5::expected<ObjectHeader> ObjectHeader::Deserialize(Deserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("Version number was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }
     // reserved (zero)
     de.Skip<uint8_t>();
@@ -901,7 +882,8 @@ ObjectHeader ObjectHeader::Deserialize(Deserializer& de) {
     // reserved (zero)
     de.Skip<uint32_t>();
 
-    ParseObjectHeaderMessages(hd, de, hd.object_header_size, message_count);
+    auto result = ParseObjectHeaderMessages(hd, de, hd.object_header_size, message_count);
+    if (!result) return cstd::unexpected(result.error());
 
     return hd;
 }

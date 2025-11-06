@@ -31,13 +31,13 @@ void SuperblockV0::Serialize(Serializer& s) const {
     s.Write(root_group_symbol_table_entry_addr);
 }
 
-SuperblockV0 SuperblockV0::Deserialize(Deserializer& de) {
+hdf5::expected<SuperblockV0> SuperblockV0::Deserialize(Deserializer& de) {
     if (de.Read<cstd::array<uint8_t, 8>>() != kSuperblockSignature) {
-        throw std::runtime_error("Superblock signature was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "Superblock signature was invalid");
     }
 
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("Superblock version number was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Superblock version number was invalid");
     }
 
     SuperblockV0 sb{};
@@ -84,13 +84,13 @@ void SuperblockV2::Serialize(Serializer& s) const {
     s.Write(checksum);
 }
 
-SuperblockV2 SuperblockV2::Deserialize(Deserializer& de) {
+hdf5::expected<SuperblockV2> SuperblockV2::Deserialize(Deserializer& de) {
     if (de.Read<cstd::array<uint8_t, 8>>() != kSuperblockSignature) {
-        throw std::runtime_error("Superblock signature was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "Superblock signature was invalid");
     }
 
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("Superblock version number was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Superblock version number was invalid");
     }
 
     const SuperblockV2 sb {
@@ -104,11 +104,11 @@ SuperblockV2 SuperblockV2::Deserialize(Deserializer& de) {
     };
 
     if (sb.size_of_offsets != 8 || sb.size_of_lengths != 8) {
-        throw std::runtime_error("differently sized offset/len not implemented");
+        return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "differently sized offset/len not implemented");
     }
 
     if (de.Read<uint32_t>() != sb.Checksum()) {
-        throw std::runtime_error("Superblock checksum didn't match");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidChecksum, "Superblock checksum didn't match");
     }
 
     return sb;

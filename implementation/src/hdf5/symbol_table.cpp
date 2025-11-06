@@ -11,7 +11,7 @@ void SymbolTableEntry::Serialize(Serializer& s) const {
     s.Write(scratch_pad_space);
 }
 
-SymbolTableEntry SymbolTableEntry::Deserialize(Deserializer& de) {
+hdf5::expected<SymbolTableEntry> SymbolTableEntry::Deserialize(Deserializer& de) {
     SymbolTableEntry ent{};
 
     ent.link_name_offset = de.Read<offset_t>();
@@ -23,21 +23,24 @@ SymbolTableEntry SymbolTableEntry::Deserialize(Deserializer& de) {
 
     constexpr uint8_t kCacheTyAllowedValues = 3;
     if (static_cast<uint8_t>(ent.cache_ty) >= kCacheTyAllowedValues) {
-        throw std::runtime_error("Symbol Table Entry had invalid cache type");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Symbol Table Entry had invalid cache type");
     }
 
     if (ent.cache_ty == SymbolTableEntryCacheType::kSymbolicLink && ent.object_header_addr != kUndefinedOffset) {
-        throw std::runtime_error("If symbol table entry cache type is symbolic link, object header addr should be undefined");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "If symbol table entry cache type is symbolic link, object header addr should be undefined");
     }
 
     return ent;
 }
 
-cstd::optional<offset_t> SymbolTableNode::FindEntry(std::string_view name, const LocalHeap& heap, Deserializer& de) const {
+hdf5::expected<cstd::optional<offset_t>> SymbolTableNode::FindEntry(std::string_view name, const LocalHeap& heap, Deserializer& de) const {
     for (const auto& entry : entries) {
-        std::string entry_name = heap.ReadString(entry.link_name_offset, de);
+        auto entry_name = heap.ReadString(entry.link_name_offset, de);
+        if (!entry_name) {
+            return cstd::unexpected(entry_name.error());
+        }
 
-        if (entry_name == name) {
+        if (*entry_name == name) {
             return entry.object_header_addr;
         }
     }
@@ -58,13 +61,13 @@ void SymbolTableNode::Serialize(Serializer& s) const {
     }
 }
 
-SymbolTableNode SymbolTableNode::Deserialize(Deserializer& de) {
+hdf5::expected<SymbolTableNode> SymbolTableNode::Deserialize(Deserializer& de) {
     if (de.Read<cstd::array<uint8_t, 4>>() != kSignature) {
-        throw std::runtime_error("symbol table node signature was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "symbol table node signature was invalid");
     }
 
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("symbol table node signature was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "symbol table node version was invalid");
     }
 
     // reserved (zero)
@@ -78,7 +81,9 @@ SymbolTableNode SymbolTableNode::Deserialize(Deserializer& de) {
     node.entries.reserve(num_symbols);
 
     for (uint16_t i = 0; i < num_symbols; ++i) {
-        node.entries.push_back(de.ReadComplex<SymbolTableEntry>());
+        auto entry_result = de.ReadComplex<SymbolTableEntry>();
+        if (!entry_result) return cstd::unexpected(entry_result.error());
+        node.entries.push_back(*entry_result);
     }
 
     return node;
