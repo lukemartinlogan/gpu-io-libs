@@ -608,11 +608,11 @@ struct ObjectHeaderMessage {
         return flags_.test(0);
     }
 
-    [[nodiscard]] bool MessageShared() const {
+    [[nodiscard]] hdf5::expected<bool> MessageShared() const {
         auto isShared = flags_.test(1);
 
         if (isShared && MessageType() != SharedMessageTableMessage::kType) {
-            throw std::runtime_error("Only SharedMessageTableMessage can have the shared flag set");
+            return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Only SharedMessageTableMessage can have the shared flag set");
         }
 
         return isShared;
