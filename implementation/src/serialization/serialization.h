@@ -60,7 +60,7 @@ public:
     }
 
     template<typename T>
-    T Read() {
+    auto Read() {
         if constexpr (is_trivially_serializable_v<T>) {
             return ReadRaw<T>();
         } else {
