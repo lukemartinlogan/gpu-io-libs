@@ -4,14 +4,15 @@
 #include <numeric>
 
 hdf5::expected<Dataset> Dataset::New(const Object& object) {
-    ObjectHeader header = object.GetHeader();
+    auto header_result = object.GetHeader();
+    if (!header_result) return cstd::unexpected(header_result.error());
 
     bool found_layout = false, found_type = false, found_space = false;
     DataLayoutMessage layout{};
     DatatypeMessage type{};
     DataspaceMessage space{};
 
-    for (const ObjectHeaderMessage& msg: header.messages) {
+    for (const ObjectHeaderMessage& msg: header_result->messages) {
         if (const auto* layout_ptr = cstd::get_if<DataLayoutMessage>(&msg.message)) {
             layout = *layout_ptr;
             found_layout = true;
