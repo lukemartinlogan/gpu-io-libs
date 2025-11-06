@@ -20,7 +20,7 @@ struct Object {
         }
     }
 
-    ObjectHeader GetHeader() const {
+    [[nodiscard]] hdf5::expected<ObjectHeader> GetHeader() const {
         JumpToRelativeOffset(0);
 
         return file->io.Read<ObjectHeader>();
