@@ -19,9 +19,10 @@ hdf5::expected<Group> Group::New(const Object& object) {
     auto symb_tbl = cstd::get<SymbolTableMessage>(symb_tbl_msg->message);
 
     object.file->io.SetPosition(object.file->superblock.base_addr + symb_tbl.local_heap_addr);
-    auto local_heap = object.file->io.ReadComplex<LocalHeap>();
+    auto local_heap_result = object.file->io.ReadComplex<LocalHeap>();
+    if (!local_heap_result) return cstd::unexpected(local_heap_result.error());
 
-    GroupBTree table(symb_tbl.b_tree_addr, object.file, local_heap);
+    GroupBTree table(symb_tbl.b_tree_addr, object.file, *local_heap_result);
 
     return Group(object, std::move(table));
 }
