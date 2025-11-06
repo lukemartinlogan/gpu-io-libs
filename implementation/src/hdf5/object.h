@@ -5,7 +5,8 @@
 #include "object_header.h"
 
 // TODO: create iterator over messages
-struct Object {
+class Object {
+public:
     // FIXME: get rid of this ctor
     Object() = default;
 
