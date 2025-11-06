@@ -837,7 +837,7 @@ void ObjectHeader::Serialize(Serializer& s) const {
     }
 }
 
-void ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& de, uint32_t size_limit, uint16_t total_message_ct) { // NOLINT(*-no-recursion)
+hdf5::expected<void> ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& de, uint32_t size_limit, uint16_t total_message_ct) { // NOLINT(*-no-recursion)
     uint32_t bytes_read = 0;
 
     while (bytes_read < size_limit && hd.messages.size() < total_message_ct) {
@@ -845,7 +845,7 @@ void ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& de, uint32_t size
 
         auto msg_result = de.ReadComplex<ObjectHeaderMessage>();
         if (!msg_result) {
-            throw std::runtime_error("Failed to deserialize ObjectHeaderMessage");
+            return cstd::unexpected(msg_result.error());
         }
         hd.messages.push_back(*msg_result);
 
@@ -856,16 +856,19 @@ void ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& de, uint32_t size
 
             de.SetPosition(/* TODO: sb.base_addr + */ cont->offset);
 
-            ParseObjectHeaderMessages(hd, de, cont->length, total_message_ct);
+            auto result = ParseObjectHeaderMessages(hd, de, cont->length, total_message_ct);
+            if (!result) return cstd::unexpected(result.error());
 
             de.SetPosition(return_pos);
         }
     }
+
+    return {};
 }
 
-ObjectHeader ObjectHeader::Deserialize(Deserializer& de) {
+hdf5::expected<ObjectHeader> ObjectHeader::Deserialize(Deserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("Version number was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }
     // reserved (zero)
     de.Skip<uint8_t>();
@@ -879,7 +882,8 @@ ObjectHeader ObjectHeader::Deserialize(Deserializer& de) {
     // reserved (zero)
     de.Skip<uint32_t>();
 
-    ParseObjectHeaderMessages(hd, de, hd.object_header_size, message_count);
+    auto result = ParseObjectHeaderMessages(hd, de, hd.object_header_size, message_count);
+    if (!result) return cstd::unexpected(result.error());
 
     return hd;
 }

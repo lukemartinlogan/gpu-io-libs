@@ -289,13 +289,13 @@ struct AttributeMessage {
     std::vector<byte_t> data;
 
     template<typename T>
-    T ReadDataAs() {
+    hdf5::expected<T> ReadDataAs() {
         BufferDeserializer buf_de(data);
 
         T out = buf_de.Read<T>();
 
         if (!buf_de.IsExhausted()) {
-            throw std::runtime_error("Invalid type was read from data");
+            return hdf5::error(hdf5::HDF5ErrorCode::IncorrectByteCount, "Invalid type was read from data");
         }
 
         return out;
@@ -668,7 +668,7 @@ struct ObjectHeader {
     void Serialize(Serializer& s) const;
 
     // FIXME: ignore unknown messages
-    static ObjectHeader Deserialize(Deserializer& de);
+    static hdf5::expected<ObjectHeader> Deserialize(Deserializer& de);
 private:
     friend class Object;
 
