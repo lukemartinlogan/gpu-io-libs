@@ -244,15 +244,15 @@ void LocalHeap::Serialize(Serializer& s) const {
     s.Write(data_segment_address);
 }
 
-LocalHeap LocalHeap::Deserialize(Deserializer& de) {
+hdf5::expected<LocalHeap> LocalHeap::Deserialize(Deserializer& de) {
     offset_t this_offset = de.GetPosition();
 
     if (de.Read<cstd::array<uint8_t, 4>>() != kSignature) {
-        throw std::runtime_error("Superblock signature was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "LocalHeap signature was invalid");
     }
 
     if (de.Read<uint8_t>() != kVersionNumber) {
-        throw std::runtime_error("Superblock version number was invalid");
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "LocalHeap version number was invalid");
     }
     // reserved (zero)
     de.Skip<uint8_t>();

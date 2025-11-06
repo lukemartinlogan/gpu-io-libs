@@ -21,7 +21,7 @@ struct LocalHeap {
 
     void Serialize(Serializer& s) const;
 
-    static LocalHeap Deserialize(Deserializer& de);
+    static hdf5::expected<LocalHeap> Deserialize(Deserializer& de);
 
 private:
     struct FreeListBlock {
