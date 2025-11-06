@@ -130,7 +130,7 @@ public:
 
 struct LinkMessage {
     void Serialize(Serializer& s) const { // NOLINT
-        throw std::logic_error("TODO: not implemented");
+        UNREACHABLE("LinkMessage::Serialize not implemented");
     }
 
     static hdf5::expected<LinkMessage> Deserialize(Deserializer& de) {
@@ -225,7 +225,7 @@ public:
 
 struct FilterPipelineMessage {
     void Serialize(Serializer& _s) const { // NOLINT
-        throw std::logic_error("TODO: filter pipeline message not implemented");
+        UNREACHABLE("FilterPipelineMessage::Serialize not implemented");
     }
 
     static hdf5::expected<FilterPipelineMessage> Deserialize(Deserializer& _de) {
@@ -323,7 +323,7 @@ struct ObjectCommentMessage {
 
 struct ObjectModificationTimeOldMessage {
     void Serialize(Serializer& _s) const { // NOLINT
-        throw std::logic_error("old object modification time message is deprecated");
+        UNREACHABLE("old object modification time message is deprecated");
     }
 
     static hdf5::expected<ObjectModificationTimeOldMessage> Deserialize(Deserializer& _de) {
@@ -531,9 +531,7 @@ struct FileSpaceInfoMessage {
     cstd::optional<cstd::array<offset_t, 6>> large_managers;
 
     [[nodiscard]] bool PersistingFreeSpace() const {
-        if (small_managers.has_value() != large_managers.has_value()) {
-            throw std::runtime_error("FileSpaceInfoMessage: small and large managers must be both present or both absent");
-        }
+        ASSERT((small_managers.has_value() == large_managers.has_value()), "FileSpaceInfoMessage: small and large managers must be both present or both absent");
 
         return small_managers.has_value();
     }

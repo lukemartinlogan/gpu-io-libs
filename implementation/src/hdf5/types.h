@@ -25,6 +25,10 @@ namespace hdf5 {
     #include <cuda/std/chrono>
     #include <cuda/std/inplace_vector>
     #include <cuda/std/expected>
+    #include <cuda/std/cassert>
+
+    #define ASSERT(cond, msg) assert((cond) && (msg))
+    #define UNREACHABLE(msg) assert(false && (msg))
 
     namespace cstd = cuda::std;
 

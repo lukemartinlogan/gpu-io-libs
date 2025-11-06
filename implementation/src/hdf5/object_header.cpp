@@ -85,9 +85,7 @@ hdf5::expected<DataspaceMessage> DataspaceMessage::Deserialize(Deserializer& de)
 }
 
 DataspaceMessage::DataspaceMessage(const hdf5::dim_vector<DimensionInfo>& dimensions, bool max_dim_present, bool perm_indices_present) {
-    if (dimensions.size() > 255) {
-        throw std::logic_error("DataspaceMessage cannot have more than 255 dimensions");
-    }
+    ASSERT(dimensions.size() <= 255, "DataspaceMessage cannot have more than 255 dimensions");
 
     this->dimensions = dimensions;
 
@@ -253,15 +251,11 @@ void GroupInfoMessage::Serialize(Serializer& s) const {
     cstd::bitset<2> flags;
     flags.set(0, max_compact.has_value());
 
-    if (max_compact.has_value() != min_dense.has_value()) {
-        throw std::logic_error("max_compact and min_dense must both be present or absent");
-    }
+    ASSERT((max_compact.has_value() == min_dense.has_value()), "max_compact and min_dense must both be present or absent");
 
     flags.set(1, est_num_entries.has_value());
 
-    if (est_num_entries.has_value() != est_entries_name_len.has_value()) {
-        throw std::logic_error("est_num_entries and est_entries_name_len must both be present or absent");
-    }
+    ASSERT((est_num_entries.has_value() == est_entries_name_len.has_value()), "est_num_entries and est_entries_name_len must both be present or absent");
 
     s.Write(static_cast<uint8_t>(flags.to_ulong()));
 
@@ -369,7 +363,7 @@ void DataLayoutMessage::Serialize(Serializer& s) const {
         s.Write<uint8_t>(kChunked);
         s.WriteComplex(cstd::get<ChunkedStorageProperty>(properties));
     } else {
-        throw std::runtime_error("invalid data layout class");
+        UNREACHABLE("invalid data layout class");
     }
 }
 
@@ -558,9 +552,10 @@ void DriverInfoMessage::Serialize(Serializer& s) const {
     s.Write(kVersionNumber);
 
     // check that driver_id has len kDriverIdSize and is all ascii
-    if (driver_id.size() != kDriverIdSize || !std::ranges::all_of(driver_id, [](char c) { return c >= 0 && c <= 127; })) {
-        throw std::runtime_error("DriverInfoMessage: driver_id must be exactly eight ASCII characters");
-    }
+    ASSERT(
+        driver_id.size() == kDriverIdSize && std::ranges::all_of(driver_id, [](char c) { return c >= 0 && c <= 127; }),
+        "DriverInfoMessage: driver_id must be exactly eight ASCII characters"
+    );
 
     s.WriteBuffer(std::span(
         reinterpret_cast<const byte_t*>(driver_id.data()),
@@ -694,9 +689,7 @@ hdf5::expected<FileSpaceInfoMessage> FileSpaceInfoMessage::Deserialize(Deseriali
 uint16_t ObjectHeaderMessage::MessageType() const {
     auto index = cstd::visit([]<typename T>(const T&) { return T::kType; }, message);
 
-    if (index != message.index()) {
-        throw std::runtime_error("mismatch between variant index and message type");
-    }
+    ASSERT(index == message.index(), "mismatch between variant index and message type");
 
     return index;
 }
