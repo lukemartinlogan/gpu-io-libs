@@ -7,7 +7,9 @@ hdf5::expected<File> File::New(const std::filesystem::path& path) {
     {
         StdioReaderWriter file_io(path);
 
-        auto superblock = file_io.ReadComplex<SuperblockV0>();
+        auto superblock_result = file_io.ReadComplex<SuperblockV0>();
+        if (!superblock_result) return cstd::unexpected(superblock_result.error());
+        auto superblock = *superblock_result;
 
         if (superblock.base_addr != 0) {
             return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "non-zero base address not implemented");
