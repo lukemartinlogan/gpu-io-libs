@@ -208,12 +208,15 @@ hdf5::expected<void> ProcessChunkedHyperslab(
             chunk_coords.coords[dim] = chunk_offset;
         }
 
-        cstd::optional<offset_t> chunk_file_offset = chunked_tree.GetChunk(chunk_coords);
+        auto chunk_file_offset_result = chunked_tree.GetChunk(chunk_coords);
+        if (!chunk_file_offset_result) {
+            return cstd::unexpected(chunk_file_offset_result.error());
+        }
 
         // Calculate element file offset if chunk exists
         cstd::optional<offset_t> element_file_offset;
-        if (chunk_file_offset.has_value()) {
-            element_file_offset = *chunk_file_offset + within_chunk_offset * element_size;
+        if (chunk_file_offset_result->has_value()) {
+            element_file_offset = **chunk_file_offset_result + within_chunk_offset * element_size;
         }
 
         // Process this element using the provided processor
@@ -506,10 +509,13 @@ hdf5::expected<std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Data
         }
         
         ChunkCoordinates chunk_coords(current_combination);
-        cstd::optional<offset_t> chunk_file_offset = chunked_tree.GetChunk(chunk_coords);
-        
-        if (chunk_file_offset.has_value()) {
-            result.emplace_back(std::move(chunk_coords), *chunk_file_offset, chunk_size_bytes);
+        auto chunk_file_offset_result = chunked_tree.GetChunk(chunk_coords);
+        if (!chunk_file_offset_result) {
+            return cstd::unexpected(chunk_file_offset_result.error());
+        }
+
+        if (chunk_file_offset_result->has_value()) {
+            result.emplace_back(std::move(chunk_coords), **chunk_file_offset_result, chunk_size_bytes);
         }
         
         // find first dimension that can increment
