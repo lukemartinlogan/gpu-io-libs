@@ -275,7 +275,14 @@ hdf5::expected<void> Group::Insert(std::string_view name, offset_t object_header
 }
 
 hdf5::expected<SymbolTableNode> Group::GetSymbolTableNode() const {
-    BTreeNode table = table_.ReadRoot().value();
+    auto root_result = table_.ReadRoot();
+    if (!root_result) return cstd::unexpected(root_result.error());
+
+    if (!root_result->has_value()) {
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "BTree root is null");
+    }
+
+    BTreeNode& table = **root_result;
 
     if (!table.IsLeaf()) {
         return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "traversing tree not implemented");
