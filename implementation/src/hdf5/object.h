@@ -10,15 +10,15 @@ public:
     // FIXME: get rid of this ctor
     Object() = default;
 
-    explicit Object(const std::shared_ptr<FileLink>& file, offset_t pos_)
-        : file(file), file_pos_(pos_)
-    {
-        JumpToRelativeOffset(0);
+    static hdf5::expected<Object> New(const std::shared_ptr<FileLink>& file, offset_t pos_) {
+        file->io.SetPosition(pos_);
 
         // FIXME: hardcoded constant
         if (file->io.Read<uint8_t>() != 0x01) {
-            throw std::runtime_error("Version number was invalid");
+            return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Object version number was invalid");
         }
+
+        return Object(file, pos_);
     }
 
     [[nodiscard]] hdf5::expected<ObjectHeader> GetHeader() const {
@@ -98,6 +98,9 @@ private:
     void JumpToRelativeOffset(offset_t offset) const {
         file->io.SetPosition(file_pos_ + offset);
     }
+
+    explicit Object(const std::shared_ptr<FileLink>& file, offset_t pos_)
+        : file(file), file_pos_(pos_) {}
 
 private:
     offset_t file_pos_{};

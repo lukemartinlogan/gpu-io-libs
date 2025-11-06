@@ -255,7 +255,7 @@ hdf5::expected<cstd::optional<Object>> Group::Get(std::string_view name) const {
         return cstd::nullopt;
     }
 
-    return Object(object_.file, base_addr + *entry_addr);
+    return Object::New(object_.file, base_addr + *entry_addr);
 }
 
 hdf5::expected<void> Group::Insert(std::string_view name, offset_t object_header_ptr) {

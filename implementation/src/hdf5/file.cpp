@@ -21,7 +21,12 @@ hdf5::expected<File> File::New(const std::filesystem::path& path) {
     // read the root group
     offset_t root_group_header_addr = file_link->superblock.base_addr + file_link->superblock.root_group_symbol_table_entry_addr.object_header_addr;
 
-    auto root_group = Group::New(Object(file_link, root_group_header_addr));
+    auto object_result = Object::New(file_link, root_group_header_addr);
+    if (!object_result) {
+        return cstd::unexpected(object_result.error());
+    }
+
+    auto root_group = Group::New(*object_result);
     if (!root_group) {
         return cstd::unexpected(root_group.error());
     }
