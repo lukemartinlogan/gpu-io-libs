@@ -3,7 +3,9 @@
 #include "symbol_table.h"
 
 hdf5::expected<Group> Group::New(const Object& object) {
-    ObjectHeader header = object.GetHeader();
+    auto header_result = object.GetHeader();
+    if (!header_result) return cstd::unexpected(header_result.error());
+    ObjectHeader header = *header_result;
 
     auto symb_tbl_msg = std::ranges::find_if(
         header.messages,
