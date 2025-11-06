@@ -88,7 +88,7 @@ struct BTreeChunkedRawDataNodeKey {
 
     void Serialize(Serializer& s) const;
 
-    static BTreeChunkedRawDataNodeKey DeserializeWithTermInfo(Deserializer& de, ChunkedKeyTerminatorInfo term_info);
+    static hdf5::expected<BTreeChunkedRawDataNodeKey> DeserializeWithTermInfo(Deserializer& de, ChunkedKeyTerminatorInfo term_info);
 
     [[nodiscard]] uint16_t AllocationSize() const {
         // Key size = chunk_size + filter_mask + (dimensions * sizeof(uint64_t))
@@ -153,8 +153,8 @@ struct BTreeNode {
 
     void Serialize(Serializer& s) const;
 
-    static BTreeNode DeserializeGroup(Deserializer& de);
-    static BTreeNode DeserializeChunked(Deserializer& de, ChunkedKeyTerminatorInfo term_info);
+    static hdf5::expected<BTreeNode> DeserializeGroup(Deserializer& de);
+    static hdf5::expected<BTreeNode> DeserializeChunked(Deserializer& de, ChunkedKeyTerminatorInfo term_info);
 
 private:
     friend struct GroupBTree;
@@ -170,13 +170,13 @@ private:
         }
     };
 
-    BTreeNode ReadChild(Deserializer& de) const;
+    hdf5::expected<BTreeNode> ReadChild(Deserializer& de) const;
 
     [[nodiscard]] BTreeNode Split(KValues k);
 
     hdf5::expected<cstd::optional<SplitResult>> InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
 
-    cstd::optional<SplitResultChunked> InsertChunked(
+    hdf5::expected<cstd::optional<SplitResultChunked>> InsertChunked(
         offset_t this_offset,
         const BTreeChunkedRawDataNodeKey& key,
         offset_t data_ptr,
@@ -194,7 +194,7 @@ private:
     [[nodiscard]] uint16_t ChunkedInsertionPosition(const ChunkCoordinates& chunk_coords) const;
 
     template <class K>
-    [[nodiscard]] K GetMaxKey(FileLink& file) const;
+    [[nodiscard]] hdf5::expected<K> GetMaxKey(FileLink& file) const;
 
     template <class K>
     [[nodiscard]] K GetMinKey() const;
@@ -205,9 +205,9 @@ private:
 
     offset_t AllocateAndWrite(FileLink& file, KValues k) const;
 
-    void Recurse(const std::function<void(std::string, offset_t)>& visitor, FileLink& file) const;
+    hdf5::expected<void> Recurse(const std::function<void(std::string, offset_t)>& visitor, FileLink& file) const;
 
-    void RecurseChunked(const std::function<void(const BTreeChunkedRawDataNodeKey&, offset_t)>& visitor, FileLink& file) const;
+    hdf5::expected<void> RecurseChunked(const std::function<void(const BTreeChunkedRawDataNodeKey&, offset_t)>& visitor, FileLink& file) const;
 
 private:
     static constexpr uint8_t kGroupNodeTy = 0, kRawDataChunkNodeTy = 1;
@@ -233,15 +233,15 @@ struct GroupBTree {
 
     hdf5::expected<void> InsertGroup(offset_t name_offset, offset_t object_header_ptr);
 
-    [[nodiscard]] size_t Size() const;
+    [[nodiscard]] hdf5::expected<size_t> Size() const;
 
-    [[nodiscard]] std::vector<offset_t> Elements() const;
+    [[nodiscard]] hdf5::expected<std::vector<offset_t>> Elements() const;
 private:
     friend class Group;
 
     GroupBTree() = default;
 
-    [[nodiscard]] cstd::optional<BTreeNode> ReadRoot() const;
+    [[nodiscard]] hdf5::expected<cstd::optional<BTreeNode>> ReadRoot() const;
 
 private:
     std::shared_ptr<FileLink> file_{};
@@ -253,16 +253,16 @@ struct ChunkedBTree {
     explicit ChunkedBTree(offset_t addr, std::shared_ptr<FileLink> file, ChunkedKeyTerminatorInfo term_info)
         : file_(std::move(file)), addr_(addr), terminator_info_(term_info) {}
 
-    void InsertChunk(
+    hdf5::expected<void> InsertChunk(
         const ChunkCoordinates& chunk_coords,
         uint32_t chunk_size,
         uint32_t filter_mask,
         offset_t data_ptr
     );
 
-    [[nodiscard]] cstd::optional<offset_t> GetChunk(const ChunkCoordinates& chunk_coords) const;
+    [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> GetChunk(const ChunkCoordinates& chunk_coords) const;
 
-    [[nodiscard]] std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> Offsets() const;
+    [[nodiscard]] hdf5::expected<std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Offsets() const;
 
     static offset_t CreateNew(const std::shared_ptr<FileLink>& file, const hdf5::dim_vector<uint64_t>& max_size);
 
@@ -270,7 +270,7 @@ private:
     ChunkedBTree() = default;
 
 public:
-    [[nodiscard]] cstd::optional<BTreeNode> ReadRoot() const;
+    [[nodiscard]] hdf5::expected<cstd::optional<BTreeNode>> ReadRoot() const;
 
 private:
     std::shared_ptr<FileLink> file_{};
