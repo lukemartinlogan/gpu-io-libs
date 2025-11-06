@@ -240,9 +240,10 @@ hdf5::expected<cstd::optional<Object>> Group::Get(std::string_view name) const {
     offset_t base_addr = object_.file->superblock.base_addr;
 
     object_.file->io.SetPosition(base_addr + *sym_table_node_ptr);
-    auto symbol_table_node = object_.file->io.ReadComplex<SymbolTableNode>();
+    auto symbol_table_node_result = object_.file->io.ReadComplex<SymbolTableNode>();
+    if (!symbol_table_node_result) return cstd::unexpected(symbol_table_node_result.error());
 
-    auto entry_addr_result = symbol_table_node.FindEntry(name, GetLocalHeap(), object_.file->io);
+    auto entry_addr_result = symbol_table_node_result->FindEntry(name, GetLocalHeap(), object_.file->io);
     if (!entry_addr_result) {
         return cstd::unexpected(entry_addr_result.error());
     }
