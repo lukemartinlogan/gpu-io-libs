@@ -1,6 +1,6 @@
 #pragma once
 
-#include "types.h"
+#include "error.h"
 
 namespace hdf5 {
 
@@ -132,10 +132,10 @@ struct gpu_string {
     }
 
     // Construct from pointer and length with error handling
-    static expected<gpu_string> from_chars(const char* str, size_t len) {
+    static hdf5::expected<gpu_string> from_chars(const char* str, size_t len) {
         if (len > MaxLen) {
-            return error(
-                HDF5ErrorCode::BufferTooSmall,
+            return hdf5::error(
+                hdf5::HDF5ErrorCode::BufferTooSmall,
                 "String length exceeds maximum"
             );
         }
@@ -204,10 +204,10 @@ struct gpu_string {
      * Append a string view to this string
      * Returns error if result would exceed MaxLen
      */
-    expected<void> append(gpu_string_view str) {
+    hdf5::expected<void> append(gpu_string_view str) {
         if (length_ + str.size() > MaxLen) {
-            return error(
-                HDF5ErrorCode::BufferTooSmall,
+            return hdf5::error(
+                hdf5::HDF5ErrorCode::BufferTooSmall,
                 "String append would exceed maximum length"
             );
         }
@@ -225,10 +225,10 @@ struct gpu_string {
      * Append a single character
      * Returns error if result would exceed MaxLen
      */
-    expected<void> push_back(char c) {
+    hdf5::expected<void> push_back(char c) {
         if (length_ >= MaxLen) {
-            return error(
-                HDF5ErrorCode::BufferTooSmall,
+            return hdf5::error(
+                hdf5::HDF5ErrorCode::BufferTooSmall,
                 "Cannot append character, string at maximum length"
             );
         }
@@ -253,10 +253,10 @@ struct gpu_string {
      * If new_size > current size, fills with null bytes
      * Returns error if new_size > MaxLen
      */
-    expected<void> resize(size_t new_size, char fill = '\0') {
+    hdf5::expected<void> resize(size_t new_size, char fill = '\0') {
         if (new_size > MaxLen) {
-            return error(
-                HDF5ErrorCode::BufferTooSmall,
+            return hdf5::error(
+                hdf5::HDF5ErrorCode::BufferTooSmall,
                 "Resize would exceed maximum length"
             );
         }
