@@ -41,5 +41,10 @@ namespace hdf5 {
 // Include error types (requires cstd namespace to be defined)
 #include "error.h"
 
+#include "gpu_string.h"
+
 namespace hdf5 {
+    // Type aliases for string types
+    using string_view = gpu_string_view;
+    using string = gpu_string<>;  // Default 255 char max
 }
