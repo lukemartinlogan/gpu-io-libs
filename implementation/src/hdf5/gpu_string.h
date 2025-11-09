@@ -276,7 +276,7 @@ struct gpu_string {
     /**
      * Get a substring as a view
      */
-    constexpr gpu_string_view substr(size_t pos, size_t count = size_t(-1)) const {
+    [[nodiscard]] constexpr gpu_string_view substr(size_t pos, size_t count = size_t(-1)) const {
         return gpu_string_view(*this).substr(pos, count);
     }
 };
