@@ -31,10 +31,10 @@ struct gpu_string_view {
         : data_(nullptr), length_(0) {}
 
     // Accessors
-    constexpr const char* data() const { return data_; }
-    constexpr size_t size() const { return length_; }
-    constexpr size_t length() const { return length_; }
-    constexpr bool empty() const { return length_ == 0; }
+    [[nodiscard]] constexpr const char* data() const { return data_; }
+    [[nodiscard]] constexpr size_t size() const { return length_; }
+    [[nodiscard]] constexpr size_t length() const { return length_; }
+    [[nodiscard]] constexpr bool empty() const { return length_ == 0; }
 
     // Indexing
     constexpr char operator[](size_t idx) const {
@@ -156,13 +156,13 @@ struct gpu_string {
     }
 
     // Accessors
-    constexpr const char* data() const { return data_.data(); }
-    constexpr char* data() { return data_.data(); }
-    constexpr size_t size() const { return length_; }
-    constexpr size_t length() const { return length_; }
-    constexpr bool empty() const { return length_ == 0; }
-    constexpr const char* c_str() const { return data_.data(); }
-    constexpr static size_t max_size() { return MaxLen; }
+    [[nodiscard]] constexpr const char* data() const { return data_.data(); }
+    [[nodiscard]] constexpr char* data() { return data_.data(); }
+    [[nodiscard]] constexpr size_t size() const { return length_; }
+    [[nodiscard]] constexpr size_t length() const { return length_; }
+    [[nodiscard]] constexpr bool empty() const { return length_ == 0; }
+    [[nodiscard]] constexpr const char* c_str() const { return data_.data(); }
+    [[nodiscard]] constexpr static size_t max_size() { return MaxLen; }
 
     // Indexing
     constexpr char operator[](size_t idx) const {
