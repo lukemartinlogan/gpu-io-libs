@@ -173,6 +173,15 @@ struct gpu_string {
         return data_[idx];
     }
 
+    // Iterators
+    constexpr char* begin() { return data_.data(); }
+    [[nodiscard]] constexpr const char* begin() const { return data_.data(); }
+    [[nodiscard]] constexpr const char* cbegin() const { return begin(); }
+
+    constexpr char* end() { return data_.data() + length_; }
+    [[nodiscard]] constexpr const char* end() const { return data_.data() + length_; }
+    [[nodiscard]] constexpr const char* cend() const { return end(); }
+
     // Comparison (delegate to view)
     constexpr bool operator==(gpu_string_view other) const {
         return gpu_string_view(*this) == other;
