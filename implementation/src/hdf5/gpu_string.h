@@ -1,5 +1,16 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+
+#ifdef LIBCUDACXX_AVAILABLE
+    #include <cuda/std/array>
+    namespace cstd = cuda::std;
+#else
+    #include <array>
+    namespace cstd = std;
+#endif
+
 #include "error.h"
 
 namespace hdf5 {
