@@ -300,7 +300,7 @@ constexpr hdf5::expected<gpu_string<MaxLen>> to_string(uint64_t value) {
     char* p = buffer;
 
     do {
-        *p = static_cast<char>('0' + (value % 10));
+        *p++ = static_cast<char>('0' + (value % 10));
         value /= 10;
     } while (value > 0);
 
