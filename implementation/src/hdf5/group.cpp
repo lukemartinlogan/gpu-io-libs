@@ -29,7 +29,7 @@ hdf5::expected<Group> Group::New(const Object& object) {
     return Group(object, std::move(table));
 }
 
-hdf5::expected<Dataset> Group::OpenDataset(std::string_view dataset_name) const {
+hdf5::expected<Dataset> Group::OpenDataset(hdf5::string_view dataset_name) const {
     auto object_result = Get(dataset_name);
     if (!object_result) {
         return cstd::unexpected(object_result.error());
@@ -43,7 +43,7 @@ hdf5::expected<Dataset> Group::OpenDataset(std::string_view dataset_name) const 
 }
 
 hdf5::expected<Dataset> Group::CreateDataset(
-    std::string_view dataset_name,
+    hdf5::string_view dataset_name,
     const hdf5::dim_vector<len_t>& dimension_sizes,
     const DatatypeMessage& type,
     cstd::optional<hdf5::dim_vector<uint32_t>> chunk_dims,
@@ -142,7 +142,7 @@ hdf5::expected<Dataset> Group::CreateDataset(
     return Dataset::New(new_ds);
 }
 
-hdf5::expected<Group> Group::OpenGroup(std::string_view group_name) const {
+hdf5::expected<Group> Group::OpenGroup(hdf5::string_view group_name) const {
     auto object_result = Get(group_name);
     if (!object_result) {
         return cstd::unexpected(object_result.error());
@@ -155,7 +155,7 @@ hdf5::expected<Group> Group::OpenGroup(std::string_view group_name) const {
     return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Group not found");
 }
 
-hdf5::expected<Group> Group::CreateGroup(std::string_view name) {
+hdf5::expected<Group> Group::CreateGroup(hdf5::string_view name) {
     auto exists_result = Get(name);
     if (!exists_result) {
         return cstd::unexpected(exists_result.error());
@@ -228,7 +228,7 @@ hdf5::expected<Group> Group::CreateGroup(std::string_view name) {
     return New(new_group_obj);
 }
 
-hdf5::expected<cstd::optional<Object>> Group::Get(std::string_view name) const {
+hdf5::expected<cstd::optional<Object>> Group::Get(hdf5::string_view name) const {
     auto sym_table_node_ptr_result = table_.Get(name);
     if (!sym_table_node_ptr_result) {
         return cstd::unexpected(sym_table_node_ptr_result.error());
@@ -258,7 +258,7 @@ hdf5::expected<cstd::optional<Object>> Group::Get(std::string_view name) const {
     return Object::New(object_.file, base_addr + *entry_addr);
 }
 
-hdf5::expected<void> Group::Insert(std::string_view name, offset_t object_header_ptr) {
+hdf5::expected<void> Group::Insert(hdf5::string_view name, offset_t object_header_ptr) {
     auto name_offset_result = GetLocalHeap().WriteString(name, *object_.file);
     if (!name_offset_result) {
         return cstd::unexpected(name_offset_result.error());

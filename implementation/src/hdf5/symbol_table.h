@@ -7,6 +7,7 @@
 #include "local_heap.h"
 #include "types.h"
 #include "../serialization/serialization.h"
+#include "gpu_string.h"
 
 enum class SymbolTableEntryCacheType {
     // no data cached, this is guaranteed when link ct > 1
@@ -39,7 +40,7 @@ struct SymbolTableEntry {
 struct SymbolTableNode {
     std::vector<SymbolTableEntry> entries;
 
-    [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> FindEntry(std::string_view name, const LocalHeap& heap, Deserializer& de) const;
+    [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> FindEntry(hdf5::string_view name, const LocalHeap& heap, Deserializer& de) const;
 
     void Serialize(Serializer& s) const;
 

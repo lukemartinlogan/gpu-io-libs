@@ -11,6 +11,7 @@
 #include "object.h"
 #include "types.h"
 #include "../serialization/serialization.h"
+#include "gpu_string.h"
 
 struct BTreeGroupNodeKey {
     // byte offset into local heap
@@ -147,7 +148,7 @@ struct BTreeNode {
         return level == 0;
     }
 
-    [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> Get(std::string_view name, FileLink& file, const LocalHeap& heap) const;
+    [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> Get(hdf5::string_view name, FileLink& file, const LocalHeap& heap) const;
 
     [[nodiscard]] cstd::optional<offset_t> GetChunk(const ChunkCoordinates& chunk_coords, FileLink& file) const;
 
@@ -183,13 +184,13 @@ private:
         FileLink& file
     );
 
-    hdf5::expected<cstd::optional<uint16_t>> FindGroupIndex(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
+    hdf5::expected<cstd::optional<uint16_t>> FindGroupIndex(hdf5::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
     [[nodiscard]] cstd::optional<uint16_t> FindChunkedIndex(const ChunkCoordinates& chunk_coords) const;
 
     [[nodiscard]] bool AtCapacity(KValues k) const;
 
-    hdf5::expected<uint16_t> GroupInsertionPosition(std::string_view key, const LocalHeap& heap, Deserializer& de) const;
+    hdf5::expected<uint16_t> GroupInsertionPosition(hdf5::string_view key, const LocalHeap& heap, Deserializer& de) const;
 
     [[nodiscard]] uint16_t ChunkedInsertionPosition(const ChunkCoordinates& chunk_coords) const;
 
@@ -205,7 +206,7 @@ private:
 
     offset_t AllocateAndWrite(FileLink& file, KValues k) const;
 
-    hdf5::expected<void> Recurse(const std::function<void(std::string, offset_t)>& visitor, FileLink& file) const;
+    hdf5::expected<void> Recurse(const std::function<void(hdf5::string, offset_t)>& visitor, FileLink& file) const;
 
     hdf5::expected<void> RecurseChunked(const std::function<void(const BTreeChunkedRawDataNodeKey&, offset_t)>& visitor, FileLink& file) const;
 
@@ -229,7 +230,7 @@ struct GroupBTree {
     explicit GroupBTree(offset_t addr, std::shared_ptr<FileLink> file, const LocalHeap& heap)
         : file_(std::move(file)), heap_(heap), addr_(addr) {}
 
-    [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> Get(std::string_view name) const;
+    [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> Get(hdf5::string_view name) const;
 
     hdf5::expected<void> InsertGroup(offset_t name_offset, offset_t object_header_ptr);
 

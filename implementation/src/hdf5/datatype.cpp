@@ -219,7 +219,7 @@ hdf5::expected<DatatypeMessage> DatatypeMessage::Deserialize(Deserializer& de) {
 }
 
 
-void WritePaddedString(std::string_view name, Serializer&s) {
+void WritePaddedString(hdf5::string_view name, Serializer&s) {
     size_t name_size = name.size();
 
     // write string
@@ -381,8 +381,8 @@ void CompoundMember::Serialize(Serializer& s) const {
     s.WriteComplex(*message);
 }
 
-hdf5::expected<std::string> ReadPaddedString(Deserializer& de) {
-    std::string name;
+hdf5::expected<hdf5::string> ReadPaddedString(Deserializer& de) {
+    hdf5::string name;
 
     for (;;) {
         // 8 byte blocks
@@ -394,10 +394,14 @@ hdf5::expected<std::string> ReadPaddedString(Deserializer& de) {
 
         auto nul_pos = std::ranges::find(buf, static_cast<byte_t>('\0'));
 
-        name.append(
+        auto append_result = name.append(hdf5::string_view(
             reinterpret_cast<const char*>(buf.data()),
             std::distance(buf.begin(), nul_pos)
-        );
+        ));
+
+        if (!append_result) {
+            return cstd::unexpected(append_result.error());
+        }
 
         if (nul_pos != buf.end()) {
             break;

@@ -146,7 +146,7 @@ struct VariableLength {
 
 struct CompoundMember {
     // null terminated to multiple of 8 bytes
-    std::string name;
+    hdf5::string name;
     // byte offset within datatype
     uint32_t byte_offset{};
     // according to spec, only up to four dimensions are allowed
