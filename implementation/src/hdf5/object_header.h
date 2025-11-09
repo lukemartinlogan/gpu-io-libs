@@ -281,7 +281,7 @@ public:
 };
 
 struct AttributeMessage {
-    std::string name;
+    hdf5::string name;
     DatatypeMessage datatype;
     DataspaceMessage dataspace;
 
@@ -312,7 +312,7 @@ public:
 };
 
 struct ObjectCommentMessage {
-    std::string comment;
+    hdf5::string comment;
 
     void Serialize(Serializer& s) const;
 
@@ -442,7 +442,7 @@ public:
 
 struct DriverInfoMessage {
     // 8 ascii bytes
-    std::string driver_id{};
+    hdf5::string<8> driver_id{};
     std::vector<byte_t> driver_info;
 
     void Serialize(Serializer& s) const;
