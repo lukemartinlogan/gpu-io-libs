@@ -1,13 +1,6 @@
 #pragma once
 
-// TODO: remove this after better reorganizing
-#ifdef LIBCUDACXX_AVAILABLE
-    #include <cuda/std/expected>
-    namespace cstd = cuda::std;
-#else
-    #include <expected>
-    namespace cstd = std;
-#endif
+#include "cstd.h"
 
 namespace hdf5 {
     enum class HDF5ErrorCode {
