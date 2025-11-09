@@ -7,23 +7,24 @@
 #include "file_link.h"
 
 
-std::string ReadNullTerminatedString(Deserializer& de, cstd::optional<size_t> max_size) {
-    std::vector<byte_t> buf;
+hdf5::string ReadNullTerminatedString(Deserializer& de, cstd::optional<size_t> max_size) {
+    hdf5::string str;
 
-    while (!max_size || buf.size() < *max_size) {
+    while (!max_size || str.size() < *max_size) {
         auto c = de.Read<byte_t>();
 
         if (c == static_cast<byte_t>('\0')) {
             break;
         }
 
-        buf.push_back(c);
+        str.push_back(static_cast<char>(c));
     }
 
-    return { reinterpret_cast<const char*>(buf.data()), buf.size() };
+    return str;
 }
 
-hdf5::expected<std::string> LocalHeap::ReadString(offset_t offset, Deserializer& de) const {
+// TODO(cuda_vector): many calls of this function don't need ownership; 'LocalHeap::ViewString'?
+hdf5::expected<hdf5::string> LocalHeap::ReadString(offset_t offset, Deserializer& de) const {
     if (offset >= data_segment_size) {
         return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "LocalHeap: offset out of bounds");
     }
@@ -145,13 +146,13 @@ hdf5::expected<offset_t> LocalHeap::WriteBytes(std::span<const byte_t> data, Fil
     return free->this_offset;
 }
 
-hdf5::expected<offset_t> LocalHeap::WriteString(std::string_view string, FileLink& file) {
-    std::string null_terminated(string);
+hdf5::expected<offset_t> LocalHeap::WriteString(hdf5::string_view string, FileLink& file) {
+    hdf5::string null_terminated_str(string);
 
     return WriteBytes(
         std::span(
-            reinterpret_cast<const byte_t*>(null_terminated.c_str()),
-            null_terminated.size() + 1
+            reinterpret_cast<const byte_t*>(null_terminated_str.c_str()),
+            null_terminated_str.size() + 1
         ),
         file
     );

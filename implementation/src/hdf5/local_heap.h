@@ -5,15 +5,16 @@
 
 #include "types.h"
 #include "../serialization/serialization.h"
+#include "gpu_string.h"
 
 struct FileLink;
 
 struct LocalHeap {
     len_t free_list_head_offset{};
 
-    [[nodiscard]] hdf5::expected<std::string> ReadString(offset_t offset, Deserializer& de) const;
+    [[nodiscard]] hdf5::expected<hdf5::string> ReadString(offset_t offset, Deserializer& de) const;
 
-    hdf5::expected<offset_t> WriteString(std::string_view string, FileLink& file);
+    hdf5::expected<offset_t> WriteString(hdf5::string_view string, FileLink& file);
 
     static cstd::tuple<LocalHeap, offset_t> AllocateNew(FileLink& file, len_t min_size);
 
