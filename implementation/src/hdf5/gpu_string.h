@@ -281,4 +281,31 @@ struct gpu_string {
     }
 };
 
+template<size_t MaxLen = 255>
+constexpr hdf5::expected<gpu_string<MaxLen>> to_string(uint64_t value) {
+    static_assert(MaxLen >= 20, "to_string requires MaxLen of at least 20 for uint64_t");
+
+    gpu_string<MaxLen> result;
+    char* buffer = result.data();
+    char* p = buffer;
+
+    do {
+        *p = static_cast<char>('0' + (value % 10));
+        value /= 10;
+    } while (value > 0);
+
+    size_t len = p - buffer;
+
+    for (size_t i = 0; i < len / 2; ++i) {
+        char temp = buffer[i];
+        buffer[i] = buffer[len - 1 - i];
+        buffer[len - 1 - i] = temp;
+    }
+
+    result.length_ = len;
+    result.data_[len] = '\0';
+
+    return result;
+}
+
 } // namespace hdf5
