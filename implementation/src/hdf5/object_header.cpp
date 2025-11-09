@@ -584,7 +584,7 @@ hdf5::expected<DriverInfoMessage> DriverInfoMessage::Deserialize(Deserializer& d
     cstd::array<char, kDriverIdSize> id{};
     de.ReadBuffer(std::span(reinterpret_cast<byte_t*>(id.data()), id.size()));
 
-    auto driver_id_result = hdf5::string::from_chars(id.data(), id.size());
+    auto driver_id_result = hdf5::gpu_string<8>::from_chars(id.data(), id.size());
     if (!driver_id_result) return cstd::unexpected(driver_id_result.error());
     msg.driver_id = *driver_id_result;
 

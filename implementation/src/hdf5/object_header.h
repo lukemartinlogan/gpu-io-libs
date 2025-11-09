@@ -442,7 +442,7 @@ public:
 
 struct DriverInfoMessage {
     // 8 ascii bytes
-    hdf5::string<8> driver_id{};
+    hdf5::gpu_string<8> driver_id{};
     std::vector<byte_t> driver_info;
 
     void Serialize(Serializer& s) const;
