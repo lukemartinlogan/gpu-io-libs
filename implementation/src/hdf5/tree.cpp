@@ -108,33 +108,37 @@ hdf5::expected<cstd::optional<offset_t>> BTreeNode::Get(hdf5::string_view name, 
     }
 }
 
-cstd::optional<offset_t> BTreeNode::GetChunk(const ChunkCoordinates& chunk_coords, FileLink& file) const { // NOLINT(*-no-recursion)
-    cstd::optional<uint16_t> child_index = FindChunkedIndex(chunk_coords);
+cstd::optional<offset_t> BTreeNode::GetChunk(const ChunkCoordinates& chunk_coords, FileLink& file) const {
+    BTreeNode current_node = *this;
 
-    if (!child_index) {
-        return cstd::nullopt;
-    }
+    for (;;) {
+        cstd::optional<uint16_t> child_index = current_node.FindChunkedIndex(chunk_coords);
 
-    const auto& chunk_entries = cstd::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
-
-    // pointers point to raw chunk data
-    if (IsLeaf()) {
-        // coordinates must match exactly
-        const auto& key = chunk_entries.keys.at(*child_index);
-        if (key.chunk_offset_in_dataset.coords == chunk_coords.coords) {
-            return chunk_entries.child_pointers.at(*child_index);
+        if (!child_index) {
+            return cstd::nullopt;
         }
-        return cstd::nullopt;
+
+        const auto& chunk_entries = cstd::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(current_node.entries);
+
+        // pointers point to raw chunk data
+        if (current_node.IsLeaf()) {
+            // coordinates must match exactly
+            const auto& key = chunk_entries.keys.at(*child_index);
+            if (key.chunk_offset_in_dataset.coords == chunk_coords.coords) {
+                return chunk_entries.child_pointers.at(*child_index);
+            }
+            return cstd::nullopt;
+        }
+
+        // find the next node
+        offset_t child_addr = chunk_entries.child_pointers.at(*child_index);
+
+        file.io.SetPosition(file.superblock.base_addr + child_addr);
+        auto child_result = current_node.ReadChild(file.io);
+        if (!child_result) return cstd::nullopt;
+
+        current_node = *child_result;
     }
-
-    // recursively search the tree
-    offset_t child_addr = chunk_entries.child_pointers.at(*child_index);
-
-    file.io.SetPosition(file.superblock.base_addr + child_addr);
-    auto child_result = ReadChild(file.io);
-    if (!child_result) return cstd::nullopt; // Convert error to nullopt for optional return
-
-    return child_result->GetChunk(chunk_coords, file);
 }
 
 template<typename K>
