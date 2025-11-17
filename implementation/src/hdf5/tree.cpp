@@ -1,5 +1,6 @@
 #include <stdexcept>
 
+#include "types.h"
 #include "tree.h"
 #include "local_heap.h"
 
@@ -71,33 +72,40 @@ uint16_t BTreeNode::EntriesUsed() const {
     }, entries);
 }
 
-hdf5::expected<cstd::optional<offset_t>> BTreeNode::Get(hdf5::string_view name, FileLink& file, const LocalHeap& heap) const { // NOLINT(*-no-recursion
-    auto child_index_result = FindGroupIndex(name, heap, file.io);
-    if (!child_index_result) {
-        return cstd::unexpected(child_index_result.error());
+hdf5::expected<cstd::optional<offset_t>> BTreeNode::Get(hdf5::string_view name, FileLink& file, const LocalHeap& heap) const {
+    // this does copy the whole node, but it's necessary since future
+    // iterations need a place to preserve the lifetime
+    BTreeNode current_node = *this;
+
+    for (;;) {
+        auto child_index_result = current_node->FindGroupIndex(name, heap, file.io);
+        if (!child_index_result) {
+            return cstd::unexpected(child_index_result.error());
+        }
+        cstd::optional<uint16_t> child_index = *child_index_result;
+
+        if (!child_index) {
+            return cstd::nullopt;
+        }
+
+        const auto& group_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(current_node.entries);
+
+        // leaf node, search for the exact entry
+        // pointers point to symbol table entries
+        if (current_node.IsLeaf()) {
+            return group_entries.child_pointers.at(*child_index);
+        }
+
+        // iteratively search the tree - load the next node
+        offset_t child_addr = group_entries.child_pointers.at(*child_index);
+
+        file.io.SetPosition(file.superblock.base_addr + child_addr);
+        auto child_result = current_node.ReadChild(file.io);
+        if (!child_result) return cstd::unexpected(child_result.error());
+
+        // Move to next node for next iteration
+        current_node = *child_result;
     }
-    cstd::optional<uint16_t> child_index = *child_index_result;
-
-    if (!child_index) {
-        return cstd::nullopt;
-    }
-
-    const auto& group_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
-
-    // leaf node, search for the exact entry
-    // pointers point to symbol table entries
-    if (IsLeaf()) {
-        return group_entries.child_pointers.at(*child_index);
-    }
-
-    // recursively search the tree
-    offset_t child_addr = group_entries.child_pointers.at(*child_index);
-
-    file.io.SetPosition(file.superblock.base_addr + child_addr);
-    auto child_result = ReadChild(file.io);
-    if (!child_result) return cstd::unexpected(child_result.error());
-
-    return child_result->Get(name, file, heap);
 }
 
 cstd::optional<offset_t> BTreeNode::GetChunk(const ChunkCoordinates& chunk_coords, FileLink& file) const { // NOLINT(*-no-recursion)
