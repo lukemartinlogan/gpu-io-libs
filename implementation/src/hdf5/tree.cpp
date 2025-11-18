@@ -321,18 +321,24 @@ hdf5::expected<K> BTreeNode::GetMaxKey(FileLink& file) const {
 
     ASSERT(cstd::holds_alternative<BTreeEntries<K>>(entries), "GetMaxKey: incorrect key type for this node");
 
-    auto node_entries = cstd::get<BTreeEntries<K>>(entries);
+    BTreeNode current_node = *this;
 
-    ASSERT(node_entries.EntriesUsed() != 0, "GetMaxKey called on empty node");
+    for (;;) {
+        auto node_entries = cstd::get<BTreeEntries<K>>(current_node.entries);
 
-    if (IsLeaf()) {
-        return node_entries.keys.back();
-    } else {
-        file.io.SetPosition(file.superblock.base_addr + node_entries.child_pointers.back());
-        auto child_result = ReadChild(file.io);
+        ASSERT(node_entries.EntriesUsed() != 0, "GetMaxKey called on empty node");
+
+        if (current_node.IsLeaf()) {
+            return node_entries.keys.back();
+        }
+
+        offset_t rightmost_child = node_entries.child_pointers.back();
+
+        file.io.SetPosition(file.superblock.base_addr + rightmost_child);
+        auto child_result = current_node.ReadChild(file.io);
         if (!child_result) return cstd::unexpected(child_result.error());
 
-        return child_result->GetMaxKey<K>(file);
+        current_node = *child_result;
     }
 }
 
