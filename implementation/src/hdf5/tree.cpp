@@ -606,13 +606,30 @@ hdf5::expected<void> BTreeNode::Recurse(const std::function<void(hdf5::string, o
 hdf5::expected<void> BTreeNode::RecurseChunked(const std::function<void(const BTreeChunkedRawDataNodeKey&, offset_t)>& visitor, FileLink& file) const {
     ASSERT(cstd::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries), "RecurseChunked only supported for chunked nodes");
 
-    auto c_entries = cstd::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+    struct StackFrame {
+        BTreeNode node;
+        size_t current_index;
+    };
 
-    for (size_t i = 0; i < c_entries.EntriesUsed(); ++i) {
-        offset_t ptr = c_entries.child_pointers.at(i);
+    constexpr size_t MAX_BTREE_DEPTH = 32;
+    cstd::inplace_vector<StackFrame, MAX_BTREE_DEPTH> stack;
+    stack.push_back({*this, 0});
 
-        if (IsLeaf()) {
-            const auto& key = c_entries.keys.at(i);
+    while (!stack.empty()) {
+        auto& frame = stack.back();
+        auto c_entries = cstd::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(frame.node.entries);
+
+        if (frame.current_index >= c_entries.EntriesUsed()) {
+            stack.pop_back();
+            continue;
+        }
+
+        offset_t ptr = c_entries.child_pointers.at(frame.current_index);
+        size_t current_idx = frame.current_index;
+        frame.current_index++;
+
+        if (frame.node.IsLeaf()) {
+            const auto& key = c_entries.keys.at(current_idx);
 
             // Only visit chunks that actually exist (chunk_size > 0)
             if (key.chunk_size > 0) {
@@ -620,11 +637,10 @@ hdf5::expected<void> BTreeNode::RecurseChunked(const std::function<void(const BT
             }
         } else {
             file.io.SetPosition(file.superblock.base_addr + ptr);
-            auto child_result = ReadChild(file.io);
+            auto child_result = frame.node.ReadChild(file.io);
             if (!child_result) return cstd::unexpected(child_result.error());
 
-            auto recurse_result = child_result->RecurseChunked(visitor, file);
-            if (!recurse_result) return cstd::unexpected(recurse_result.error());
+            stack.push_back({*child_result, 0});
         }
     }
 
