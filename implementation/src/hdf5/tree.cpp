@@ -564,9 +564,7 @@ hdf5::expected<void> BTreeNode::Recurse(const std::function<void(hdf5::string, o
         size_t current_index;
     };
 
-    // BTree depth is typically < 10, 32 is more than enough
-    constexpr size_t MAX_BTREE_DEPTH = 32;
-    cstd::inplace_vector<StackFrame, MAX_BTREE_DEPTH> stack;
+    cstd::inplace_vector<StackFrame, kMaxDepth> stack;
     stack.push_back({*this, 0});
 
     while (!stack.empty()) {
@@ -611,8 +609,7 @@ hdf5::expected<void> BTreeNode::RecurseChunked(const std::function<void(const BT
         size_t current_index;
     };
 
-    constexpr size_t MAX_BTREE_DEPTH = 32;
-    cstd::inplace_vector<StackFrame, MAX_BTREE_DEPTH> stack;
+    cstd::inplace_vector<StackFrame, kMaxDepth> stack;
     stack.push_back({*this, 0});
 
     while (!stack.empty()) {

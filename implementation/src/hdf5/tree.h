@@ -214,6 +214,8 @@ private:
     static constexpr uint8_t kGroupNodeTy = 0, kRawDataChunkNodeTy = 1;
     static constexpr uint16_t kChunkedRawDataK = 32;
     static constexpr cstd::array<uint8_t, 4> kSignature = { 'T', 'R', 'E', 'E' };
+
+    static constexpr size_t kMaxDepth = 16;
 };
 
 struct SplitResult {
