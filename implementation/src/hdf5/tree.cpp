@@ -645,8 +645,6 @@ hdf5::expected<void> BTreeNode::RecurseChunked(const std::function<void(const BT
 }
 
 hdf5::expected<cstd::optional<SplitResult>> BTreeNode::InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
-    cstd::optional<SplitResult> res{};
-
     auto name_str_result = heap.ReadString(name_offset, file.io);
     if (!name_str_result) {
         return cstd::unexpected(name_str_result.error());
@@ -657,8 +655,6 @@ hdf5::expected<cstd::optional<SplitResult>> BTreeNode::InsertGroup(offset_t this
         .leaf = file.superblock.group_leaf_node_k,
         .internal = file.superblock.group_internal_node_k,
     };
-
-    auto& g_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
 
     auto RawInsert = [&file, &heap](BTreeNode& node, BTreeGroupNodeKey key, offset_t child_ptr) -> hdf5::expected<void> {
         auto key_str = heap.ReadString(key.first_object_name, file.io);
@@ -687,27 +683,110 @@ hdf5::expected<cstd::optional<SplitResult>> BTreeNode::InsertGroup(offset_t this
         return {};
     };
 
-    if (IsLeaf()) {
-        if (AtCapacity(k)) {
-            // do we alloc a new string?
-            uint16_t mid_index = k.leaf;
+    struct StackFrame {
+        BTreeNode node;
+        offset_t node_offset;
+    };
 
-            BTreeGroupNodeKey promoted_key = g_entries.keys.at(mid_index);
-            BTreeNode new_node = Split(k);
+    cstd::inplace_vector<StackFrame, kMaxDepth> path_stack;
+
+    // 1: descend to the correct leaf node
+    BTreeNode current_node = *this;
+    offset_t current_offset = this_offset;
+
+    while (!current_node.IsLeaf()) {
+        path_stack.push_back({current_node, current_offset});
+
+        auto& g_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(current_node.entries);
+        auto child_idx_result = current_node.FindGroupIndex(name_str, heap, file.io);
+        if (!child_idx_result) {
+            return cstd::unexpected(child_idx_result.error());
+        }
+        cstd::optional<uint16_t> child_idx = *child_idx_result;
+
+        if (!child_idx) {
+            return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "BTreeNode::InsertGroup: could not find child index");
+        }
+
+        offset_t child_offset = g_entries.child_pointers.at(*child_idx);
+
+        file.io.SetPosition(child_offset);
+        auto child_result = current_node.ReadChild(file.io);
+        if (!child_result) {
+            return cstd::unexpected(child_result.error());
+        }
+
+        current_node = *child_result;
+        current_offset = child_offset;
+    }
+
+    // 2: insert into the leaf node
+    auto& g_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(current_node.entries);
+    cstd::optional<SplitResult> split_to_propagate{};
+
+    if (current_node.AtCapacity(k)) {
+        uint16_t mid_index = k.leaf;
+        BTreeGroupNodeKey promoted_key = g_entries.keys.at(mid_index);
+        BTreeNode new_node = current_node.Split(k);
+
+        auto promoted_key_str = heap.ReadString(promoted_key.first_object_name, file.io);
+        if (!promoted_key_str) {
+            return cstd::unexpected(promoted_key_str.error());
+        }
+
+        if (name_str <= *promoted_key_str) {
+            auto insert_result = RawInsert(current_node, { name_offset }, obj_header_ptr);
+            if (!insert_result) {
+                return cstd::unexpected(insert_result.error());
+            }
+        } else {
+            auto insert_result = RawInsert(new_node, { name_offset }, obj_header_ptr);
+            if (!insert_result) {
+                return cstd::unexpected(insert_result.error());
+            }
+        }
+
+        offset_t new_node_alloc = new_node.AllocateAndWrite(file, k);
+
+        split_to_propagate = {
+            .promoted_key = promoted_key,
+            .new_node_offset = new_node_alloc,
+        };
+    } else {
+        auto insert_result = RawInsert(current_node, { name_offset }, obj_header_ptr);
+        if (!insert_result) {
+            return cstd::unexpected(insert_result.error());
+        }
+    }
+
+    current_node.WriteNodeGetAllocSize(current_offset, file, k);
+
+    // 3: propagate splits back up the path
+    while (!path_stack.empty() && split_to_propagate.has_value()) {
+        auto& frame = path_stack.back();
+        BTreeNode parent_node = frame.node;
+        offset_t parent_offset = frame.node_offset;
+        path_stack.pop_back();
+
+        auto& parent_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(parent_node.entries);
+
+        if (parent_node.AtCapacity(k)) {
+            uint16_t mid_index = k.internal;
+            BTreeGroupNodeKey promoted_key = parent_entries.keys.at(mid_index);
+            BTreeNode new_node = parent_node.Split(k);
 
             auto promoted_key_str = heap.ReadString(promoted_key.first_object_name, file.io);
             if (!promoted_key_str) {
                 return cstd::unexpected(promoted_key_str.error());
             }
 
-            // TODO: is < or <= ?
             if (name_str <= *promoted_key_str) {
-                auto insert_result = RawInsert(*this, { name_offset }, obj_header_ptr);
+                auto insert_result = RawInsert(parent_node, split_to_propagate->promoted_key, split_to_propagate->new_node_offset);
                 if (!insert_result) {
                     return cstd::unexpected(insert_result.error());
                 }
             } else {
-                auto insert_result = RawInsert(new_node, { name_offset }, obj_header_ptr);
+                auto insert_result = RawInsert(new_node, split_to_propagate->promoted_key, split_to_propagate->new_node_offset);
                 if (!insert_result) {
                     return cstd::unexpected(insert_result.error());
                 }
@@ -715,85 +794,22 @@ hdf5::expected<cstd::optional<SplitResult>> BTreeNode::InsertGroup(offset_t this
 
             offset_t new_node_alloc = new_node.AllocateAndWrite(file, k);
 
-            res = {
+            split_to_propagate = {
                 .promoted_key = promoted_key,
                 .new_node_offset = new_node_alloc,
             };
         } else {
-            auto insert_result = RawInsert(*this, { name_offset }, obj_header_ptr);
+            auto insert_result = RawInsert(parent_node, split_to_propagate->promoted_key, split_to_propagate->new_node_offset);
             if (!insert_result) {
                 return cstd::unexpected(insert_result.error());
             }
+            split_to_propagate = cstd::nullopt;
         }
 
-        WriteNodeGetAllocSize(this_offset, file, k);
-    } else {
-        auto child_idx_result = FindGroupIndex(name_str, heap, file.io);
-        if (!child_idx_result) {
-            return cstd::unexpected(child_idx_result.error());
-        }
-        cstd::optional<uint16_t> child_idx = *child_idx_result;
-
-        if (!child_idx) {
-            return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "BTreeNode::Insert: could not find child index");
-        }
-
-        offset_t child_offset = g_entries.child_pointers.at(*child_idx);
-
-        file.io.SetPosition(child_offset);
-        auto child_result = ReadChild(file.io);
-        if (!child_result) return cstd::unexpected(child_result.error());
-
-        auto child_ins_result = child_result->InsertGroup(child_offset, name_offset, obj_header_ptr, file, heap);
-        if (!child_ins_result) {
-            return cstd::unexpected(child_ins_result.error());
-        }
-        cstd::optional<SplitResult> child_ins = *child_ins_result;
-
-        if (child_ins.has_value()) {
-            if (AtCapacity(k)) {
-                uint16_t mid_index = k.internal;
-
-                BTreeGroupNodeKey promoted_key = g_entries.keys.at(mid_index);
-                BTreeNode new_node = Split(k);
-
-                auto promoted_key_str = heap.ReadString(promoted_key.first_object_name, file.io);
-
-                if (!promoted_key_str) {
-                    return cstd::unexpected(promoted_key_str.error());
-                }
-
-                // TODO: is < or <= ?
-                if (name_str <= *promoted_key_str) {
-                    auto insert_result = RawInsert(*this, child_ins->promoted_key, child_ins->new_node_offset);
-                    if (!insert_result) {
-                        return cstd::unexpected(insert_result.error());
-                    }
-                } else {
-                    auto insert_result = RawInsert(new_node, child_ins->promoted_key, child_ins->new_node_offset);
-                    if (!insert_result) {
-                        return cstd::unexpected(insert_result.error());
-                    }
-                }
-
-                offset_t new_node_alloc = new_node.AllocateAndWrite(file, k);
-
-                res = {
-                    .promoted_key = promoted_key,
-                    .new_node_offset = new_node_alloc,
-                };
-            } else {
-                auto insert_result = RawInsert(*this, child_ins->promoted_key, child_ins->new_node_offset);
-                if (!insert_result) {
-                    return cstd::unexpected(insert_result.error());
-                }
-            }
-
-            WriteNodeGetAllocSize(this_offset, file, k);
-        }
+        parent_node.WriteNodeGetAllocSize(parent_offset, file, k);
     }
 
-    return res;
+    return split_to_propagate;
 }
 
 // TODO(expected): maybe just return expected?
