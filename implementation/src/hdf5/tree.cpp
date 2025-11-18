@@ -558,13 +558,33 @@ offset_t BTreeNode::AllocateAndWrite(FileLink& file, KValues k) const {
 hdf5::expected<void> BTreeNode::Recurse(const std::function<void(hdf5::string, offset_t)>& visitor, FileLink& file) const {
     ASSERT(cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries), "Recurse only supported for group nodes");
 
-    auto g_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+    // Stack frame to track nodes and their current child index
+    struct StackFrame {
+        BTreeNode node;
+        size_t current_index;
+    };
 
-    for (size_t i = 0; i < g_entries.EntriesUsed(); ++i) {
-        offset_t ptr = g_entries.child_pointers.at(i);
+    // BTree depth is typically < 10, 32 is more than enough
+    constexpr size_t MAX_BTREE_DEPTH = 32;
+    cstd::inplace_vector<StackFrame, MAX_BTREE_DEPTH> stack;
+    stack.push_back({*this, 0});
 
-        if (IsLeaf()) {
-            auto name_result = hdf5::to_string(g_entries.keys.at(i).first_object_name);
+    while (!stack.empty()) {
+        auto& frame = stack.back();
+        auto g_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(frame.node.entries);
+
+        // If we've processed all children of this node, pop it
+        if (frame.current_index >= g_entries.EntriesUsed()) {
+            stack.pop_back();
+            continue;
+        }
+
+        offset_t ptr = g_entries.child_pointers.at(frame.current_index);
+        size_t current_idx = frame.current_index;
+        frame.current_index++;
+
+        if (frame.node.IsLeaf()) {
+            auto name_result = hdf5::to_string(g_entries.keys.at(current_idx).first_object_name);
 
             if (!name_result) {
                 return cstd::unexpected(name_result.error());
@@ -573,11 +593,10 @@ hdf5::expected<void> BTreeNode::Recurse(const std::function<void(hdf5::string, o
             visitor(std::move(*name_result), ptr);
         } else {
             file.io.SetPosition(file.superblock.base_addr + ptr);
-            auto child_result = ReadChild(file.io);
+            auto child_result = frame.node.ReadChild(file.io);
             if (!child_result) return cstd::unexpected(child_result.error());
 
-            auto recurse_result = child_result->Recurse(visitor, file);
-            if (!recurse_result) return cstd::unexpected(recurse_result.error());
+            stack.push_back({*child_result, 0});
         }
     }
 
