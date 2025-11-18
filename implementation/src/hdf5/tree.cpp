@@ -78,7 +78,7 @@ hdf5::expected<cstd::optional<offset_t>> BTreeNode::Get(hdf5::string_view name, 
     BTreeNode current_node = *this;
 
     for (;;) {
-        auto child_index_result = current_node->FindGroupIndex(name, heap, file.io);
+        auto child_index_result = current_node.FindGroupIndex(name, heap, file.io);
         if (!child_index_result) {
             return cstd::unexpected(child_index_result.error());
         }
