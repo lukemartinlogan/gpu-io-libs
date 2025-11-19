@@ -452,9 +452,11 @@ public:
 };
 
 struct DriverInfoMessage {
+    static constexpr size_t kMaxDriverInfoSize = 512;
+
     // 8 ascii bytes
     hdf5::gpu_string<8> driver_id{};
-    std::vector<byte_t> driver_info;
+    cstd::inplace_vector<byte_t, kMaxDriverInfoSize> driver_info;
 
     void Serialize(Serializer& s) const;
 
