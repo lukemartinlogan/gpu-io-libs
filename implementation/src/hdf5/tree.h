@@ -101,14 +101,19 @@ struct BTreeChunkedRawDataNodeKey {
 
 template<typename K>
 struct BTreeEntries {
+private:
+    static constexpr size_t MAX_BTREE_ENTRIES = 32;
+
+public:
     // TODO: enforce child_pointers.size() + 1 == keys.size()
-    std::vector<K> keys;
-    std::vector<offset_t> child_pointers;
+    cstd::inplace_vector<K, MAX_BTREE_ENTRIES> keys;
+    cstd::inplace_vector<offset_t, MAX_BTREE_ENTRIES> child_pointers;
 
     [[nodiscard]] uint16_t EntriesUsed() const;
 
     [[nodiscard]] uint16_t KeySize() const;
 
+private:
     static_assert(
         std::is_same_v<K, BTreeGroupNodeKey> || std::is_same_v<K, BTreeChunkedRawDataNodeKey>,
         "Unsupported key type"
