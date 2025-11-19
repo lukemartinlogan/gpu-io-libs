@@ -438,13 +438,13 @@ hdf5::expected<void> Dataset::WriteHyperslab(
     return {};
 }
 
-hdf5::expected<std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Dataset::GetHyperslabChunkRawOffsets(
+hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Dataset::GetHyperslabChunkRawOffsets(
     const hdf5::dim_vector<uint64_t>& start,
     const hdf5::dim_vector<uint64_t>& count,
     const hdf5::dim_vector<uint64_t>& stride,
     const hdf5::dim_vector<uint64_t>& block
 ) const {
-    std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> result;
+    hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> result;
 
     if (!cstd::holds_alternative<ChunkedStorageProperty>(layout_.properties)) {
         return RawOffsets();

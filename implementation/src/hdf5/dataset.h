@@ -141,7 +141,7 @@ public:
 
     [[nodiscard]] hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> RawOffsets() const;
 
-    [[nodiscard]] hdf5::expected<std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> GetHyperslabChunkRawOffsets(
+    [[nodiscard]] hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> GetHyperslabChunkRawOffsets(
         const hdf5::dim_vector<uint64_t>& start,
         const hdf5::dim_vector<uint64_t>& count,
         const hdf5::dim_vector<uint64_t>& stride = {},
