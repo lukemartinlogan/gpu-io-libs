@@ -211,9 +211,96 @@ private:
 
     offset_t AllocateAndWrite(FileLink& file, KValues k) const;
 
-    hdf5::expected<void> Recurse(const std::function<void(hdf5::string, offset_t)>& visitor, FileLink& file) const;
+    template<typename Visitor>
+    hdf5::expected<void> Recurse(Visitor&& visitor, FileLink& file) const {
+        ASSERT(cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries), "Recurse only supported for group nodes");
 
-    hdf5::expected<void> RecurseChunked(const std::function<void(const BTreeChunkedRawDataNodeKey&, offset_t)>& visitor, FileLink& file) const;
+        // Stack frame to track nodes and their current child index
+        struct StackFrame {
+            BTreeNode node;
+            size_t current_index;
+        };
+
+        cstd::inplace_vector<StackFrame, kMaxDepth> stack;
+        stack.push_back({*this, 0});
+
+        while (!stack.empty()) {
+            auto& frame = stack.back();
+            auto g_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(frame.node.entries);
+
+            // If we've processed all children of this node, pop it
+            if (frame.current_index >= g_entries.EntriesUsed()) {
+                stack.pop_back();
+                continue;
+            }
+
+            offset_t ptr = g_entries.child_pointers.at(frame.current_index);
+            size_t current_idx = frame.current_index;
+            ++frame.current_index;
+
+            if (frame.node.IsLeaf()) {
+                auto name_result = hdf5::to_string(g_entries.keys.at(current_idx).first_object_name);
+
+                if (!name_result) {
+                    return cstd::unexpected(name_result.error());
+                }
+
+                visitor(std::move(*name_result), ptr);
+            } else {
+                file.io.SetPosition(file.superblock.base_addr + ptr);
+                auto child_result = frame.node.ReadChild(file.io);
+                if (!child_result) return cstd::unexpected(child_result.error());
+
+                stack.push_back({*child_result, 0});
+            }
+        }
+
+        return {};
+    }
+
+    template<typename Visitor>
+    hdf5::expected<void> RecurseChunked(Visitor&& visitor, FileLink& file) const {
+        ASSERT(cstd::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries), "RecurseChunked only supported for chunked nodes");
+
+        struct StackFrame {
+            BTreeNode node;
+            size_t current_index;
+        };
+
+        cstd::inplace_vector<StackFrame, kMaxDepth> stack;
+        stack.push_back({*this, 0});
+
+        while (!stack.empty()) {
+            auto& frame = stack.back();
+            auto c_entries = cstd::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(frame.node.entries);
+
+            if (frame.current_index >= c_entries.EntriesUsed()) {
+                stack.pop_back();
+                continue;
+            }
+
+            offset_t ptr = c_entries.child_pointers.at(frame.current_index);
+            size_t current_idx = frame.current_index;
+            ++frame.current_index;
+
+            if (frame.node.IsLeaf()) {
+                const auto& key = c_entries.keys.at(current_idx);
+
+                // Only visit chunks that actually exist (chunk_size > 0)
+                if (key.chunk_size > 0) {
+                    visitor(key, ptr);
+                }
+            } else {
+                file.io.SetPosition(file.superblock.base_addr + ptr);
+                auto child_result = frame.node.ReadChild(file.io);
+                if (!child_result) return cstd::unexpected(child_result.error());
+
+                stack.push_back({*child_result, 0});
+            }
+        }
+
+        return {};
+    }
 
 private:
     static constexpr uint8_t kGroupNodeTy = 0, kRawDataChunkNodeTy = 1;
