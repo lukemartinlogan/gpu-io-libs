@@ -1002,8 +1002,9 @@ hdf5::expected<std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Chun
         return result;
     }
 
-    auto recurse_result = (*root_result)->RecurseChunked([&result](const BTreeChunkedRawDataNodeKey& key, offset_t data_offset) {
+    auto recurse_result = (*root_result)->RecurseChunked([&result](const BTreeChunkedRawDataNodeKey& key, offset_t data_offset) -> hdf5::expected<void> {
         result.emplace_back(key.chunk_offset_in_dataset, data_offset, key.chunk_size);
+        return {};
     }, *file_);
     if (!recurse_result) return cstd::unexpected(recurse_result.error());
 
@@ -1047,7 +1048,10 @@ hdf5::expected<size_t> GroupBTree::Size() const {
 
     size_t size = 0;
 
-    auto recurse_result = (*root_result)->Recurse([&size](const hdf5::string&, offset_t) { ++size; }, *file_);
+    auto recurse_result = (*root_result)->Recurse([&size](const hdf5::string&, offset_t) -> hdf5::expected<void> {
+        ++size;
+        return {};
+    }, *file_);
     if (!recurse_result) return cstd::unexpected(recurse_result.error());
 
     return size;

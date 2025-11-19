@@ -250,7 +250,10 @@ private:
                     return cstd::unexpected(name_result.error());
                 }
 
-                visitor(std::move(*name_result), ptr);
+                auto visitor_result = visitor(std::move(*name_result), ptr);
+                if (!visitor_result) {
+                    return cstd::unexpected(visitor_result.error());
+                }
             } else {
                 file.io.SetPosition(file.superblock.base_addr + ptr);
                 auto child_result = frame.node.ReadChild(file.io);
@@ -298,7 +301,10 @@ private:
 
                 // Only visit chunks that actually exist (chunk_size > 0)
                 if (key.chunk_size > 0) {
-                    visitor(key, ptr);
+                    auto visitor_result = visitor(key, ptr);
+                    if (!visitor_result) {
+                        return cstd::unexpected(visitor_result.error());
+                    }
                 }
             } else {
                 file.io.SetPosition(file.superblock.base_addr + ptr);
