@@ -74,7 +74,9 @@ public:
 };
 
 struct FillValueOldMessage {
-    std::vector<byte_t> fill_value;
+    static constexpr size_t kMaxFillValueSize = 256;
+
+    cstd::inplace_vector<byte_t, kMaxFillValueSize> fill_value;
 
     void Serialize(Serializer& s) const {
         s.Write<uint32_t>(fill_value.size());
@@ -103,6 +105,8 @@ struct FillValueOldMessage {
 };
 
 struct FillValueMessage {
+    static constexpr size_t kMaxFillValueSizeBytes = 256;
+
     enum class SpaceAllocTime {
         kNotUsed = 0,
         kEarly = 1,
@@ -116,7 +120,7 @@ struct FillValueMessage {
         kIfExplicit = 2,
     } write_time;
 
-    cstd::optional<std::vector<byte_t>> fill_value;
+    cstd::optional<cstd::inplace_vector<byte_t, kMaxFillValueSizeBytes>> fill_value;
 
     void Serialize(Serializer& s) const;
 
@@ -141,6 +145,8 @@ struct LinkMessage {
 };
 
 struct ExternalDataFilesMessage {
+    static constexpr size_t kMaxExternalFileSlots = 16;
+
     struct ExternalFileSlot {
         // the byte offset within the local name heap for the name of the file
         len_t name_offset;
@@ -165,7 +171,7 @@ struct ExternalDataFilesMessage {
     };
 
     offset_t heap_address;
-    std::vector<ExternalFileSlot> slots;
+    cstd::inplace_vector<ExternalFileSlot, kMaxExternalFileSlots> slots;
 
     void Serialize(Serializer& s) const;
 
@@ -236,7 +242,10 @@ struct FilterPipelineMessage {
 };
 
 struct CompactStorageProperty {
-    std::vector<byte_t> raw_data;
+    // TODO: this may need to be increased
+    static constexpr size_t kMaxCompactStorageSizeBytes = 4096;
+
+    cstd::inplace_vector<byte_t, kMaxCompactStorageSizeBytes> raw_data;
 
     void Serialize(Serializer& s) const;
 
@@ -281,12 +290,14 @@ public:
 };
 
 struct AttributeMessage {
+    static constexpr size_t kMaxAttributeDataSize = 1024;
+
     hdf5::string name;
     DatatypeMessage datatype;
     DataspaceMessage dataspace;
 
     // TODO: is there a better way to create this
-    std::vector<byte_t> data;
+    cstd::inplace_vector<byte_t, kMaxAttributeDataSize> data;
 
     template<typename T>
     hdf5::expected<T> ReadDataAs() {
@@ -441,9 +452,11 @@ public:
 };
 
 struct DriverInfoMessage {
+    static constexpr size_t kMaxDriverInfoSize = 512;
+
     // 8 ascii bytes
     hdf5::gpu_string<8> driver_id{};
-    std::vector<byte_t> driver_info;
+    cstd::inplace_vector<byte_t, kMaxDriverInfoSize> driver_info;
 
     void Serialize(Serializer& s) const;
 
@@ -657,13 +670,15 @@ private:
 };
 
 struct ObjectHeader {
+    static constexpr size_t kMaxObjectHeaderMessages = 48;
+
     // number of hard links to this object in the current file
     uint32_t object_ref_count{};
     // number of bytes of header message data for this header
     // does not include size of object header continuation blocks
     uint32_t object_header_size{};
     // messages
-    std::vector<ObjectHeaderMessage> messages{};
+    cstd::inplace_vector<ObjectHeaderMessage, kMaxObjectHeaderMessages> messages{};
 
     void Serialize(Serializer& s) const;
 

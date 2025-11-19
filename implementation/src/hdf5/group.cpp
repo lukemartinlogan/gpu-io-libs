@@ -47,7 +47,7 @@ hdf5::expected<Dataset> Group::CreateDataset(
     const hdf5::dim_vector<len_t>& dimension_sizes,
     const DatatypeMessage& type,
     cstd::optional<hdf5::dim_vector<uint32_t>> chunk_dims,
-    cstd::optional<std::vector<byte_t>> fill_value
+    cstd::optional<cstd::inplace_vector<byte_t, FillValueMessage::kMaxFillValueSizeBytes>> fill_value
 ) {
     auto exists_result = Get(dataset_name);
     if (!exists_result) {
@@ -84,7 +84,7 @@ hdf5::expected<Dataset> Group::CreateDataset(
     new_ds.WriteMessage(FillValueMessage {
         .space_alloc_time = FillValueMessage::SpaceAllocTime::kEarly,
         .write_time = FillValueMessage::ValWriteTime::kIfExplicit,
-        .fill_value = fill_value,
+        .fill_value = std::move(fill_value),
     });
 
     if (chunk_dims.has_value()) {

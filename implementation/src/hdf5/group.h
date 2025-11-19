@@ -20,7 +20,7 @@ public:
         const hdf5::dim_vector<len_t>& dimension_sizes,
         const DatatypeMessage& type,
         cstd::optional<hdf5::dim_vector<uint32_t>> chunk_dims = cstd::nullopt,
-        cstd::optional<std::vector<byte_t>> fill_value = cstd::nullopt
+        cstd::optional<cstd::inplace_vector<byte_t, FillValueMessage::kMaxFillValueSizeBytes>> fill_value = cstd::nullopt
     );
 
     [[nodiscard]] hdf5::expected<Group> OpenGroup(hdf5::string_view group_name) const;
