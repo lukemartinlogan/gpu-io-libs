@@ -242,7 +242,10 @@ struct FilterPipelineMessage {
 };
 
 struct CompactStorageProperty {
-    std::vector<byte_t> raw_data;
+    // TODO: this may need to be increased
+    static constexpr size_t kMaxCompactStorageSizeBytes = 4096;
+
+    cstd::inplace_vector<byte_t, kMaxCompactStorageSizeBytes> raw_data;
 
     void Serialize(Serializer& s) const;
 
