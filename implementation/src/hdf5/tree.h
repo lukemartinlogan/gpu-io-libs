@@ -337,6 +337,9 @@ struct SplitResultChunked {
 };
 
 struct GroupBTree {
+    // TODO: max need to increase this
+    static constexpr size_t kMaxGroupElements = 128;
+
     explicit GroupBTree(offset_t addr, std::shared_ptr<FileLink> file, const LocalHeap& heap)
         : file_(std::move(file)), heap_(heap), addr_(addr) {}
 
@@ -346,7 +349,7 @@ struct GroupBTree {
 
     [[nodiscard]] hdf5::expected<size_t> Size() const;
 
-    [[nodiscard]] hdf5::expected<std::vector<offset_t>> Elements() const;
+    [[nodiscard]] hdf5::expected<cstd::inplace_vector<offset_t, kMaxGroupElements>> Elements() const;
 private:
     friend class Group;
 

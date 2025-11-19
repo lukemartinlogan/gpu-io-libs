@@ -1057,17 +1057,23 @@ hdf5::expected<size_t> GroupBTree::Size() const {
     return size;
 }
 
-hdf5::expected<std::vector<offset_t>> GroupBTree::Elements() const {
+hdf5::expected<cstd::inplace_vector<offset_t, GroupBTree::kMaxGroupElements>> GroupBTree::Elements() const {
     auto root_result = ReadRoot();
     if (!root_result) return cstd::unexpected(root_result.error());
 
     if (!root_result->has_value()) {
-        return std::vector<offset_t>{};
+        return cstd::inplace_vector<offset_t, kMaxGroupElements>{};
     }
 
-    std::vector<offset_t> elems;
+    cstd::inplace_vector<offset_t, kMaxGroupElements> elems;
 
-    auto recurse_result = (*root_result)->Recurse([&elems](const hdf5::string&, offset_t ptr) { elems.push_back(ptr); }, *file_);
+    auto recurse_result = (*root_result)->Recurse([&elems](const hdf5::string&, offset_t ptr) -> hdf5::expected<void> {
+        if (elems.size() >= elems.capacity()) {
+            return hdf5::error(hdf5::HDF5ErrorCode::CapacityExceeded, "Group has too many elements (exceeds kMaxGroupElements)");
+        }
+        elems.push_back(ptr);
+        return {};
+    }, *file_);
     if (!recurse_result) return cstd::unexpected(recurse_result.error());
 
     return elems;
