@@ -290,12 +290,14 @@ public:
 };
 
 struct AttributeMessage {
+    static constexpr size_t kMaxAttributeDataSize = 1024;
+
     hdf5::string name;
     DatatypeMessage datatype;
     DataspaceMessage dataspace;
 
     // TODO: is there a better way to create this
-    std::vector<byte_t> data;
+    cstd::inplace_vector<byte_t, kMaxAttributeDataSize> data;
 
     template<typename T>
     hdf5::expected<T> ReadDataAs() {
