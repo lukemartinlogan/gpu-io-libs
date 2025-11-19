@@ -213,6 +213,11 @@ private:
 
     template<typename Visitor>
     hdf5::expected<void> Recurse(Visitor&& visitor, FileLink& file) const {
+        static_assert(
+            std::is_invocable_r_v<hdf5::expected<void>, Visitor, hdf5::string, offset_t>,
+            "Visitor must be invocable with (hdf5::string, offset_t) and return hdf5::expected<void>"
+        );
+
         ASSERT(cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries), "Recurse only supported for group nodes");
 
         // Stack frame to track nodes and their current child index
@@ -260,6 +265,11 @@ private:
 
     template<typename Visitor>
     hdf5::expected<void> RecurseChunked(Visitor&& visitor, FileLink& file) const {
+        static_assert(
+            std::is_invocable_r_v<hdf5::expected<void>, Visitor, BTreeChunkedRawDataNodeKey, offset_t>,
+            "Visitor must be invocable with (BTreeChunkedRawDataNodeKey, offset_t) and return hdf5::expected<void>"
+        );
+
         ASSERT(cstd::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries), "RecurseChunked only supported for chunked nodes");
 
         struct StackFrame {
