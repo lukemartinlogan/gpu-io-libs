@@ -670,13 +670,15 @@ private:
 };
 
 struct ObjectHeader {
+    static constexpr size_t kMaxObjectHeaderMessages = 48;
+
     // number of hard links to this object in the current file
     uint32_t object_ref_count{};
     // number of bytes of header message data for this header
     // does not include size of object header continuation blocks
     uint32_t object_header_size{};
     // messages
-    std::vector<ObjectHeaderMessage> messages{};
+    cstd::inplace_vector<ObjectHeaderMessage, kMaxObjectHeaderMessages> messages{};
 
     void Serialize(Serializer& s) const;
 
