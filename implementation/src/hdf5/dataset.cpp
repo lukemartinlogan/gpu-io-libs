@@ -134,20 +134,24 @@ hdf5::expected<void> Dataset::Write(std::span<const byte_t> data, size_t start_i
     return {};
 }
 
-hdf5::expected<std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Dataset::RawOffsets() const {
+hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Dataset::RawOffsets() const {
     auto props = layout_.properties;
 
     if (const auto* compact = cstd::get_if<CompactStorageProperty>(&props)) {
         // For compact storage, return a single entry with zero coordinates matching dataset dimensionality
         ChunkCoordinates coords;
         coords.coords = hdf5::dim_vector<uint64_t>(space_.dimensions.size(), 0);
-        return std::vector{ cstd::tuple{coords, offset_t{0}, static_cast<len_t>(compact->raw_data.size())} };
+        hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> result;
+        result.emplace_back(coords, offset_t{0}, static_cast<len_t>(compact->raw_data.size()));
+        return result;
 
     } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
         // For contiguous storage, return a single entry with zero coordinates matching dataset dimensionality
         ChunkCoordinates coords;
         coords.coords = hdf5::dim_vector<uint64_t>(space_.dimensions.size(), 0);
-        return std::vector{ cstd::tuple{coords, contiguous->address, contiguous->size} };
+        hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> result;
+        result.emplace_back(coords, contiguous->address, contiguous->size);
+        return result;
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
         // For chunked storage, use the B-tree to get all chunk offsets

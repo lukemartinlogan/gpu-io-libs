@@ -992,8 +992,8 @@ hdf5::expected<cstd::optional<offset_t>> ChunkedBTree::GetChunk(const ChunkCoord
     return (*root_result)->GetChunk(chunk_coords, *file_);
 }
 
-hdf5::expected<std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> ChunkedBTree::Offsets() const {
-    std::vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> result{};
+hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> ChunkedBTree::Offsets() const {
+    hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> result{};
 
     auto root_result = ReadRoot();
     if (!root_result) return cstd::unexpected(root_result.error());
