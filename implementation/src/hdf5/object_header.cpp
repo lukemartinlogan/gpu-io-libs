@@ -186,7 +186,8 @@ hdf5::expected<FillValueMessage> FillValueMessage::Deserialize(Deserializer& de)
     } else if (defined == 1) {
         auto size = de.Read<uint32_t>();
 
-        std::vector<byte_t> fv(size);
+        cstd::inplace_vector<byte_t, kMaxFillValueSizeBytes> fv;
+        fv.resize(size);
         de.ReadBuffer(fv);
 
         msg.fill_value = fv;

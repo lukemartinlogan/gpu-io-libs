@@ -74,7 +74,9 @@ public:
 };
 
 struct FillValueOldMessage {
-    std::vector<byte_t> fill_value;
+    static constexpr size_t kMaxFillValueSize = 256;
+
+    cstd::inplace_vector<byte_t, kMaxFillValueSize> fill_value;
 
     void Serialize(Serializer& s) const {
         s.Write<uint32_t>(fill_value.size());
@@ -103,6 +105,8 @@ struct FillValueOldMessage {
 };
 
 struct FillValueMessage {
+    static constexpr size_t kMaxFillValueSizeBytes = 256;
+
     enum class SpaceAllocTime {
         kNotUsed = 0,
         kEarly = 1,
@@ -116,7 +120,7 @@ struct FillValueMessage {
         kIfExplicit = 2,
     } write_time;
 
-    cstd::optional<std::vector<byte_t>> fill_value;
+    cstd::optional<cstd::inplace_vector<byte_t, kMaxFillValueSizeBytes>> fill_value;
 
     void Serialize(Serializer& s) const;
 
