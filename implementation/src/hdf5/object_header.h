@@ -145,6 +145,8 @@ struct LinkMessage {
 };
 
 struct ExternalDataFilesMessage {
+    static constexpr size_t kMaxExternalFileSlots = 16;
+
     struct ExternalFileSlot {
         // the byte offset within the local name heap for the name of the file
         len_t name_offset;
@@ -169,7 +171,7 @@ struct ExternalDataFilesMessage {
     };
 
     offset_t heap_address;
-    std::vector<ExternalFileSlot> slots;
+    cstd::inplace_vector<ExternalFileSlot, kMaxExternalFileSlots> slots;
 
     void Serialize(Serializer& s) const;
 
