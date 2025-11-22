@@ -457,7 +457,18 @@ hdf5::expected<AttributeMessage> AttributeMessage::Deserialize(Deserializer& de)
     auto dataspace_size = de.Read<uint16_t>();
 
     auto max_buf_size = std::max(std::max(name_size, datatype_size), dataspace_size);
-    std::vector<byte_t> buf(max_buf_size);
+
+    // all are generally small; this should be enough
+    constexpr size_t kMaxAttributeBufferSize = kMaxAttributeDataSize * 2;
+
+    if (max_buf_size > kMaxAttributeBufferSize) {
+        return hdf5::error(
+            hdf5::HDF5ErrorCode::CapacityExceeded,
+            "Attribute component size exceeds maximum buffer size"
+        );
+    }
+
+    cstd::array<byte_t, kMaxAttributeBufferSize> buf{};
 
     AttributeMessage msg{};
 
