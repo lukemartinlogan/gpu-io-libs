@@ -5,23 +5,7 @@
 
 #include "../util/align.h"
 #include "file_link.h"
-
-
-hdf5::string ReadNullTerminatedString(Deserializer& de, cstd::optional<size_t> max_size) {
-    hdf5::string str;
-
-    while (!max_size || str.size() < *max_size) {
-        auto c = de.Read<byte_t>();
-
-        if (c == static_cast<byte_t>('\0')) {
-            break;
-        }
-
-        str.push_back(static_cast<char>(c));
-    }
-
-    return str;
-}
+#include "../util/string.h"
 
 // TODO(cuda_vector): many calls of this function don't need ownership; 'LocalHeap::ViewString'?
 hdf5::expected<hdf5::string> LocalHeap::ReadString(offset_t offset, Deserializer& de) const {
