@@ -40,7 +40,7 @@ class Deserializer {
 public:
     virtual ~Deserializer() = default;
 
-    virtual bool ReadBuffer(std::span<byte_t> out) = 0;
+    virtual bool ReadBuffer(cstd::span<byte_t> out) = 0;
 
     [[nodiscard]] virtual offset_t GetPosition() = 0;
     virtual void SetPosition(offset_t offset) = 0;
@@ -84,7 +84,7 @@ class ReaderWriter : public Serializer, public Deserializer {
 public:
     // bool WriteBuffer(std::span<const byte_t> data) override = 0;
     bool WriteBuffer(cstd::span<const byte_t> data) override = 0;
-    bool ReadBuffer(std::span<byte_t> out) override = 0;
+    bool ReadBuffer(cstd::span<byte_t> out) override = 0;
     [[nodiscard]] offset_t GetPosition() override = 0;
     void SetPosition(offset_t offset) override = 0;
     ~ReaderWriter() override = default;

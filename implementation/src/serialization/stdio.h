@@ -43,7 +43,7 @@ public:
         file_.reset(raw);
     }
 
-    bool ReadBuffer(std::span<byte_t> out) final {
+    bool ReadBuffer(cstd::span<byte_t> out) final {
         size_t bytes_read = std::fread(out.data(), 1, out.size(), file_.get());
         return bytes_read == out.size();
     }
@@ -94,7 +94,7 @@ public:
         return bytes_written == data.size();
     }
 
-    bool ReadBuffer(std::span<byte_t> out) final {
+    bool ReadBuffer(cstd::span<byte_t> out) final {
         size_t bytes_read = std::fread(out.data(), 1, out.size(), file_.get());
         return bytes_read == out.size();
     }

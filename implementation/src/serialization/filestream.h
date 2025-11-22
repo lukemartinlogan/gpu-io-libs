@@ -10,7 +10,7 @@ public:
     explicit FStreamWriter(const std::filesystem::path& path)
         : path_(path), stream_(path, std::ofstream::out | std::ofstream::binary) {}
 
-    bool WriteBuffer(std::span<const byte_t> data) final {
+    bool WriteBuffer(cstd::span<const byte_t> data) final {
         stream_.write(reinterpret_cast<const char*>(data.data()), data.size());
 
         return stream_.good();
@@ -25,7 +25,7 @@ public:
     explicit FStreamReader(const std::filesystem::path& path)
         : path_(path), stream_(path, std::ofstream::in | std::ofstream::binary) {}
 
-    bool ReadBuffer(std::span<byte_t> out) final {
+    bool ReadBuffer(cstd::span<byte_t> out) final {
         stream_.read(reinterpret_cast<char*>(out.data()), out.size());
 
         return stream_.gcount() == out.size() && stream_.good();
