@@ -40,7 +40,7 @@ private:
 
     hdf5::expected<offset_t> WriteBytes(std::span<const byte_t> data, FileLink& file);
 
-    void ReserveAdditional(FileLink& file, size_t additional_bytes);
+    hdf5::expected<void> ReserveAdditional(FileLink& file, size_t additional_bytes);
 
 private:
     offset_t data_segment_address{};

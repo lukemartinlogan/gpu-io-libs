@@ -79,7 +79,9 @@ hdf5::expected<offset_t> LocalHeap::WriteBytes(std::span<const byte_t> data, Fil
     auto free = *free_result;
 
     if (!free) {
-        ReserveAdditional(file, aligned_size);
+        if (auto reserve_result = ReserveAdditional(file, aligned_size); !reserve_result) {
+            return cstd::unexpected(reserve_result.error());
+        }
 
         free_result = FindFreeSpace(aligned_size, file.io);
         if (!free_result) {
@@ -183,7 +185,7 @@ cstd::tuple<LocalHeap, offset_t> LocalHeap::AllocateNew(FileLink& file, len_t mi
 }
 
 // note: this method does not rewrite to file
-void LocalHeap::ReserveAdditional(FileLink& file, size_t additional_bytes) {
+hdf5::expected<void> LocalHeap::ReserveAdditional(FileLink& file, size_t additional_bytes) {
     // 1. determine new size + alloc
     size_t new_size = std::max(
         data_segment_size * 2,
@@ -226,6 +228,8 @@ void LocalHeap::ReserveAdditional(FileLink& file, size_t additional_bytes) {
     // 3. update struct
     data_segment_address = alloc;
     data_segment_size = new_size;
+
+    return {};
 }
 
 void LocalHeap::RewriteToFile(ReaderWriter& rw) const {
