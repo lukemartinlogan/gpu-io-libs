@@ -466,18 +466,21 @@ hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>>
         std::multiplies{}
     );
 
-    hdf5::dim_vector<std::vector<uint64_t>> chunks_per_dim(dimensionality);
-    
+    constexpr size_t kMaxChunksPerDim = 256;
+
+    hdf5::dim_vector<cstd::inplace_vector<uint64_t, kMaxChunksPerDim>> chunks_per_dim(dimensionality);
+
     for (size_t dim = 0; dim < dimensionality; ++dim) {
         uint64_t chunk_size = chunked.dimension_sizes[dim];
         uint64_t dim_start = start[dim];
         uint64_t dim_count = count[dim];
         uint64_t dim_stride = stride.empty() ? 1 : stride[dim];
         uint64_t dim_block = block.empty() ? 1 : block[dim];
-        
-        std::unordered_set<uint64_t> unique_chunks;
-        unique_chunks.reserve(dim_count * 2); // avoid hash table rehashing
-        
+
+        // instead of a set, let's just use a bounded vector
+        // not sure if this will always be big enough
+        cstd::inplace_vector<uint64_t, kMaxChunksPerDim> unique_chunks;
+
         // for each count iteration
         for (uint64_t count_idx = 0; count_idx < dim_count; ++count_idx) {
             uint64_t block_start = dim_start + count_idx * dim_stride;
@@ -488,19 +491,27 @@ hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>>
             uint64_t end_chunk = (block_end / chunk_size) * chunk_size;
             
             for (uint64_t chunk_coord = start_chunk; chunk_coord <= end_chunk; chunk_coord += chunk_size) {
-                unique_chunks.insert(chunk_coord);
+                if (std::ranges::find(unique_chunks, chunk_coord) == unique_chunks.end()) {
+                    if (unique_chunks.size() >= kMaxChunksPerDim) {
+                        return hdf5::error(
+                            hdf5::HDF5ErrorCode::CapacityExceeded,
+                            "Too many chunks in dimension for hyperslab operation"
+                        );
+                    }
+
+                    unique_chunks.push_back(chunk_coord);
+                }
             }
         }
         
         if (unique_chunks.empty()) {
             return result;
         }
-        
-        // convert to sorted vector for cartesian products
-        auto& dim_chunks = chunks_per_dim[dim];
-        dim_chunks.reserve(unique_chunks.size());
-        dim_chunks.assign(unique_chunks.begin(), unique_chunks.end());
-        std::ranges::sort(dim_chunks); // sort for consistent ordering
+
+        // sort for consistent ordering
+        std::ranges::sort(unique_chunks);
+
+        chunks_per_dim[dim] = unique_chunks;
     }
 
     hdf5::dim_vector<uint64_t> current_combination(dimensionality);
