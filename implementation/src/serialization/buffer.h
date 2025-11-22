@@ -8,7 +8,7 @@ public:
     explicit BufferSerializer(std::span<byte_t> buf) // NOLINT
         : buf(buf), cursor(0) {}
 
-    bool WriteBuffer(std::span<const byte_t> data) final {
+    bool WriteBuffer(cstd::span<const byte_t> data) final {
         if (data.size() > buf.size() - cursor) {
             // not enough remaining space
             return false;
@@ -31,7 +31,7 @@ public:
         buf.reserve(size);
     }
 
-    bool WriteBuffer(std::span<const byte_t> data) final {
+    bool WriteBuffer(cstd::span<const byte_t> data) final {
         buf.insert(buf.end(), data.begin(), data.end());
         // FIXME: no error reporting
         return true;

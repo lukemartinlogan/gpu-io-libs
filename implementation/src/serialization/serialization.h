@@ -11,7 +11,7 @@ class Serializer {
 public:
     virtual ~Serializer() = default;
 
-    virtual bool WriteBuffer(std::span<const byte_t> data) = 0;
+    virtual bool WriteBuffer(cstd::span<const byte_t> data) = 0;
 
     template<typename T>
     void WriteRaw(const T& data) {
@@ -82,7 +82,8 @@ public:
 
 class ReaderWriter : public Serializer, public Deserializer {
 public:
-    bool WriteBuffer(std::span<const byte_t> data) override = 0;
+    // bool WriteBuffer(std::span<const byte_t> data) override = 0;
+    bool WriteBuffer(cstd::span<const byte_t> data) override = 0;
     bool ReadBuffer(std::span<byte_t> out) override = 0;
     [[nodiscard]] offset_t GetPosition() override = 0;
     void SetPosition(offset_t offset) override = 0;

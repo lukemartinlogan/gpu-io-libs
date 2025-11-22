@@ -19,7 +19,7 @@ public:
         file_.reset(raw);
     }
 
-    bool WriteBuffer(std::span<const byte_t> data) final {
+    bool WriteBuffer(cstd::span<const byte_t> data) final {
         size_t bytes_written = std::fwrite(data.data(), 1, data.size(), file_.get());
         return bytes_written == data.size();
     }
@@ -84,7 +84,12 @@ public:
         file_.reset(raw);
     }
 
-    bool WriteBuffer(std::span<const byte_t> data) final {
+    // bool WriteBuffer(std::span<const byte_t> data) final {
+    //     size_t bytes_written = std::fwrite(data.data(), 1, data.size(), file_.get());
+    //     return bytes_written == data.size();
+    // }
+
+    bool WriteBuffer(cstd::span<const byte_t> data) final {
         size_t bytes_written = std::fwrite(data.data(), 1, data.size(), file_.get());
         return bytes_written == data.size();
     }
