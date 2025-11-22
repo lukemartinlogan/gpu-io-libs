@@ -4,6 +4,7 @@
 #include "object_header.h"
 #include "datatype.h"
 #include "../serialization/buffer.h"
+#include "../util/string.h"
 
 size_t DataspaceMessage::TotalElements() const {
     return std::accumulate(
@@ -516,23 +517,13 @@ void ObjectCommentMessage::Serialize(Serializer& s) const {
 }
 
 hdf5::expected<ObjectCommentMessage> ObjectCommentMessage::Deserialize(Deserializer& de) {
-    std::vector<byte_t> buf;
+    auto comment = ReadNullTerminatedString(de);
 
-    while (true) {
-        auto c = de.Read<byte_t>();
-
-        if (c == static_cast<byte_t>('\0')) {
-            break;
-        }
-
-        buf.push_back(c);
-    }
-
-    auto comment_result = hdf5::string::from_chars(reinterpret_cast<const char*>(buf.data()), buf.size());
-    if (!comment_result) return cstd::unexpected(comment_result.error());
+    if (!comment)
+        return cstd::unexpected(comment.error());
 
     return ObjectCommentMessage{
-        .comment = *comment_result
+        .comment = std::move(*comment)
     };
 }
 
