@@ -19,11 +19,11 @@ struct BTreeGroupNodeKey {
     // first object name in the subtree the key describes
     len_t first_object_name;
 
-    void Serialize(Serializer& s) const {
+    void Serialize(VirtualSerializer& s) const {
         s.WriteRaw<BTreeGroupNodeKey>(*this);
     }
 
-    static BTreeGroupNodeKey Deserialize(Deserializer& de) {
+    static BTreeGroupNodeKey Deserialize(VirtualDeserializer& de) {
         return de.ReadRaw<BTreeGroupNodeKey>();
     }
 
@@ -88,9 +88,9 @@ struct BTreeChunkedRawDataNodeKey {
 
     size_t elem_byte_size;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<BTreeChunkedRawDataNodeKey> DeserializeWithTermInfo(Deserializer& de, ChunkedKeyTerminatorInfo term_info);
+    static hdf5::expected<BTreeChunkedRawDataNodeKey> DeserializeWithTermInfo(VirtualDeserializer& de, ChunkedKeyTerminatorInfo term_info);
 
     [[nodiscard]] uint16_t AllocationSize() const {
         // Key size = chunk_size + filter_mask + (dimensions * sizeof(uint64_t))
@@ -158,10 +158,10 @@ struct BTreeNode {
 
     [[nodiscard]] cstd::optional<offset_t> GetChunk(const ChunkCoordinates& chunk_coords, FileLink& file) const;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<BTreeNode> DeserializeGroup(Deserializer& de);
-    static hdf5::expected<BTreeNode> DeserializeChunked(Deserializer& de, ChunkedKeyTerminatorInfo term_info);
+    static hdf5::expected<BTreeNode> DeserializeGroup(VirtualDeserializer& de);
+    static hdf5::expected<BTreeNode> DeserializeChunked(VirtualDeserializer& de, ChunkedKeyTerminatorInfo term_info);
 
 private:
     friend struct GroupBTree;
@@ -177,7 +177,7 @@ private:
         }
     };
 
-    hdf5::expected<BTreeNode> ReadChild(Deserializer& de) const;
+    hdf5::expected<BTreeNode> ReadChild(VirtualDeserializer& de) const;
 
     [[nodiscard]] BTreeNode Split(KValues k);
 
@@ -190,13 +190,13 @@ private:
         FileLink& file
     );
 
-    hdf5::expected<cstd::optional<uint16_t>> FindGroupIndex(hdf5::string_view key, const LocalHeap& heap, Deserializer& de) const;
+    hdf5::expected<cstd::optional<uint16_t>> FindGroupIndex(hdf5::string_view key, const LocalHeap& heap, VirtualDeserializer& de) const;
 
     [[nodiscard]] cstd::optional<uint16_t> FindChunkedIndex(const ChunkCoordinates& chunk_coords) const;
 
     [[nodiscard]] bool AtCapacity(KValues k) const;
 
-    hdf5::expected<uint16_t> GroupInsertionPosition(hdf5::string_view key, const LocalHeap& heap, Deserializer& de) const;
+    hdf5::expected<uint16_t> GroupInsertionPosition(hdf5::string_view key, const LocalHeap& heap, VirtualDeserializer& de) const;
 
     [[nodiscard]] uint16_t ChunkedInsertionPosition(const ChunkCoordinates& chunk_coords) const;
 

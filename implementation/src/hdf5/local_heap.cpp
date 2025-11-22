@@ -8,7 +8,7 @@
 #include "../util/string.h"
 
 // TODO(cuda_vector): many calls of this function don't need ownership; 'LocalHeap::ViewString'?
-hdf5::expected<hdf5::string> LocalHeap::ReadString(offset_t offset, Deserializer& de) const {
+hdf5::expected<hdf5::string> LocalHeap::ReadString(offset_t offset, VirtualDeserializer& de) const {
     if (offset >= data_segment_size) {
         return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "LocalHeap: offset out of bounds");
     }
@@ -20,7 +20,7 @@ hdf5::expected<hdf5::string> LocalHeap::ReadString(offset_t offset, Deserializer
     return ReadNullTerminatedString(de, rem_size);
 }
 
-hdf5::expected<cstd::optional<LocalHeap::SuitableFreeSpace>> LocalHeap::FindFreeSpace(len_t required_size, Deserializer& de) const {
+hdf5::expected<cstd::optional<LocalHeap::SuitableFreeSpace>> LocalHeap::FindFreeSpace(len_t required_size, VirtualDeserializer& de) const {
     static_assert(sizeof(FreeListBlock) == 2 * sizeof(len_t), "mismatch between spec");
 
     if (free_list_head_offset == kUndefinedOffset) {
@@ -225,12 +225,12 @@ hdf5::expected<void> LocalHeap::ReserveAdditional(FileLink& file, size_t additio
     return {};
 }
 
-void LocalHeap::RewriteToFile(ReaderWriter& rw) const {
+void LocalHeap::RewriteToFile(VirtualReaderWriter& rw) const {
     rw.SetPosition(this_offset);
     rw.WriteComplex<LocalHeap>(*this);
 }
 
-void LocalHeap::Serialize(Serializer& s) const {
+void LocalHeap::Serialize(VirtualSerializer& s) const {
     s.Write(kSignature);
     s.Write(kVersionNumber);
 
@@ -242,7 +242,7 @@ void LocalHeap::Serialize(Serializer& s) const {
     s.Write(data_segment_address);
 }
 
-hdf5::expected<LocalHeap> LocalHeap::Deserialize(Deserializer& de) {
+hdf5::expected<LocalHeap> LocalHeap::Deserialize(VirtualDeserializer& de) {
     offset_t this_offset = de.GetPosition();
 
     if (de.Read<cstd::array<uint8_t, 4>>() != kSignature) {

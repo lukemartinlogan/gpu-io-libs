@@ -37,9 +37,9 @@ struct FixedPoint {
         return bitset_.test(3);
     }
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<FixedPoint> Deserialize(Deserializer& de);
+    static hdf5::expected<FixedPoint> Deserialize(VirtualDeserializer& de);
 private:
     cstd::bitset<4> bitset_{};
 };
@@ -100,9 +100,9 @@ struct FloatingPoint {
         }
     }
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<FloatingPoint> Deserialize(Deserializer& de);
+    static hdf5::expected<FloatingPoint> Deserialize(VirtualDeserializer& de);
 
     static const FloatingPoint f32_t;
 
@@ -140,8 +140,8 @@ struct VariableLength {
     VariableLength(VariableLength&& other) noexcept = default;
     VariableLength& operator=(VariableLength&& other) noexcept = default;
 
-    void Serialize(Serializer& s) const;
-    static hdf5::expected<VariableLength> Deserialize(Deserializer& de);
+    void Serialize(VirtualSerializer& s) const;
+    static hdf5::expected<VariableLength> Deserialize(VirtualDeserializer& de);
 };
 
 struct CompoundMember {
@@ -164,9 +164,9 @@ struct CompoundMember {
 
     CompoundMember& operator=(CompoundMember&& other) noexcept = default;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<CompoundMember> Deserialize(Deserializer& de);
+    static hdf5::expected<CompoundMember> Deserialize(VirtualDeserializer& de);
 };
 
 struct CompoundDatatype {
@@ -175,9 +175,9 @@ struct CompoundDatatype {
     cstd::inplace_vector<CompoundMember, kMaxCompoundMembers> members;
     uint32_t size{};
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<CompoundDatatype> Deserialize(Deserializer& de);
+    static hdf5::expected<CompoundDatatype> Deserialize(VirtualDeserializer& de);
 };
 
 // TODO: make meaningful data accessible
@@ -222,9 +222,9 @@ struct DatatypeMessage {
         return cstd::visit([](const auto& elem) { return elem.size; }, data);
     }
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<DatatypeMessage> Deserialize(Deserializer& de);
+    static hdf5::expected<DatatypeMessage> Deserialize(VirtualDeserializer& de);
 
 public:
     static const DatatypeMessage f32_t;

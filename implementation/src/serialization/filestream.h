@@ -5,7 +5,7 @@
 #include "serialization.h"
 #include "../hdf5/types.h"
 
-class FStreamWriter: public Serializer {
+class FStreamWriter: public VirtualSerializer {
 public:
     explicit FStreamWriter(const std::filesystem::path& path)
         : path_(path), stream_(path, std::ofstream::out | std::ofstream::binary) {}
@@ -20,7 +20,7 @@ private:
     std::ofstream stream_;
 };
 
-class FStreamReader: public Deserializer {
+class FStreamReader: public VirtualDeserializer {
 public:
     explicit FStreamReader(const std::filesystem::path& path)
         : path_(path), stream_(path, std::ofstream::in | std::ofstream::binary) {}

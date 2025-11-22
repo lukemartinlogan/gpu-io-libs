@@ -12,17 +12,17 @@ struct FileLink;
 struct LocalHeap {
     len_t free_list_head_offset{};
 
-    [[nodiscard]] hdf5::expected<hdf5::string> ReadString(offset_t offset, Deserializer& de) const;
+    [[nodiscard]] hdf5::expected<hdf5::string> ReadString(offset_t offset, VirtualDeserializer& de) const;
 
     hdf5::expected<offset_t> WriteString(hdf5::string_view string, FileLink& file);
 
     static cstd::tuple<LocalHeap, offset_t> AllocateNew(FileLink& file, len_t min_size);
 
-    void RewriteToFile(ReaderWriter& rw) const;
+    void RewriteToFile(VirtualReaderWriter& rw) const;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<LocalHeap> Deserialize(Deserializer& de);
+    static hdf5::expected<LocalHeap> Deserialize(VirtualDeserializer& de);
 
 private:
     struct FreeListBlock {
@@ -36,7 +36,7 @@ private:
         FreeListBlock block;
     };
 
-    hdf5::expected<cstd::optional<SuitableFreeSpace>> FindFreeSpace(len_t required_size, Deserializer& de) const;
+    hdf5::expected<cstd::optional<SuitableFreeSpace>> FindFreeSpace(len_t required_size, VirtualDeserializer& de) const;
 
     hdf5::expected<offset_t> WriteBytes(std::span<const byte_t> data, FileLink& file);
 

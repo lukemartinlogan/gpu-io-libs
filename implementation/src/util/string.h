@@ -3,7 +3,7 @@
 #include "../serialization/serialization.h"
 #include "../hdf5/types.h"
 
-inline hdf5::expected<hdf5::string> ReadNullTerminatedString(Deserializer& de, size_t max_size = hdf5::gpu_string<>::max_size()) {
+inline hdf5::expected<hdf5::string> ReadNullTerminatedString(VirtualDeserializer& de, size_t max_size = hdf5::gpu_string<>::max_size()) {
     hdf5::string str;
     bool found = false;
 

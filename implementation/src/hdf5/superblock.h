@@ -53,9 +53,9 @@ struct SuperblockV0 {
     // entry point into group graph of file
     SymbolTableEntry root_group_symbol_table_entry_addr;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<SuperblockV0> Deserialize(Deserializer& de);
+    static hdf5::expected<SuperblockV0> Deserialize(VirtualDeserializer& de);
 private:
     static constexpr uint8_t kVersionNumber = 0x00;
 };
@@ -81,9 +81,9 @@ struct SuperblockV2 {
     // address of data objects, entry point into group graph
     offset_t root_group_header_addr = kUndefinedOffset;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<SuperblockV2> Deserialize(Deserializer& de);
+    static hdf5::expected<SuperblockV2> Deserialize(VirtualDeserializer& de);
 
 private:
     [[nodiscard]] uint32_t Checksum() const;

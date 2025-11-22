@@ -2,7 +2,7 @@
 
 #include <stdexcept>
 
-void SymbolTableEntry::Serialize(Serializer& s) const {
+void SymbolTableEntry::Serialize(VirtualSerializer& s) const {
     s.Write(link_name_offset);
     s.Write(object_header_addr);
     s.Write<uint32_t>(static_cast<uint32_t>(cache_ty));
@@ -11,7 +11,7 @@ void SymbolTableEntry::Serialize(Serializer& s) const {
     s.Write(scratch_pad_space);
 }
 
-hdf5::expected<SymbolTableEntry> SymbolTableEntry::Deserialize(Deserializer& de) {
+hdf5::expected<SymbolTableEntry> SymbolTableEntry::Deserialize(VirtualDeserializer& de) {
     SymbolTableEntry ent{};
 
     ent.link_name_offset = de.Read<offset_t>();
@@ -33,7 +33,7 @@ hdf5::expected<SymbolTableEntry> SymbolTableEntry::Deserialize(Deserializer& de)
     return ent;
 }
 
-hdf5::expected<cstd::optional<offset_t>> SymbolTableNode::FindEntry(hdf5::string_view name, const LocalHeap& heap, Deserializer& de) const {
+hdf5::expected<cstd::optional<offset_t>> SymbolTableNode::FindEntry(hdf5::string_view name, const LocalHeap& heap, VirtualDeserializer& de) const {
     for (const auto& entry : entries) {
         // TODO(cuda_vector): this likely doesn't need to allocate if only used to check; might be a lifetime nightmare if made generally though
         auto entry_name = heap.ReadString(entry.link_name_offset, de);
@@ -49,7 +49,7 @@ hdf5::expected<cstd::optional<offset_t>> SymbolTableNode::FindEntry(hdf5::string
     return cstd::nullopt;
 }
 
-void SymbolTableNode::Serialize(Serializer& s) const {
+void SymbolTableNode::Serialize(VirtualSerializer& s) const {
     s.Write(kSignature);
     s.Write(kVersionNumber);
     s.Write<uint8_t>(0);
@@ -62,7 +62,7 @@ void SymbolTableNode::Serialize(Serializer& s) const {
     }
 }
 
-hdf5::expected<SymbolTableNode> SymbolTableNode::Deserialize(Deserializer& de) {
+hdf5::expected<SymbolTableNode> SymbolTableNode::Deserialize(VirtualDeserializer& de) {
     if (de.Read<cstd::array<uint8_t, 4>>() != kSignature) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "symbol table node signature was invalid");
     }

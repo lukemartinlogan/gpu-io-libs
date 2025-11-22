@@ -11,7 +11,7 @@
 struct NilMessage {
     uint16_t size{};
 
-    void Serialize(Serializer& s) const {
+    void Serialize(VirtualSerializer& s) const {
         // TODO: this can be optimized
         for (uint16_t i = 0; i < size; ++i) {
             s.Write<uint8_t>(0);
@@ -43,9 +43,9 @@ struct DataspaceMessage {
     [[nodiscard]] size_t TotalElements() const;
     [[nodiscard]] size_t MaxElements() const;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<DataspaceMessage> Deserialize(Deserializer& de);
+    static hdf5::expected<DataspaceMessage> Deserialize(VirtualDeserializer& de);
 
     DataspaceMessage() = default;
 
@@ -63,9 +63,9 @@ struct LinkInfoMessage {
     offset_t index_names_btree_addr = kUndefinedOffset;
     cstd::optional<offset_t> creation_order_btree_addr;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<LinkInfoMessage> Deserialize(Deserializer& de);
+    static hdf5::expected<LinkInfoMessage> Deserialize(VirtualDeserializer& de);
 
 private:
     static constexpr uint8_t kVersionNumber = 0x00;
@@ -78,7 +78,7 @@ struct FillValueOldMessage {
 
     cstd::inplace_vector<byte_t, kMaxFillValueSize> fill_value;
 
-    void Serialize(Serializer& s) const {
+    void Serialize(VirtualSerializer& s) const {
         s.Write<uint32_t>(fill_value.size());
 
         if (!fill_value.empty()) {
@@ -86,7 +86,7 @@ struct FillValueOldMessage {
         }
     }
 
-    static hdf5::expected<FillValueOldMessage> Deserialize(Deserializer& de) {
+    static hdf5::expected<FillValueOldMessage> Deserialize(VirtualDeserializer& de) {
         FillValueOldMessage msg{};
 
         auto size = de.Read<uint32_t>();
@@ -122,9 +122,9 @@ struct FillValueMessage {
 
     cstd::optional<cstd::inplace_vector<byte_t, kMaxFillValueSizeBytes>> fill_value;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<FillValueMessage> Deserialize(Deserializer& de);
+    static hdf5::expected<FillValueMessage> Deserialize(VirtualDeserializer& de);
 
 private:
     static constexpr uint8_t kVersionNumber = 0x02;
@@ -133,11 +133,11 @@ public:
 };
 
 struct LinkMessage {
-    void Serialize(Serializer& s) const { // NOLINT
+    void Serialize(VirtualSerializer& s) const { // NOLINT
         UNREACHABLE("LinkMessage::Serialize not implemented");
     }
 
-    static hdf5::expected<LinkMessage> Deserialize(Deserializer& de) {
+    static hdf5::expected<LinkMessage> Deserialize(VirtualDeserializer& de) {
         return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "LinkMessage not implemented");
     }
 
@@ -155,13 +155,13 @@ struct ExternalDataFilesMessage {
         // total number of bytes reserved in the specified file for raw data storage
         len_t data_size;
 
-        void Serialize(Serializer& s) const {
+        void Serialize(VirtualSerializer& s) const {
             s.Write(name_offset);
             s.Write(file_offset);
             s.Write(data_size);
         }
 
-        static ExternalFileSlot Deserialize(Deserializer& de) {
+        static ExternalFileSlot Deserialize(VirtualDeserializer& de) {
             return {
                 .name_offset = de.Read<len_t>(),
                 .file_offset = de.Read<len_t>(),
@@ -173,9 +173,9 @@ struct ExternalDataFilesMessage {
     offset_t heap_address;
     cstd::inplace_vector<ExternalFileSlot, kMaxExternalFileSlots> slots;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<ExternalDataFilesMessage> Deserialize(Deserializer& de);
+    static hdf5::expected<ExternalDataFilesMessage> Deserialize(VirtualDeserializer& de);
 
 private:
     static constexpr uint8_t kVersionNumber = 0x01;
@@ -186,11 +186,11 @@ public:
 struct BogusMessage {
     static constexpr uint32_t kBogusValue = 0xdeadbeef;
 
-    void Serialize(Serializer& s) const { // NOLINT
+    void Serialize(VirtualSerializer& s) const { // NOLINT
         s.Write<uint32_t>(kBogusValue);
     }
 
-    static hdf5::expected<BogusMessage> Deserialize(Deserializer& de) {
+    static hdf5::expected<BogusMessage> Deserialize(VirtualDeserializer& de) {
         if (de.Read<uint32_t>() != kBogusValue) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "BogusMessage: value is not 0xdeadbeef");
         }
@@ -219,9 +219,9 @@ struct GroupInfoMessage {
         return est_entries_name_len.value_or(8);
     }
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<GroupInfoMessage> Deserialize(Deserializer& de);
+    static hdf5::expected<GroupInfoMessage> Deserialize(VirtualDeserializer& de);
 
 private:
     static constexpr uint8_t kVersionNumber = 0x00;
@@ -230,11 +230,11 @@ public:
 };
 
 struct FilterPipelineMessage {
-    void Serialize(Serializer& _s) const { // NOLINT
+    void Serialize(VirtualSerializer& _s) const { // NOLINT
         UNREACHABLE("FilterPipelineMessage::Serialize not implemented");
     }
 
-    static hdf5::expected<FilterPipelineMessage> Deserialize(Deserializer& _de) {
+    static hdf5::expected<FilterPipelineMessage> Deserialize(VirtualDeserializer& _de) {
         return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "FilterPipelineMessage not implemented");
     }
 
@@ -247,18 +247,18 @@ struct CompactStorageProperty {
 
     cstd::inplace_vector<byte_t, kMaxCompactStorageSizeBytes> raw_data;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<CompactStorageProperty> Deserialize(Deserializer& de);
+    static hdf5::expected<CompactStorageProperty> Deserialize(VirtualDeserializer& de);
 };
 
 struct ContiguousStorageProperty {
     offset_t address{};
     len_t size{};
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<ContiguousStorageProperty> Deserialize(Deserializer& de);
+    static hdf5::expected<ContiguousStorageProperty> Deserialize(VirtualDeserializer& de);
 };
 
 struct ChunkedStorageProperty {
@@ -267,9 +267,9 @@ struct ChunkedStorageProperty {
     hdf5::dim_vector<uint32_t> dimension_sizes;
     uint32_t elem_size_bytes;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<ChunkedStorageProperty> Deserialize(Deserializer& de);
+    static hdf5::expected<ChunkedStorageProperty> Deserialize(VirtualDeserializer& de);
 };
 
 struct DataLayoutMessage {
@@ -279,9 +279,9 @@ struct DataLayoutMessage {
         ChunkedStorageProperty
     > properties;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<DataLayoutMessage> Deserialize(Deserializer& de);
+    static hdf5::expected<DataLayoutMessage> Deserialize(VirtualDeserializer& de);
 private:
     static constexpr uint8_t kVersionNumber = 0x03;
     static constexpr uint8_t kCompact = 0, kContiguous = 1, kChunked = 2;
@@ -312,9 +312,9 @@ struct AttributeMessage {
         return out;
     }
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<AttributeMessage> Deserialize(Deserializer& de);
+    static hdf5::expected<AttributeMessage> Deserialize(VirtualDeserializer& de);
 
 private:
     static constexpr uint8_t kVersionNumber = 0x01;
@@ -325,19 +325,19 @@ public:
 struct ObjectCommentMessage {
     hdf5::string comment;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<ObjectCommentMessage> Deserialize(Deserializer& de);
+    static hdf5::expected<ObjectCommentMessage> Deserialize(VirtualDeserializer& de);
 
     static constexpr uint16_t kType = 0x0d;
 };
 
 struct ObjectModificationTimeOldMessage {
-    void Serialize(Serializer& _s) const { // NOLINT
+    void Serialize(VirtualSerializer& _s) const { // NOLINT
         UNREACHABLE("old object modification time message is deprecated");
     }
 
-    static hdf5::expected<ObjectModificationTimeOldMessage> Deserialize(Deserializer& _de) {
+    static hdf5::expected<ObjectModificationTimeOldMessage> Deserialize(VirtualDeserializer& _de) {
         return hdf5::error(hdf5::HDF5ErrorCode::DeprecatedFeature, "old object modification time message is deprecated");
     }
 
@@ -348,13 +348,13 @@ struct SharedMessageTableMessage {
     offset_t table_address = kUndefinedOffset;
     uint8_t num_indices{};
 
-    void Serialize(Serializer& s) const {
+    void Serialize(VirtualSerializer& s) const {
         s.Write(kVersionNumber);
         s.Write(table_address);
         s.Write(num_indices);
     }
 
-    static hdf5::expected<SharedMessageTableMessage> Deserialize(Deserializer& de) {
+    static hdf5::expected<SharedMessageTableMessage> Deserialize(VirtualDeserializer& de) {
         if (de.Read<uint8_t>() != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "SharedMessageTableMessage: unsupported version");
         }
@@ -377,11 +377,11 @@ struct ObjectHeaderContinuationMessage {
     // size of header continuation block
     len_t length{};
 
-    void Serialize(Serializer& s) const {
+    void Serialize(VirtualSerializer& s) const {
         s.WriteRaw(*this);
     }
 
-    static hdf5::expected<ObjectHeaderContinuationMessage> Deserialize(Deserializer& de) {
+    static hdf5::expected<ObjectHeaderContinuationMessage> Deserialize(VirtualDeserializer& de) {
         return de.ReadRaw<ObjectHeaderContinuationMessage>();
     }
 
@@ -395,11 +395,11 @@ struct SymbolTableMessage {
     // for symbol table entries
     offset_t local_heap_addr = kUndefinedOffset;
 
-    void Serialize(Serializer& s) const {
+    void Serialize(VirtualSerializer& s) const {
         s.WriteRaw(*this);
     }
 
-    static hdf5::expected<SymbolTableMessage> Deserialize(Deserializer& de) {
+    static hdf5::expected<SymbolTableMessage> Deserialize(VirtualDeserializer& de) {
         return de.ReadRaw<SymbolTableMessage>();
     }
 
@@ -409,9 +409,9 @@ struct SymbolTableMessage {
 struct ObjectModificationTimeMessage {
     cstd::chrono::system_clock::time_point modification_time;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<ObjectModificationTimeMessage> Deserialize(Deserializer& de);
+    static hdf5::expected<ObjectModificationTimeMessage> Deserialize(VirtualDeserializer& de);
 private:
     static constexpr uint8_t kVersionNumber = 0x01;
 public:
@@ -426,14 +426,14 @@ struct BTreeKValuesMessage {
     // node k value for each leaf node in group b-tree
     uint16_t group_leaf_k{};
 
-    void Serialize(Serializer& s) const {
+    void Serialize(VirtualSerializer& s) const {
         s.Write(kVersionNumber);
         s.Write(indexed_storage_internal_k);
         s.Write(group_internal_k);
         s.Write(group_leaf_k);
     }
 
-    static hdf5::expected<BTreeKValuesMessage> Deserialize(Deserializer& de) {
+    static hdf5::expected<BTreeKValuesMessage> Deserialize(VirtualDeserializer& de) {
         if (de.Read<uint8_t>() != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "BTreeKValuesMessage: unsupported version");
         }
@@ -458,9 +458,9 @@ struct DriverInfoMessage {
     hdf5::gpu_string<8> driver_id{};
     cstd::inplace_vector<byte_t, kMaxDriverInfoSize> driver_info;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<DriverInfoMessage> Deserialize(Deserializer& de);
+    static hdf5::expected<DriverInfoMessage> Deserialize(VirtualDeserializer& de);
 
 private:
     static constexpr size_t kDriverIdSize = 8;
@@ -479,9 +479,9 @@ struct AttributeInfoMessage {
     // addr of v2 b-tree to index creation order of desnsely stored attributes
     cstd::optional<offset_t> creation_order_btree_addr;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<AttributeInfoMessage> Deserialize(Deserializer& de);
+    static hdf5::expected<AttributeInfoMessage> Deserialize(VirtualDeserializer& de);
 
 private:
     static constexpr uint8_t kVersionNumber = 0x00;
@@ -492,12 +492,12 @@ public:
 struct ObjectReferenceCountMessage {
     uint32_t reference_count{};
 
-    void Serialize(Serializer& s) const {
+    void Serialize(VirtualSerializer& s) const {
         s.Write(kVersionNumber);
         s.Write(reference_count);
     }
 
-    static hdf5::expected<ObjectReferenceCountMessage> Deserialize(Deserializer& de) {
+    static hdf5::expected<ObjectReferenceCountMessage> Deserialize(VirtualDeserializer& de) {
         if (de.Read<uint8_t>() != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "ObjectReferenceCountMessage: invalid version");
         }
@@ -549,9 +549,9 @@ struct FileSpaceInfoMessage {
         return small_managers.has_value();
     }
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<FileSpaceInfoMessage> Deserialize(Deserializer& de);
+    static hdf5::expected<FileSpaceInfoMessage> Deserialize(VirtualDeserializer& de);
 
 private:
     static constexpr uint8_t kVersionNumber = 0x01;
@@ -661,9 +661,9 @@ struct ObjectHeaderMessage {
         }
     }
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<ObjectHeaderMessage> Deserialize(Deserializer& de);
+    static hdf5::expected<ObjectHeaderMessage> Deserialize(VirtualDeserializer& de);
 
 private:
     cstd::bitset<8> flags_{};
@@ -680,10 +680,10 @@ struct ObjectHeader {
     // messages
     cstd::inplace_vector<ObjectHeaderMessage, kMaxObjectHeaderMessages> messages{};
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
     // FIXME: ignore unknown messages
-    static hdf5::expected<ObjectHeader> Deserialize(Deserializer& de);
+    static hdf5::expected<ObjectHeader> Deserialize(VirtualDeserializer& de);
 private:
     friend class Object;
 

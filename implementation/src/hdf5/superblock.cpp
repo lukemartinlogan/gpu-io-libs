@@ -4,7 +4,7 @@
 #include "superblock.h"
 #include "../util/lookup3.h"
 
-void SuperblockV0::Serialize(Serializer& s) const {
+void SuperblockV0::Serialize(VirtualSerializer& s) const {
     s.Write(kSuperblockSignature);
     s.Write(kVersionNumber);
     // file free space version num
@@ -31,7 +31,7 @@ void SuperblockV0::Serialize(Serializer& s) const {
     s.Write(root_group_symbol_table_entry_addr);
 }
 
-hdf5::expected<SuperblockV0> SuperblockV0::Deserialize(Deserializer& de) {
+hdf5::expected<SuperblockV0> SuperblockV0::Deserialize(VirtualDeserializer& de) {
     if (de.Read<cstd::array<uint8_t, 8>>() != kSuperblockSignature) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "Superblock signature was invalid");
     }
@@ -69,7 +69,7 @@ hdf5::expected<SuperblockV0> SuperblockV0::Deserialize(Deserializer& de) {
 }
 
 
-void SuperblockV2::Serialize(Serializer& s) const {
+void SuperblockV2::Serialize(VirtualSerializer& s) const {
     const uint32_t checksum = Checksum();
 
     s.Write(kSuperblockSignature);
@@ -84,7 +84,7 @@ void SuperblockV2::Serialize(Serializer& s) const {
     s.Write(checksum);
 }
 
-hdf5::expected<SuperblockV2> SuperblockV2::Deserialize(Deserializer& de) {
+hdf5::expected<SuperblockV2> SuperblockV2::Deserialize(VirtualDeserializer& de) {
     if (de.Read<cstd::array<uint8_t, 8>>() != kSuperblockSignature) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "Superblock signature was invalid");
     }

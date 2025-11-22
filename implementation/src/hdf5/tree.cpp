@@ -4,7 +4,7 @@
 #include "tree.h"
 #include "local_heap.h"
 
-void BTreeChunkedRawDataNodeKey::Serialize(Serializer& s) const {
+void BTreeChunkedRawDataNodeKey::Serialize(VirtualSerializer& s) const {
     s.Write(chunk_size);
     s.Write(filter_mask);
 
@@ -19,7 +19,7 @@ void BTreeChunkedRawDataNodeKey::Serialize(Serializer& s) const {
     }
 }
 
-hdf5::expected<BTreeChunkedRawDataNodeKey> BTreeChunkedRawDataNodeKey::DeserializeWithTermInfo(Deserializer& de, ChunkedKeyTerminatorInfo term_info) {
+hdf5::expected<BTreeChunkedRawDataNodeKey> BTreeChunkedRawDataNodeKey::DeserializeWithTermInfo(VirtualDeserializer& de, ChunkedKeyTerminatorInfo term_info) {
     BTreeChunkedRawDataNodeKey key{};
 
     key.chunk_size = de.Read<uint32_t>();
@@ -142,7 +142,7 @@ cstd::optional<offset_t> BTreeNode::GetChunk(const ChunkCoordinates& chunk_coord
 }
 
 template<typename K>
-void WriteEntries(const BTreeEntries<K>& entries, Serializer& s) {
+void WriteEntries(const BTreeEntries<K>& entries, VirtualSerializer& s) {
     uint16_t entries_ct = entries.child_pointers.size();
 
     ASSERT(entries.keys.size() == entries_ct + 1, "Shape of entries was invalid");
@@ -155,7 +155,7 @@ void WriteEntries(const BTreeEntries<K>& entries, Serializer& s) {
     s.Write(entries.keys.back());
 }
 
-hdf5::expected<cstd::optional<uint16_t>> BTreeNode::FindGroupIndex(hdf5::string_view key, const LocalHeap& heap, Deserializer& de) const {
+hdf5::expected<cstd::optional<uint16_t>> BTreeNode::FindGroupIndex(hdf5::string_view key, const LocalHeap& heap, VirtualDeserializer& de) const {
     if (!cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         return cstd::nullopt;
     }
@@ -204,7 +204,7 @@ hdf5::expected<cstd::optional<uint16_t>> BTreeNode::FindGroupIndex(hdf5::string_
     return child_index;
 }
 
-hdf5::expected<uint16_t> BTreeNode::GroupInsertionPosition(hdf5::string_view key, const LocalHeap& heap, Deserializer& de) const {
+hdf5::expected<uint16_t> BTreeNode::GroupInsertionPosition(hdf5::string_view key, const LocalHeap& heap, VirtualDeserializer& de) const {
     if (!cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         return hdf5::error(hdf5::HDF5ErrorCode::WrongNodeType, "InsertionPosition only supported for group nodes");
     }
@@ -378,7 +378,7 @@ len_t BTreeNode::AllocationSize(KValues k_val) const {
     ;
 }
 
-void BTreeNode::Serialize(Serializer& s) const {
+void BTreeNode::Serialize(VirtualSerializer& s) const {
     uint8_t type;
     if (cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         type = kGroupNodeTy;
@@ -406,7 +406,7 @@ void BTreeNode::Serialize(Serializer& s) const {
     }
 }
 
-hdf5::expected<BTreeNode> BTreeNode::DeserializeGroup(Deserializer& de) {
+hdf5::expected<BTreeNode> BTreeNode::DeserializeGroup(VirtualDeserializer& de) {
     if (de.Read<cstd::array<uint8_t, 4>>() != kSignature) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "BTree signature was invalid");
     }
@@ -443,7 +443,7 @@ hdf5::expected<BTreeNode> BTreeNode::DeserializeGroup(Deserializer& de) {
     return node;
 }
 
-hdf5::expected<BTreeNode> BTreeNode::DeserializeChunked(Deserializer& de, ChunkedKeyTerminatorInfo term_info) {
+hdf5::expected<BTreeNode> BTreeNode::DeserializeChunked(VirtualDeserializer& de, ChunkedKeyTerminatorInfo term_info) {
     if (de.Read<cstd::array<uint8_t, 4>>() != kSignature) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "BTree signature was invalid");
     }
@@ -490,7 +490,7 @@ bool BTreeNode::AtCapacity(KValues k) const {
     return EntriesUsed() == k.Get(IsLeaf()) * 2;
 }
 
-hdf5::expected<BTreeNode> BTreeNode::ReadChild(Deserializer& de) const {
+hdf5::expected<BTreeNode> BTreeNode::ReadChild(VirtualDeserializer& de) const {
     if (cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
         return DeserializeGroup(de);
     } else if (cstd::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {

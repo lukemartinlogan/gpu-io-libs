@@ -26,7 +26,7 @@ size_t DataspaceMessage::MaxElements() const {
     );
 }
 
-void DataspaceMessage::Serialize(Serializer& s) const {
+void DataspaceMessage::Serialize(VirtualSerializer& s) const {
     s.Write(kVersionNumber);
 
     auto dimensionality = static_cast<uint8_t>(dimensions.size());
@@ -53,7 +53,7 @@ void DataspaceMessage::Serialize(Serializer& s) const {
     }
 }
 
-hdf5::expected<DataspaceMessage> DataspaceMessage::Deserialize(Deserializer& de) {
+hdf5::expected<DataspaceMessage> DataspaceMessage::Deserialize(VirtualDeserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }
@@ -94,7 +94,7 @@ DataspaceMessage::DataspaceMessage(const hdf5::dim_vector<DimensionInfo>& dimens
     bitset_.set(1, perm_indices_present);
 }
 
-void LinkInfoMessage::Serialize(Serializer& s) const {
+void LinkInfoMessage::Serialize(VirtualSerializer& s) const {
     s.Write(kVersionNumber);
 
     cstd::bitset<2> flags;
@@ -115,7 +115,7 @@ void LinkInfoMessage::Serialize(Serializer& s) const {
     }
 }
 
-hdf5::expected<LinkInfoMessage> LinkInfoMessage::Deserialize(Deserializer& de) {
+hdf5::expected<LinkInfoMessage> LinkInfoMessage::Deserialize(VirtualDeserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }
@@ -143,7 +143,7 @@ hdf5::expected<LinkInfoMessage> LinkInfoMessage::Deserialize(Deserializer& de) {
     return msg;
 }
 
-void FillValueMessage::Serialize(Serializer& s) const {
+void FillValueMessage::Serialize(VirtualSerializer& s) const {
     s.Write(kVersionNumber);
 
     s.Write(static_cast<uint8_t>(space_alloc_time));
@@ -158,7 +158,7 @@ void FillValueMessage::Serialize(Serializer& s) const {
     }
 }
 
-hdf5::expected<FillValueMessage> FillValueMessage::Deserialize(Deserializer& de) {
+hdf5::expected<FillValueMessage> FillValueMessage::Deserialize(VirtualDeserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }
@@ -199,7 +199,7 @@ hdf5::expected<FillValueMessage> FillValueMessage::Deserialize(Deserializer& de)
     return msg;
 }
 
-void ExternalDataFilesMessage::Serialize(Serializer& s) const {
+void ExternalDataFilesMessage::Serialize(VirtualSerializer& s) const {
     s.Write<uint8_t>(kVersionNumber);
 
     // reserved (zero)
@@ -219,7 +219,7 @@ void ExternalDataFilesMessage::Serialize(Serializer& s) const {
     }
 }
 
-hdf5::expected<ExternalDataFilesMessage> ExternalDataFilesMessage::Deserialize(Deserializer& de) {
+hdf5::expected<ExternalDataFilesMessage> ExternalDataFilesMessage::Deserialize(VirtualDeserializer& de) {
     if (de.Read<uint8_t>() != 1) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "ExternalDataFilesMessage: unsupported version");
     }
@@ -247,7 +247,7 @@ hdf5::expected<ExternalDataFilesMessage> ExternalDataFilesMessage::Deserialize(D
     return msg;
 }
 
-void GroupInfoMessage::Serialize(Serializer& s) const {
+void GroupInfoMessage::Serialize(VirtualSerializer& s) const {
     s.Write(kVersionNumber);
 
     cstd::bitset<2> flags;
@@ -271,7 +271,7 @@ void GroupInfoMessage::Serialize(Serializer& s) const {
     }
 }
 
-hdf5::expected<GroupInfoMessage> GroupInfoMessage::Deserialize(Deserializer& de) {
+hdf5::expected<GroupInfoMessage> GroupInfoMessage::Deserialize(VirtualDeserializer& de) {
     if (de.Read<uint8_t>() != 0) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Invalid version number for GroupInfoMessage");
     }
@@ -293,12 +293,12 @@ hdf5::expected<GroupInfoMessage> GroupInfoMessage::Deserialize(Deserializer& de)
     return msg;
 }
 
-void CompactStorageProperty::Serialize(Serializer& s) const {
+void CompactStorageProperty::Serialize(VirtualSerializer& s) const {
     s.Write<uint16_t>(raw_data.size());
     s.WriteBuffer(raw_data);
 }
 
-hdf5::expected<CompactStorageProperty> CompactStorageProperty::Deserialize(Deserializer& de) {
+hdf5::expected<CompactStorageProperty> CompactStorageProperty::Deserialize(VirtualDeserializer& de) {
     auto size = de.Read<uint16_t>();
 
     CompactStorageProperty msg{};
@@ -309,12 +309,12 @@ hdf5::expected<CompactStorageProperty> CompactStorageProperty::Deserialize(Deser
     return msg;
 }
 
-void ContiguousStorageProperty::Serialize(Serializer& s) const {
+void ContiguousStorageProperty::Serialize(VirtualSerializer& s) const {
     s.Write(address);
     s.Write(size);
 }
 
-hdf5::expected<ContiguousStorageProperty> ContiguousStorageProperty::Deserialize(Deserializer& de) {
+hdf5::expected<ContiguousStorageProperty> ContiguousStorageProperty::Deserialize(VirtualDeserializer& de) {
     ContiguousStorageProperty prop{};
 
     prop.address = de.Read<offset_t>();
@@ -323,7 +323,7 @@ hdf5::expected<ContiguousStorageProperty> ContiguousStorageProperty::Deserialize
     return prop;
 }
 
-void ChunkedStorageProperty::Serialize(Serializer& s) const {
+void ChunkedStorageProperty::Serialize(VirtualSerializer& s) const {
     s.Write<uint8_t>(dimension_sizes.size() + 1);
 
     s.Write(b_tree_addr);
@@ -335,7 +335,7 @@ void ChunkedStorageProperty::Serialize(Serializer& s) const {
     s.Write(elem_size_bytes);
 }
 
-hdf5::expected<ChunkedStorageProperty> ChunkedStorageProperty::Deserialize(Deserializer& de) {
+hdf5::expected<ChunkedStorageProperty> ChunkedStorageProperty::Deserialize(VirtualDeserializer& de) {
     auto dimensionality = de.Read<uint8_t>() - 1;
 
     ChunkedStorageProperty prop{};
@@ -352,7 +352,7 @@ hdf5::expected<ChunkedStorageProperty> ChunkedStorageProperty::Deserialize(Deser
     return prop;
 }
 
-void DataLayoutMessage::Serialize(Serializer& s) const {
+void DataLayoutMessage::Serialize(VirtualSerializer& s) const {
     s.Write(kVersionNumber);
 
     if (cstd::holds_alternative<CompactStorageProperty>(properties)) {
@@ -369,7 +369,7 @@ void DataLayoutMessage::Serialize(Serializer& s) const {
     }
 }
 
-hdf5::expected<DataLayoutMessage> DataLayoutMessage::Deserialize(Deserializer& de) {
+hdf5::expected<DataLayoutMessage> DataLayoutMessage::Deserialize(VirtualDeserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }
@@ -397,7 +397,7 @@ hdf5::expected<DataLayoutMessage> DataLayoutMessage::Deserialize(Deserializer& d
     return msg;
 }
 
-void WriteEightBytePaddedFields(Serializer& s, std::span<const byte_t> buf) {
+void WriteEightBytePaddedFields(VirtualSerializer& s, std::span<const byte_t> buf) {
     s.WriteBuffer(buf);
 
     size_t leftover = (8 - buf.size() % 8) % 8;
@@ -406,7 +406,7 @@ void WriteEightBytePaddedFields(Serializer& s, std::span<const byte_t> buf) {
     s.WriteBuffer(std::span(extra_padding.data(), leftover));
 }
 
-void AttributeMessage::Serialize(Serializer& s) const {
+void AttributeMessage::Serialize(VirtualSerializer& s) const {
     s.Write(kVersionNumber);
     // reserved (zero)
     s.Write<uint8_t>(0);
@@ -437,7 +437,7 @@ void AttributeMessage::Serialize(Serializer& s) const {
     s.WriteBuffer(data);
 }
 
-void ReadEightBytePaddedData(Deserializer& de, std::span<byte_t> buffer) {
+void ReadEightBytePaddedData(VirtualDeserializer& de, std::span<byte_t> buffer) {
     de.ReadBuffer(buffer);
 
     size_t leftover = (8 - buffer.size() % 8) % 8;
@@ -446,7 +446,7 @@ void ReadEightBytePaddedData(Deserializer& de, std::span<byte_t> buffer) {
     de.ReadBuffer(std::span(leftover_buf.data(), leftover));
 }
 
-hdf5::expected<AttributeMessage> AttributeMessage::Deserialize(Deserializer& de) {
+hdf5::expected<AttributeMessage> AttributeMessage::Deserialize(VirtualDeserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }
@@ -509,14 +509,14 @@ hdf5::expected<AttributeMessage> AttributeMessage::Deserialize(Deserializer& de)
     return msg;
 }
 
-void ObjectCommentMessage::Serialize(Serializer& s) const {
+void ObjectCommentMessage::Serialize(VirtualSerializer& s) const {
     s.WriteBuffer(std::span(
         reinterpret_cast<const byte_t*>(comment.c_str()),
         comment.size() + 1 // null terminator
     ));
 }
 
-hdf5::expected<ObjectCommentMessage> ObjectCommentMessage::Deserialize(Deserializer& de) {
+hdf5::expected<ObjectCommentMessage> ObjectCommentMessage::Deserialize(VirtualDeserializer& de) {
     auto comment = ReadNullTerminatedString(de);
 
     if (!comment)
@@ -527,7 +527,7 @@ hdf5::expected<ObjectCommentMessage> ObjectCommentMessage::Deserialize(Deseriali
     };
 }
 
-void ObjectModificationTimeMessage::Serialize(Serializer& s) const {
+void ObjectModificationTimeMessage::Serialize(VirtualSerializer& s) const {
     s.Write(kVersionNumber);
 
     s.Write<uint8_t>(0);
@@ -541,7 +541,7 @@ void ObjectModificationTimeMessage::Serialize(Serializer& s) const {
     s.Write(static_cast<uint32_t>(seconds_since_epoch));
 }
 
-hdf5::expected<ObjectModificationTimeMessage> ObjectModificationTimeMessage::Deserialize(Deserializer& de) {
+hdf5::expected<ObjectModificationTimeMessage> ObjectModificationTimeMessage::Deserialize(VirtualDeserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }
@@ -556,7 +556,7 @@ hdf5::expected<ObjectModificationTimeMessage> ObjectModificationTimeMessage::Des
     };
 }
 
-void DriverInfoMessage::Serialize(Serializer& s) const {
+void DriverInfoMessage::Serialize(VirtualSerializer& s) const {
     s.Write(kVersionNumber);
 
     // check that driver_id has len kDriverIdSize and is all ascii
@@ -575,7 +575,7 @@ void DriverInfoMessage::Serialize(Serializer& s) const {
     s.WriteBuffer(driver_info);
 }
 
-hdf5::expected<DriverInfoMessage> DriverInfoMessage::Deserialize(Deserializer& de) {
+hdf5::expected<DriverInfoMessage> DriverInfoMessage::Deserialize(VirtualDeserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "DriverInfoMessage: unsupported version");
     }
@@ -599,7 +599,7 @@ hdf5::expected<DriverInfoMessage> DriverInfoMessage::Deserialize(Deserializer& d
     return msg;
 }
 
-void AttributeInfoMessage::Serialize(Serializer& s) const {
+void AttributeInfoMessage::Serialize(VirtualSerializer& s) const {
     s.Write(kVersionNumber);
 
     cstd::bitset<2> flags;
@@ -620,7 +620,7 @@ void AttributeInfoMessage::Serialize(Serializer& s) const {
     }
 }
 
-hdf5::expected<AttributeInfoMessage> AttributeInfoMessage::Deserialize(Deserializer& de) {
+hdf5::expected<AttributeInfoMessage> AttributeInfoMessage::Deserialize(VirtualDeserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "AttributeInfoMessage: unsupported version");
     }
@@ -648,7 +648,7 @@ hdf5::expected<AttributeInfoMessage> AttributeInfoMessage::Deserialize(Deseriali
     return msg;
 }
 
-void FileSpaceInfoMessage::Serialize(Serializer& s) const {
+void FileSpaceInfoMessage::Serialize(VirtualSerializer& s) const {
     s.Write(kVersionNumber);
     s.Write(static_cast<uint8_t>(strategy));
 
@@ -666,7 +666,7 @@ void FileSpaceInfoMessage::Serialize(Serializer& s) const {
     }
 }
 
-hdf5::expected<FileSpaceInfoMessage> FileSpaceInfoMessage::Deserialize(Deserializer& de) {
+hdf5::expected<FileSpaceInfoMessage> FileSpaceInfoMessage::Deserialize(VirtualDeserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "FileSpaceInfoMessage: invalid version");
     }
@@ -705,7 +705,7 @@ uint16_t ObjectHeaderMessage::MessageType() const {
     return index;
 }
 
-void ObjectHeaderMessage::Serialize(Serializer& s) const {
+void ObjectHeaderMessage::Serialize(VirtualSerializer& s) const {
     s.Write(MessageType());
     s.Write(size);
 
@@ -720,7 +720,7 @@ void ObjectHeaderMessage::Serialize(Serializer& s) const {
 }
 
 template<typename T>
-hdf5::expected<HeaderMessageVariant> DeserializeMessageType(Deserializer& de) {
+hdf5::expected<HeaderMessageVariant> DeserializeMessageType(VirtualDeserializer& de) {
     auto result = T::Deserialize(de);
 
     if (!result) {
@@ -730,7 +730,7 @@ hdf5::expected<HeaderMessageVariant> DeserializeMessageType(Deserializer& de) {
     return HeaderMessageVariant(*result);
 }
 
-hdf5::expected<ObjectHeaderMessage> ObjectHeaderMessage::Deserialize(Deserializer& de) {
+hdf5::expected<ObjectHeaderMessage> ObjectHeaderMessage::Deserialize(VirtualDeserializer& de) {
     ObjectHeaderMessage msg{};
 
     auto type = de.Read<uint16_t>();
@@ -833,7 +833,7 @@ hdf5::expected<ObjectHeaderMessage> ObjectHeaderMessage::Deserialize(Deserialize
     return msg;
 }
 
-void ObjectHeader::Serialize(Serializer& s) const {
+void ObjectHeader::Serialize(VirtualSerializer& s) const {
     s.Write(kVersionNumber);
     s.Write<uint8_t>(0);
     s.Write<uint16_t>(messages.size());
@@ -848,7 +848,7 @@ void ObjectHeader::Serialize(Serializer& s) const {
     }
 }
 
-hdf5::expected<void> ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& de, uint32_t size_limit, uint16_t total_message_ct) { // NOLINT(*-no-recursion)
+hdf5::expected<void> ParseObjectHeaderMessages(ObjectHeader& hd, VirtualDeserializer& de, uint32_t size_limit, uint16_t total_message_ct) { // NOLINT(*-no-recursion)
     uint32_t bytes_read = 0;
 
     while (bytes_read < size_limit && hd.messages.size() < total_message_ct) {
@@ -877,7 +877,7 @@ hdf5::expected<void> ParseObjectHeaderMessages(ObjectHeader& hd, Deserializer& d
     return {};
 }
 
-hdf5::expected<ObjectHeader> ObjectHeader::Deserialize(Deserializer& de) {
+hdf5::expected<ObjectHeader> ObjectHeader::Deserialize(VirtualDeserializer& de) {
     if (de.Read<uint8_t>() != kVersionNumber) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
     }

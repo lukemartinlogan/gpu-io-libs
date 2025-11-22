@@ -6,7 +6,7 @@ constexpr uint32_t kPrefixSize = 8;
 
 // TODO: take predicate lambda?
 cstd::optional<Object::Space> Object::FindMessageRecursive(  // NOLINT(*-no-recursion
-    Deserializer& de,
+    VirtualDeserializer& de,
     offset_t sb_base_addr,
     uint16_t& messages_read,
     uint16_t total_message_ct,
@@ -58,7 +58,7 @@ cstd::optional<Object::Space> Object::FindMessageRecursive(  // NOLINT(*-no-recu
 }
 
 cstd::optional<Object::Space> Object::FindSpaceRecursive(  // NOLINT(*-no-recursion
-    Deserializer& de,
+    VirtualDeserializer& de,
     offset_t sb_base_addr,
     uint16_t& messages_read,
     uint16_t total_message_ct,
@@ -140,7 +140,7 @@ cstd::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) c
     return FindSpaceRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, size, must_be_nil);
 }
 
-void WriteHeader(Serializer& s, uint16_t type, uint16_t size, uint8_t flags) {
+void WriteHeader(VirtualSerializer& s, uint16_t type, uint16_t size, uint8_t flags) {
     s.Write(type);
     s.Write(size);
 
@@ -437,7 +437,7 @@ inline len_t EmptyHeaderMessagesSize(len_t min_size) {
     ));
 }
 
-void Object::WriteEmpty(len_t min_size, Serializer& s) {
+void Object::WriteEmpty(len_t min_size, VirtualSerializer& s) {
     len_t aligned_size = EmptyHeaderMessagesSize(min_size);
 
     s.Write(ObjectHeader::kVersionNumber);

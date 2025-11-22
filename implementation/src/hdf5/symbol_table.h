@@ -32,9 +32,9 @@ struct SymbolTableEntry {
     // scratch pad space
     cstd::array<byte_t, 16> scratch_pad_space{};
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<SymbolTableEntry> Deserialize(Deserializer& de);
+    static hdf5::expected<SymbolTableEntry> Deserialize(VirtualDeserializer& de);
 };
 
 struct SymbolTableNode {
@@ -43,11 +43,11 @@ struct SymbolTableNode {
 
     cstd::inplace_vector<SymbolTableEntry, kMaxSymbolTableEntries> entries;
 
-    [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> FindEntry(hdf5::string_view name, const LocalHeap& heap, Deserializer& de) const;
+    [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> FindEntry(hdf5::string_view name, const LocalHeap& heap, VirtualDeserializer& de) const;
 
-    void Serialize(Serializer& s) const;
+    void Serialize(VirtualSerializer& s) const;
 
-    static hdf5::expected<SymbolTableNode> Deserialize(Deserializer& de);
+    static hdf5::expected<SymbolTableNode> Deserialize(VirtualDeserializer& de);
 private:
     static constexpr uint8_t kVersionNumber = 0x01;
     static constexpr cstd::array<uint8_t, 4> kSignature = { 'S', 'N', 'O', 'D' };

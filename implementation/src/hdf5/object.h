@@ -61,7 +61,7 @@ public:
         }
     }
 
-    static void WriteEmpty(len_t min_size, Serializer& s);
+    static void WriteEmpty(len_t min_size, VirtualSerializer& s);
 
     static Object AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file);
 
@@ -77,7 +77,7 @@ private:
     [[nodiscard]] cstd::optional<Space> FindSpace(size_t size, bool must_be_nil) const;
 
     [[nodiscard]] cstd::optional<Space> FindMessageRecursive(
-        Deserializer& de,
+        VirtualDeserializer& de,
         offset_t sb_base_addr,
         uint16_t& messages_read,
         uint16_t total_message_ct,
@@ -86,7 +86,7 @@ private:
     );
 
     [[nodiscard]] static cstd::optional<Space> FindSpaceRecursive(
-        Deserializer& de,
+        VirtualDeserializer& de,
         offset_t sb_base_addr,
         uint16_t& messages_read,
         uint16_t total_message_ct,

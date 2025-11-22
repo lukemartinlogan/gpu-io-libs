@@ -2,7 +2,7 @@
 
 #include <stdexcept>
 
-void FixedPoint::Serialize(Serializer& s) const {
+void FixedPoint::Serialize(VirtualSerializer& s) const {
     // first four bits are used
     s.Write(static_cast<uint8_t>(bitset_.to_ulong() & 0x0f));
     // reserved (zero)
@@ -13,7 +13,7 @@ void FixedPoint::Serialize(Serializer& s) const {
     s.Write(bit_precision);
 }
 
-hdf5::expected<FixedPoint> FixedPoint::Deserialize(Deserializer& de) {
+hdf5::expected<FixedPoint> FixedPoint::Deserialize(VirtualDeserializer& de) {
     FixedPoint fp{};
 
     // first four bits are used
@@ -28,7 +28,7 @@ hdf5::expected<FixedPoint> FixedPoint::Deserialize(Deserializer& de) {
     return fp;
 }
 
-void FloatingPoint::Serialize(Serializer& s) const {
+void FloatingPoint::Serialize(VirtualSerializer& s) const {
     s.Write(static_cast<uint8_t>(bitset_.to_ulong() & 0x7f));
     s.Write(sign_location);
     // reserved (zero)
@@ -45,7 +45,7 @@ void FloatingPoint::Serialize(Serializer& s) const {
     s.Write(exponent_bias);
 }
 
-hdf5::expected<FloatingPoint> FloatingPoint::Deserialize(Deserializer& de) {
+hdf5::expected<FloatingPoint> FloatingPoint::Deserialize(VirtualDeserializer& de) {
     FloatingPoint fp{};
 
     fp.bitset_ = de.Read<uint8_t>() & 0x7f;
@@ -150,7 +150,7 @@ const DatatypeMessage DatatypeMessage::f32_t = {
     .data = FloatingPoint::f32_t,
 };
 
-void DatatypeMessage::Serialize(Serializer& s) const {
+void DatatypeMessage::Serialize(VirtualSerializer& s) const {
     auto high = static_cast<uint8_t>(version);
     auto low = static_cast<uint8_t>(class_v);
 
@@ -161,7 +161,7 @@ void DatatypeMessage::Serialize(Serializer& s) const {
     cstd::visit([&s](const auto& data) { return data.Serialize(s); }, data);
 }
 
-hdf5::expected<DatatypeMessage> DatatypeMessage::Deserialize(Deserializer& de) {
+hdf5::expected<DatatypeMessage> DatatypeMessage::Deserialize(VirtualDeserializer& de) {
     auto class_and_version = de.Read<uint8_t>();
 
     // high
@@ -219,7 +219,7 @@ hdf5::expected<DatatypeMessage> DatatypeMessage::Deserialize(Deserializer& de) {
 }
 
 
-void WritePaddedString(hdf5::string_view name, Serializer&s) {
+void WritePaddedString(hdf5::string_view name, VirtualSerializer&s) {
     size_t name_size = name.size();
 
     // write string
@@ -267,7 +267,7 @@ VariableLength& VariableLength::operator=(const VariableLength& other) {
     return *this;
 }
 
-void VariableLength::Serialize(Serializer& s) const {
+void VariableLength::Serialize(VirtualSerializer& s) const {
     uint8_t bitset_1 = (static_cast<uint8_t>(padding) << 4) | static_cast<uint8_t>(type);
     s.Write(bitset_1);
 
@@ -286,7 +286,7 @@ void VariableLength::Serialize(Serializer& s) const {
     }
 }
 
-hdf5::expected<VariableLength> VariableLength::Deserialize(Deserializer& de) {
+hdf5::expected<VariableLength> VariableLength::Deserialize(VirtualDeserializer& de) {
     auto bitset_1 = de.Read<uint8_t>();
 
     VariableLength vl{};
@@ -352,7 +352,7 @@ CompoundMember& CompoundMember::operator=(const CompoundMember& other) {
 }
 
 
-void CompoundMember::Serialize(Serializer& s) const {
+void CompoundMember::Serialize(VirtualSerializer& s) const {
     // includes null terminator
     WritePaddedString(name, s);
 
@@ -381,7 +381,7 @@ void CompoundMember::Serialize(Serializer& s) const {
     s.WriteComplex(*message);
 }
 
-hdf5::expected<hdf5::string> ReadPaddedString(Deserializer& de) {
+hdf5::expected<hdf5::string> ReadPaddedString(VirtualDeserializer& de) {
     hdf5::string name;
 
     for (;;) {
@@ -411,7 +411,7 @@ hdf5::expected<hdf5::string> ReadPaddedString(Deserializer& de) {
     return name;
 }
 
-hdf5::expected<CompoundMember> CompoundMember::Deserialize(Deserializer& de) {
+hdf5::expected<CompoundMember> CompoundMember::Deserialize(VirtualDeserializer& de) {
     CompoundMember mem{};
 
     auto name_result = ReadPaddedString(de);
@@ -444,7 +444,7 @@ hdf5::expected<CompoundMember> CompoundMember::Deserialize(Deserializer& de) {
     return mem;
 }
 
-void CompoundDatatype::Serialize(Serializer& s) const {
+void CompoundDatatype::Serialize(VirtualSerializer& s) const {
     auto num_members = static_cast<uint16_t>(members.size());
 
     s.Write(num_members);
@@ -458,7 +458,7 @@ void CompoundDatatype::Serialize(Serializer& s) const {
     }
 }
 
-hdf5::expected<CompoundDatatype> CompoundDatatype::Deserialize(Deserializer& de) {
+hdf5::expected<CompoundDatatype> CompoundDatatype::Deserialize(VirtualDeserializer& de) {
     auto num_members = de.Read<uint16_t>();
     // reserved (zero)
     de.Skip<uint8_t>();

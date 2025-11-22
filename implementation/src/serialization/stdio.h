@@ -5,7 +5,7 @@
 #include "serialization.h"
 #include "../hdf5/types.h"
 
-class StdioWriter : public Serializer {
+class StdioWriter : public VirtualSerializer {
 public:
     explicit StdioWriter(const std::filesystem::path& path)
         : path_(path), file_(nullptr, &std::fclose)
@@ -29,7 +29,7 @@ private:
     std::unique_ptr<FILE, std::function<int(FILE*)>> file_;
 };
 
-class StdioReader : public Deserializer {
+class StdioReader : public VirtualDeserializer {
 public:
     explicit StdioReader(const std::filesystem::path& path)
         : path_(path), file_(nullptr, &std::fclose)
@@ -70,7 +70,7 @@ private:
 };
 
 // TODO: is there a way to do this without code duplication
-class StdioReaderWriter : public ReaderWriter {
+class StdioReaderWriter : public VirtualReaderWriter {
 public:
     explicit StdioReaderWriter(const std::filesystem::path& path)
     : path_(path), file_(nullptr, &std::fclose)

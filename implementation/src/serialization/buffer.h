@@ -3,7 +3,7 @@
 
 #include "serialization.h"
 
-class BufferSerializer : public Serializer {
+class BufferSerializer : public VirtualSerializer {
 public:
     explicit BufferSerializer(std::span<byte_t> buf) // NOLINT
         : buf(buf), cursor(0) {}
@@ -25,7 +25,7 @@ public:
     size_t cursor;
 };
 
-class DynamicBufferSerializer : public Serializer {
+class DynamicBufferSerializer : public VirtualSerializer {
 public:
     explicit DynamicBufferSerializer(size_t size = 0) {
         buf.reserve(size);
@@ -40,7 +40,7 @@ public:
     std::vector<byte_t> buf;
 };
 
-class BufferDeserializer : public Deserializer {
+class BufferDeserializer : public VirtualDeserializer {
 public:
     explicit BufferDeserializer(std::span<const byte_t> buf) // NOLINT
         : buf(buf), cursor(0) {}
