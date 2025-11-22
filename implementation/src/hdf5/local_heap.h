@@ -50,6 +50,7 @@ private:
 
     static constexpr offset_t kLastFreeBlock = 1;
     static constexpr len_t kHeaderSize = 32;
+    static constexpr size_t kMaxBufferSizeBytes = 2048;
 
     static constexpr cstd::array<uint8_t, 4> kSignature = { 'H', 'E', 'A', 'P' };
     static constexpr uint8_t kVersionNumber = 0x00;
