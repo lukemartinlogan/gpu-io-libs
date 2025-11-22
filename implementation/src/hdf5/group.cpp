@@ -2,6 +2,9 @@
 
 #include "symbol_table.h"
 
+// might need to be bigger? but group_leaf_node_k is ~ 4
+constexpr size_t kMaxGroupSymbolTablePaddingSizeBytes = 2 * 8 * 40;
+
 hdf5::expected<Group> Group::New(const Object& object) {
     auto header_result = object.GetHeader();
     if (!header_result) return cstd::unexpected(header_result.error());
@@ -122,11 +125,17 @@ hdf5::expected<Dataset> Group::CreateDataset(
     DynamicBufferSerializer ser;
     ser.WriteComplex(node);
 
-    std::vector<byte_t> padding( // TODO: optimize inserts?
-        (2 * object_.file->superblock.group_leaf_node_k - node.entries.size()) * 40
-    );
+    size_t padding_size = (2 * object_.file->superblock.group_leaf_node_k - node.entries.size()) * 40;
 
-    ser.WriteBuffer(padding);
+    if (padding_size > kMaxGroupSymbolTablePaddingSizeBytes) {
+        return hdf5::error(
+            hdf5::HDF5ErrorCode::CapacityExceeded,
+            "Group leaf node padding exceeds maximum size"
+        );
+    }
+
+    cstd::array<byte_t, kMaxGroupSymbolTablePaddingSizeBytes> padding_buffer{};
+    ser.WriteBuffer(cstd::span(padding_buffer.data(), padding_size));
 
     offset_t node_alloc = object_.file->AllocateAtEOF(ser.buf.size());
     object_.file->io.SetPosition(node_alloc);
@@ -208,11 +217,17 @@ hdf5::expected<Group> Group::CreateGroup(hdf5::string_view name) {
     DynamicBufferSerializer ser;
     ser.WriteComplex(node);
 
-    std::vector<byte_t> padding( // TODO: optimize inserts?
-        (2 * object_.file->superblock.group_leaf_node_k - node.entries.size()) * 40
-    );
+    size_t padding_size = (2 * object_.file->superblock.group_leaf_node_k - node.entries.size()) * 40;
 
-    ser.WriteBuffer(padding);
+    if (padding_size > kMaxGroupSymbolTablePaddingSizeBytes) {
+        return hdf5::error(
+            hdf5::HDF5ErrorCode::CapacityExceeded,
+            "Group leaf node padding exceeds maximum size"
+        );
+    }
+
+    cstd::array<byte_t, kMaxGroupSymbolTablePaddingSizeBytes> padding_buffer{};
+    ser.WriteBuffer(cstd::span(padding_buffer.data(), padding_size));
 
     offset_t node_alloc = object_.file->AllocateAtEOF(ser.buf.size());
     object_.file->io.SetPosition(node_alloc);
