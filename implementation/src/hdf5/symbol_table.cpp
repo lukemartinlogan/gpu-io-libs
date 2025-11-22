@@ -79,7 +79,12 @@ hdf5::expected<SymbolTableNode> SymbolTableNode::Deserialize(Deserializer& de) {
 
     SymbolTableNode node{};
 
-    node.entries.reserve(num_symbols);
+    if (num_symbols > kMaxSymbolTableEntries) {
+        return hdf5::error(
+            hdf5::HDF5ErrorCode::CapacityExceeded,
+            "Symbol table node has too many entries"
+        );
+    }
 
     for (uint16_t i = 0; i < num_symbols; ++i) {
         auto entry_result = de.ReadComplex<SymbolTableEntry>();

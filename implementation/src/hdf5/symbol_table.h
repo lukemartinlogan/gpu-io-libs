@@ -38,7 +38,10 @@ struct SymbolTableEntry {
 };
 
 struct SymbolTableNode {
-    std::vector<SymbolTableEntry> entries;
+    // TODO: not sure about this size, may need to be increased or max have a fixed size max
+    static constexpr size_t kMaxSymbolTableEntries = 32;
+
+    cstd::inplace_vector<SymbolTableEntry, kMaxSymbolTableEntries> entries;
 
     [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> FindEntry(hdf5::string_view name, const LocalHeap& heap, Deserializer& de) const;
 
