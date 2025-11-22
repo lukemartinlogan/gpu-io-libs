@@ -170,7 +170,9 @@ struct CompoundMember {
 };
 
 struct CompoundDatatype {
-    std::vector<CompoundMember> members;
+    static constexpr size_t kMaxCompoundMembers = 16;
+
+    cstd::inplace_vector<CompoundMember, kMaxCompoundMembers> members;
     uint32_t size{};
 
     void Serialize(Serializer& s) const;

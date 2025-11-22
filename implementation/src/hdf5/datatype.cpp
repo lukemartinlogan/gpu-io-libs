@@ -464,7 +464,13 @@ hdf5::expected<CompoundDatatype> CompoundDatatype::Deserialize(Deserializer& de)
     de.Skip<uint8_t>();
 
     CompoundDatatype comp{};
-    comp.members.reserve(num_members);
+
+    if (num_members > kMaxCompoundMembers) {
+        return hdf5::error(
+            hdf5::HDF5ErrorCode::CapacityExceeded,
+            "Compound datatype has too many members"
+        );
+    }
 
     comp.size = de.Read<uint32_t>();
 
