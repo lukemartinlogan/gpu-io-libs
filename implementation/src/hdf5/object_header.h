@@ -667,7 +667,7 @@ struct AttributeMessage {
         return out;
     }
 
-    template<serde::Serializer S>
+    template<serde::Serializer S> requires serde::Seekable<S>
     void Serialize(S& s) const {
         serde::Write(s, kVersionNumber);
         // reserved (zero)
@@ -685,15 +685,14 @@ struct AttributeMessage {
         ));
 
         // write datatype
-        DynamicBufferSerializer datatype_bufs;
-        serde::Write(datatype_bufs, datatype);
-        // FIXME: change this function to write directly into 's'?
-        WriteEightBytePaddedFields(s, datatype_bufs.buf);
+        offset_t datatype_write_start = s.GetPosition();
+        serde::Write(s, datatype);
+        WriteRemainingToPadToEightBytes(s, s.GetPosition() - datatype_write_start);
 
         // write dataspace
-        DynamicBufferSerializer dataspace_bufs;
-        serde::Write(dataspace_bufs, dataspace);
-        WriteEightBytePaddedFields(s, dataspace_bufs.buf);
+        offset_t dataspace_write_start = s.GetPosition();
+        serde::Write(s, dataspace);
+        WriteRemainingToPadToEightBytes(s, s.GetPosition() - dataspace_write_start);
 
         // write data
         s.WriteBuffer(data);
@@ -764,13 +763,18 @@ struct AttributeMessage {
     }
 private:
     template<serde::Serializer S>
-    static void WriteEightBytePaddedFields(S& s, cstd::span<const byte_t> buf) {
-        s.WriteBuffer(buf);
-
-        size_t leftover = (8 - buf.size() % 8) % 8;
+    static void WriteRemainingToPadToEightBytes(S& s, offset_t written) {
+        size_t leftover = (8 - written % 8) % 8;
 
         static cstd::array<const byte_t, 8> extra_padding{};
         s.WriteBuffer(cstd::span(extra_padding.data(), leftover));
+    }
+
+    template<serde::Serializer S>
+    static void WriteEightBytePaddedFields(S& s, cstd::span<const byte_t> buf) {
+        s.WriteBuffer(buf);
+
+        WriteRemainingToPadToEightBytes(s, buf.size());
     }
 
     template<serde::Deserializer D>
