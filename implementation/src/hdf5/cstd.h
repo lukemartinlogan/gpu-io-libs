@@ -19,6 +19,8 @@
     #include <cuda/std/inplace_vector>
     #include <cuda/std/expected>
     #include <cuda/std/cassert>
+    #include <cuda/std/limits>
+    #include <cuda/std/cstdint>
 
     namespace cstd = cuda::std;
 
@@ -40,6 +42,8 @@
     #include <vector>  // Fallback for inplace_vector
     #include <expected>
     #include <cassert>
+    #include <limits>
+    #include <cstdint>
 
     namespace cstd = std;
 

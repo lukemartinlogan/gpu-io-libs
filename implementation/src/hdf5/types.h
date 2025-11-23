@@ -1,15 +1,14 @@
 #pragma once
 
 #include <cstdint>
-#include <limits>
 
 #include "cstd.h"
 
-using byte_t = std::byte;
+using byte_t = cstd::byte;
 using offset_t = uint64_t;
 using len_t = uint64_t;
 
-constexpr offset_t kUndefinedOffset = std::numeric_limits<offset_t>::max();
+constexpr offset_t kUndefinedOffset = cstd::numeric_limits<offset_t>::max();
 
 #define ASSERT(cond, msg) assert((cond) && (msg))
 #define UNREACHABLE(msg) assert(false && (msg))
