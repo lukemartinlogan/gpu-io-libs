@@ -34,7 +34,7 @@ void WritePaddedString(hdf5::string_view name, S& s) {
     size_t name_size = name.size();
 
     // write string
-    s.WriteBuffer(std::span(
+    s.WriteBuffer(cstd::span(
         reinterpret_cast<const byte_t*>(name.data()),
         name_size
     ));
@@ -43,7 +43,7 @@ void WritePaddedString(hdf5::string_view name, S& s) {
     size_t padding = (name_size / 8 + 1) * 8 - name_size;
     static constexpr cstd::array<byte_t, 8> nul_bytes{};
 
-    s.WriteBuffer(std::span(nul_bytes.data(), padding));
+    s.WriteBuffer(cstd::span(nul_bytes.data(), padding));
 }
 
 template<serde::Deserializer D>

@@ -34,7 +34,7 @@ hdf5::expected<Dataset> Dataset::New(const Object& object) {
     return Dataset(object, layout, type, space);
 }
 
-hdf5::expected<void> Dataset::Read(std::span<byte_t> buffer, size_t start_index, size_t count) const {
+hdf5::expected<void> Dataset::Read(cstd::span<byte_t> buffer, size_t start_index, size_t count) const {
     if (start_index + count > space_.TotalElements()) {
         return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "Index range out of bounds for dataset");
     }
@@ -85,7 +85,7 @@ hdf5::expected<void> Dataset::Read(std::span<byte_t> buffer, size_t start_index,
     return {};
 }
 
-hdf5::expected<void> Dataset::Write(std::span<const byte_t> data, size_t start_index) const {
+hdf5::expected<void> Dataset::Write(cstd::span<const byte_t> data, size_t start_index) const {
     if (data.size() % type_.Size() != 0) {
         return hdf5::error(hdf5::HDF5ErrorCode::BufferNotAligned, "Buffer size must be a multiple of the datatype size");
     }
@@ -237,7 +237,7 @@ hdf5::expected<void> ProcessChunkedHyperslab(
 }
 
 hdf5::expected<void> Dataset::ReadHyperslab(
-    std::span<byte_t> buffer,
+    cstd::span<byte_t> buffer,
     const hdf5::dim_vector<uint64_t>& start,
     const hdf5::dim_vector<uint64_t>& count,
     const hdf5::dim_vector<uint64_t>& stride,
@@ -318,7 +318,7 @@ hdf5::expected<void> Dataset::ReadHyperslab(
             offset_t file_offset = contiguous->address + *linear_index * element_size;
 
             object_.file->io.SetPosition(file_offset);
-            object_.file->io.ReadBuffer(std::span(buffer.data() + buffer_offset, element_size));
+            object_.file->io.ReadBuffer(cstd::span(buffer.data() + buffer_offset, element_size));
 
             buffer_offset += element_size;
             iterator.Advance();
@@ -348,7 +348,7 @@ hdf5::expected<void> Dataset::ReadHyperslab(
 }
 
 hdf5::expected<void> Dataset::WriteHyperslab(
-    std::span<const byte_t> data,
+    cstd::span<const byte_t> data,
     const hdf5::dim_vector<uint64_t>& start,
     const hdf5::dim_vector<uint64_t>& count,
     const hdf5::dim_vector<uint64_t>& stride,

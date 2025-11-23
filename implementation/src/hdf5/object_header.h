@@ -679,7 +679,7 @@ struct AttributeMessage {
         serde::Write(s, static_cast<uint16_t>(0 /* TODO: dataspace size */));
 
         // write name
-        WriteEightBytePaddedFields(s, std::span(
+        WriteEightBytePaddedFields(s, cstd::span(
             reinterpret_cast<const byte_t*>(name.data()),
             name.size() + 1
         ));
@@ -728,7 +728,7 @@ struct AttributeMessage {
         AttributeMessage msg{};
 
         // read name
-        ReadEightBytePaddedData(de, std::span(buf.data(), name_size));
+        ReadEightBytePaddedData(de, cstd::span(buf.data(), name_size));
 
         if (buf.at(name_size - 1) != static_cast<byte_t>('\0')) {
             return hdf5::error(hdf5::HDF5ErrorCode::StringNotNullTerminated, "string read was not null-terminated");
@@ -739,7 +739,7 @@ struct AttributeMessage {
         msg.name = *name_result;
 
         // read datatype
-        std::span datatype_buf(buf.data(), datatype_size);
+        cstd::span datatype_buf(buf.data(), datatype_size);
         ReadEightBytePaddedData(de, datatype_buf);
 
         auto datatype_result = serde::Read<BufferDeserializer, DatatypeMessage>(BufferDeserializer(datatype_buf));
@@ -747,7 +747,7 @@ struct AttributeMessage {
         msg.datatype = *datatype_result;
 
         // read dataspace
-        std::span dataspace_buf(buf.data(), dataspace_size);
+        cstd::span dataspace_buf(buf.data(), dataspace_size);
         ReadEightBytePaddedData(de, dataspace_buf);
 
         auto dataspace_result = serde::Read<BufferDeserializer, DataspaceMessage>(BufferDeserializer(dataspace_buf));
@@ -764,23 +764,23 @@ struct AttributeMessage {
     }
 private:
     template<serde::Serializer S>
-    static void WriteEightBytePaddedFields(S& s, std::span<const byte_t> buf) {
+    static void WriteEightBytePaddedFields(S& s, cstd::span<const byte_t> buf) {
         s.WriteBuffer(buf);
 
         size_t leftover = (8 - buf.size() % 8) % 8;
 
         static cstd::array<const byte_t, 8> extra_padding{};
-        s.WriteBuffer(std::span(extra_padding.data(), leftover));
+        s.WriteBuffer(cstd::span(extra_padding.data(), leftover));
     }
 
     template<serde::Deserializer D>
-    static void ReadEightBytePaddedData(D& de, std::span<byte_t> buf) {
+    static void ReadEightBytePaddedData(D& de, cstd::span<byte_t> buf) {
         de.ReadBuffer(buf);
 
         size_t leftover = (8 - buf.size() % 8) % 8;
 
         static cstd::array<byte_t, 8> leftover_buf;
-        de.ReadBuffer(std::span(leftover_buf.data(), leftover));
+        de.ReadBuffer(cstd::span(leftover_buf.data(), leftover));
     }
 
 private:
@@ -794,7 +794,7 @@ struct ObjectCommentMessage {
 
     template<serde::Serializer S>
     void Serialize(S& s) const {
-        s.WriteBuffer(std::span(
+        s.WriteBuffer(cstd::span(
             reinterpret_cast<const byte_t*>(comment.c_str()),
             comment.size() + 1 // null terminator
         ));
@@ -972,7 +972,7 @@ struct DriverInfoMessage {
             "DriverInfoMessage: driver_id must be exactly eight ASCII characters"
         );
 
-        s.WriteBuffer(std::span(
+        s.WriteBuffer(cstd::span(
             reinterpret_cast<const byte_t*>(driver_id.data()),
             driver_id.size()
         ));
@@ -993,7 +993,7 @@ struct DriverInfoMessage {
 
         // read id
         cstd::array<char, kDriverIdSize> id{};
-        de.ReadBuffer(std::span(reinterpret_cast<byte_t*>(id.data()), id.size()));
+        de.ReadBuffer(cstd::span(reinterpret_cast<byte_t*>(id.data()), id.size()));
 
         auto driver_id_result = hdf5::gpu_string<8>::from_chars(id.data(), id.size());
         if (!driver_id_result) return cstd::unexpected(driver_id_result.error());
@@ -1427,7 +1427,7 @@ struct ObjectHeaderMessage {
 
             cstd::array<byte_t, 8> padding{};
 
-            de.ReadBuffer(std::span(padding.data(), padding_ct));
+            de.ReadBuffer(cstd::span(padding.data(), padding_ct));
         }
 
         return msg;

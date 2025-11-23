@@ -5,7 +5,7 @@
 
 class BufferSerializer {
 public:
-    explicit BufferSerializer(std::span<byte_t> buf) // NOLINT
+    explicit BufferSerializer(cstd::span<byte_t> buf) // NOLINT
         : buf(buf), cursor(0) {}
 
     void WriteBuffer(cstd::span<const byte_t> data) {
@@ -19,7 +19,7 @@ public:
         cursor += data.size();
     }
 
-    std::span<byte_t> buf;
+    cstd::span<byte_t> buf;
     size_t cursor;
 };
 
@@ -42,7 +42,7 @@ static_assert(serde::Serializer<DynamicBufferSerializer>);
 
 class BufferDeserializer {
 public:
-    explicit BufferDeserializer(std::span<const byte_t> buf) // NOLINT
+    explicit BufferDeserializer(cstd::span<const byte_t> buf) // NOLINT
         : buf(buf), cursor(0) {}
 
     void ReadBuffer(cstd::span<byte_t> out) {
@@ -68,6 +68,6 @@ public:
         return cursor == buf.size();
     }
 
-    std::span<const byte_t> buf;
+    cstd::span<const byte_t> buf;
     size_t cursor;
 };

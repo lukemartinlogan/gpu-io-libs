@@ -67,7 +67,7 @@ namespace serde {
 
     template<Serializer S, TriviallySerializable T>
     void Write(S& s, const T& data) {
-        s.WriteBuffer(std::as_bytes(std::span(&data, 1)));
+        s.WriteBuffer(cstd::as_bytes(cstd::span(&data, 1)));
     }
 
     template<Serializer S, NonTriviallySerializable T>
@@ -80,7 +80,7 @@ namespace serde {
     template<Deserializer D, TriviallySerializable T>
     T Read(D& d) {
         T out;
-        d.ReadBuffer(std::as_writable_bytes(std::span(&out, 1)));
+        d.ReadBuffer(cstd::as_writable_bytes(cstd::span(&out, 1)));
         return out;
     }
 

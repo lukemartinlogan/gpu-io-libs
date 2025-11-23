@@ -10,7 +10,7 @@ hdf5::expected<offset_t> LocalHeap::WriteString(hdf5::string_view string, FileLi
     hdf5::string null_terminated_str(string);
 
     return WriteBytes(
-        std::span(
+        cstd::span(
             reinterpret_cast<const byte_t*>(null_terminated_str.c_str()),
             null_terminated_str.size() + 1
         ),

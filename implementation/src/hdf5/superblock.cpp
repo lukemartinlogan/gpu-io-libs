@@ -17,6 +17,6 @@ uint32_t SuperblockV2::Checksum() const { // NOLINT
     };
 
     return lookup3::HashLittle(
-        std::as_bytes(std::span(&data, 1))
+        cstd::as_bytes(cstd::span(&data, 1))
     );
 }
