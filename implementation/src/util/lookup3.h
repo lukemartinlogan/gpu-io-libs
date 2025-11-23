@@ -3,8 +3,6 @@
 #include <span>
 #include "../hdf5/types.h"
 
-using byte_t = std::byte;
-
 extern "C" {
     uint32_t hashword(const uint32_t* key, size_t length, uint32_t init_val);
     uint32_t hashlittle(const void* key, size_t length, uint32_t initval);
