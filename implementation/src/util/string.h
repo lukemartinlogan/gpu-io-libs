@@ -54,9 +54,7 @@ hdf5::expected<hdf5::string> ReadPaddedString(D& de) {
         // 8 byte blocks
         cstd::array<byte_t, 8> buf{};
 
-        if (!de.ReadBuffer(buf)) {
-            return hdf5::error(hdf5::HDF5ErrorCode::BufferTooSmall, "failed to read string block");
-        }
+        de.ReadBuffer(buf);
 
         auto nul_pos = std::ranges::find(buf, static_cast<byte_t>('\0'));
 
