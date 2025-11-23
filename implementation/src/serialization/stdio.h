@@ -7,16 +7,14 @@
 
 class StdioWriter {
 public:
-    explicit StdioWriter(const std::filesystem::path& path)
-        : path_(path), file_(nullptr, &std::fclose)
-    {
+    static hdf5::expected<StdioWriter> Open(const std::filesystem::path& path) {
         FILE* raw = std::fopen(path.string().c_str(), "wb"); // NOLINT
 
         if (!raw) {
-            throw std::runtime_error("failed to open file");
+            return hdf5::error(hdf5::HDF5ErrorCode::IOError, "failed to open file for writing");
         }
 
-        file_.reset(raw);
+        return StdioWriter(path, raw);
     }
 
     void WriteBuffer(cstd::span<const byte_t> data) {
@@ -26,6 +24,10 @@ public:
     }
 
 private:
+    StdioWriter(const std::filesystem::path& path, FILE* file)
+        : path_(path), file_(file, &std::fclose)
+    {}
+
     std::filesystem::path path_;
     std::unique_ptr<FILE, std::function<int(FILE*)>> file_;
 };
@@ -34,16 +36,14 @@ static_assert(serde::Serializer<StdioWriter>);
 
 class StdioReader {
 public:
-    explicit StdioReader(const std::filesystem::path& path)
-        : path_(path), file_(nullptr, &std::fclose)
-    {
+    static hdf5::expected<StdioReader> Open(const std::filesystem::path& path) {
         FILE* raw = std::fopen(path.string().c_str(), "rb"); // NOLINT
 
         if (!raw) {
-            throw std::runtime_error("failed to open file");
+            return hdf5::error(hdf5::HDF5ErrorCode::IOError, "failed to open file for reading");
         }
 
-        file_.reset(raw);
+        return StdioReader(path, raw);
     }
 
     void ReadBuffer(cstd::span<byte_t> out) {
@@ -65,6 +65,10 @@ public:
     }
 
 private:
+    StdioReader(const std::filesystem::path& path, FILE* file)
+        : path_(path), file_(file, &std::fclose)
+    {}
+
     std::filesystem::path path_;
     std::unique_ptr<FILE, std::function<int(FILE*)>> file_;
 };
@@ -74,16 +78,14 @@ static_assert(serde::Deserializer<StdioReader>);
 // TODO: is there a way to do this without code duplication
 class StdioReaderWriter {
 public:
-    explicit StdioReaderWriter(const std::filesystem::path& path)
-    : path_(path), file_(nullptr, &std::fclose)
-    {
+    static hdf5::expected<StdioReaderWriter> Open(const std::filesystem::path& path) {
         FILE* raw = std::fopen(path.string().c_str(), "r+b"); // NOLINT
 
         if (!raw) {
-            throw std::runtime_error("failed to open file");
+            return hdf5::error(hdf5::HDF5ErrorCode::IOError, "failed to open file for reading/writing");
         }
 
-        file_.reset(raw);
+        return StdioReaderWriter(path, raw);
     }
 
     void WriteBuffer(cstd::span<const byte_t> data) const {
@@ -111,6 +113,10 @@ public:
     }
 
 private:
+    StdioReaderWriter(const std::filesystem::path& path, FILE* file)
+        : path_(path), file_(file, &std::fclose)
+    {}
+
     std::filesystem::path path_;
     std::unique_ptr<FILE, std::function<int(FILE*)>> file_;
 };
