@@ -74,7 +74,7 @@ hdf5::expected<void> Dataset::Read(std::span<byte_t> buffer, size_t start_index,
         }
 
         object_.file->io.SetPosition(contiguous->address + start_index * element_size);
-        object_.file->io.ReadBuffer(std::span(buffer.data(), total_bytes));
+        object_.file->io.ReadBuffer(cstd::span(buffer.data(), total_bytes));
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
         return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "chunked read not implemented yet");

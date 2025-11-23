@@ -32,9 +32,38 @@ struct SymbolTableEntry {
     // scratch pad space
     cstd::array<byte_t, 16> scratch_pad_space{};
 
-    void Serialize(VirtualSerializer& s) const;
+    template<serde::Serializer S>
+    void Serialize(S& s) const {
+        serde::Write(s, link_name_offset);
+        serde::Write(s, object_header_addr);
+        serde::Write(s, static_cast<uint32_t>(cache_ty));
+        // 4 bytes to align scratch pad on 16 byte boundary
+        serde::Write(s, uint32_t{0});
+        serde::Write(s, scratch_pad_space);
+    }
 
-    static hdf5::expected<SymbolTableEntry> Deserialize(VirtualDeserializer& de);
+    template<serde::Deserializer D>
+    static hdf5::expected<SymbolTableEntry> Deserialize(D& de) {
+        SymbolTableEntry ent{};
+
+        ent.link_name_offset = serde::Read<D, offset_t>(de);
+        ent.object_header_addr = serde::Read<D, offset_t>(de);
+        ent.cache_ty = static_cast<SymbolTableEntryCacheType>(serde::Read<D, uint32_t>(de));
+        // 4 bytes to align scratch pad on 16 byte boundary
+        serde::Skip<D, uint32_t>(de);
+        ent.scratch_pad_space = serde::Read<D, cstd::array<byte_t, 16>>(de);
+
+        constexpr uint8_t kCacheTyAllowedValues = 3;
+        if (static_cast<uint8_t>(ent.cache_ty) >= kCacheTyAllowedValues) {
+            return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Symbol Table Entry had invalid cache type");
+        }
+
+        if (ent.cache_ty == SymbolTableEntryCacheType::kSymbolicLink && ent.object_header_addr != kUndefinedOffset) {
+            return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "If symbol table entry cache type is symbolic link, object header addr should be undefined");
+        }
+
+        return ent;
+    }
 };
 
 struct SymbolTableNode {
@@ -43,11 +72,56 @@ struct SymbolTableNode {
 
     cstd::inplace_vector<SymbolTableEntry, kMaxSymbolTableEntries> entries;
 
-    [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> FindEntry(hdf5::string_view name, const LocalHeap& heap, VirtualDeserializer& de) const;
+    template<serde::Deserializer D>
+    [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> FindEntry(hdf5::string_view name, const LocalHeap& heap, D& de) const;
 
-    void Serialize(VirtualSerializer& s) const;
+    template<serde::Serializer S>
+    void Serialize(S& s) const {
+        serde::Write(s, kSignature);
+        serde::Write(s, kVersionNumber);
+        serde::Write(s, uint8_t{0});
+        serde::Write(s, static_cast<uint16_t>(entries.size()));
 
-    static hdf5::expected<SymbolTableNode> Deserialize(VirtualDeserializer& de);
+        // TODO: does this need to write the extra unused entries?
+        for (const SymbolTableEntry& entry : entries) {
+            serde::Write(s, entry);
+        }
+    }
+
+    template<serde::Deserializer D>
+    static hdf5::expected<SymbolTableNode> Deserialize(D& de) {
+        if (serde::Read<D, cstd::array<uint8_t, 4>>(de) != kSignature) {
+            return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "symbol table node signature was invalid");
+        }
+
+        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+            return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "symbol table node version was invalid");
+        }
+
+        // reserved (zero)
+        serde::Skip<D, uint8_t>(de);
+
+        // actual data
+        auto num_symbols = serde::Read<D, uint16_t>(de);
+
+        SymbolTableNode node{};
+
+        if (num_symbols > kMaxSymbolTableEntries) {
+            return hdf5::error(
+                hdf5::HDF5ErrorCode::CapacityExceeded,
+                "Symbol table node has too many entries"
+            );
+        }
+
+        for (uint16_t i = 0; i < num_symbols; ++i) {
+            auto entry_result = serde::Read<D, SymbolTableEntry>(de);
+            if (!entry_result) return cstd::unexpected(entry_result.error());
+            node.entries.push_back(*entry_result);
+        }
+
+        return node;
+    }
+
 private:
     static constexpr uint8_t kVersionNumber = 0x01;
     static constexpr cstd::array<uint8_t, 4> kSignature = { 'S', 'N', 'O', 'D' };

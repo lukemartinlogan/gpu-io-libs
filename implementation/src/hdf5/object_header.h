@@ -658,7 +658,7 @@ struct AttributeMessage {
     hdf5::expected<T> ReadDataAs() {
         BufferDeserializer buf_de(data);
 
-        T out = buf_de.Read<T>();
+        T out = serde::Read<decltype(buf_de), T>(buf_de);
 
         if (!buf_de.IsExhausted()) {
             return hdf5::error(hdf5::HDF5ErrorCode::IncorrectByteCount, "Invalid type was read from data");

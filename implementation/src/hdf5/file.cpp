@@ -7,7 +7,8 @@ hdf5::expected<File> File::New(const std::filesystem::path& path) {
     {
         StdioReaderWriter file_io(path);
 
-        auto superblock_result = file_io.ReadComplex<SuperblockV0>();
+        auto superblock_result = serde::Read<decltype(file_io), SuperblockV0>(file_io);
+
         if (!superblock_result) return cstd::unexpected(superblock_result.error());
         auto superblock = *superblock_result;
 
