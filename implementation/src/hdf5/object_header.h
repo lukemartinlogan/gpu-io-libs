@@ -742,7 +742,7 @@ struct AttributeMessage {
         cstd::span datatype_buf(buf.data(), datatype_size);
         ReadEightBytePaddedData(de, datatype_buf);
 
-        auto datatype_result = serde::Read<BufferDeserializer, DatatypeMessage>(BufferDeserializer(datatype_buf));
+        auto datatype_result = serde::Read<DatatypeMessage>(BufferDeserializer(datatype_buf));
         if (!datatype_result) return cstd::unexpected(datatype_result.error());
         msg.datatype = *datatype_result;
 
@@ -750,7 +750,7 @@ struct AttributeMessage {
         cstd::span dataspace_buf(buf.data(), dataspace_size);
         ReadEightBytePaddedData(de, dataspace_buf);
 
-        auto dataspace_result = serde::Read<BufferDeserializer, DataspaceMessage>(BufferDeserializer(dataspace_buf));
+        auto dataspace_result = serde::Read<DataspaceMessage>(BufferDeserializer(dataspace_buf));
         if (!dataspace_result) return cstd::unexpected(dataspace_result.error());
         msg.dataspace = *dataspace_result;
 
