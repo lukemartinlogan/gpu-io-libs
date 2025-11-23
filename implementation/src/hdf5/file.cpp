@@ -10,7 +10,7 @@ hdf5::expected<File> File::New(const std::filesystem::path& path) {
         if (!file_io_result)
             return cstd::unexpected(file_io_result.error());
 
-        auto file_io = *file_io_result;
+        auto file_io = std::move(*file_io_result);
 
         auto superblock_result = serde::Read<SuperblockV0>(file_io);
 
