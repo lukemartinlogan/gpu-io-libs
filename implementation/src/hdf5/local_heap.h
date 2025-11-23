@@ -6,7 +6,6 @@
 #include "types.h"
 #include "../serialization/serialization.h"
 #include "gpu_string.h"
-#include "file_link.h"
 #include "../util/align.h"
 #include "../util/string.h"
 
@@ -126,84 +125,7 @@ private:
         return cstd::nullopt;
     }
 
-    hdf5::expected<offset_t> WriteBytes(std::span<const byte_t> data, FileLink& file) {
-        len_t aligned_size = EightBytesAlignedSize(data.size());
-
-        auto free_result = FindFreeSpace(aligned_size, file.io);
-        if (!free_result) {
-            return cstd::unexpected(free_result.error());
-        }
-        auto free = *free_result;
-
-        if (!free) {
-            if (auto reserve_result = ReserveAdditional(file, aligned_size); !reserve_result) {
-                return cstd::unexpected(reserve_result.error());
-            }
-
-            free_result = FindFreeSpace(aligned_size, file.io);
-            if (!free_result) {
-                return cstd::unexpected(free_result.error());
-            }
-            free = *free_result;
-
-            if (!free) {
-                return hdf5::error(hdf5::HDF5ErrorCode::AllocationMismatch, "LocalHeap: failed to allocate space after reserving more");
-            }
-        }
-
-        if (
-            free->block.size > aligned_size &&
-            free->block.size - aligned_size >= sizeof(FreeListBlock)
-        ) {
-            len_t remaining_size = free->block.size - aligned_size;
-
-            FreeListBlock new_block {
-                .next_free_list_offset = free->block.next_free_list_offset,
-                .size = remaining_size,
-            };
-
-            offset_t new_block_offset = free->this_offset + aligned_size;
-            file.io.SetPosition(data_segment_address + new_block_offset);
-            serde::Write(file.io, new_block);
-
-            if (free->prev_block_offset.has_value()) {
-                file.io.SetPosition(data_segment_address + *free->prev_block_offset);
-                auto block = serde::Read<decltype(file.io), FreeListBlock>(file.io);
-
-                block.next_free_list_offset = new_block_offset;
-                file.io.SetPosition(data_segment_address + *free->prev_block_offset);
-                serde::Write(file.io, block);
-            } else {
-                free_list_head_offset = new_block_offset;
-            }
-        } else {
-            if (free->prev_block_offset.has_value()) {
-                file.io.SetPosition(data_segment_address + *free->prev_block_offset);
-                auto block = serde::Read<decltype(file.io), FreeListBlock>(file.io);
-
-                block.next_free_list_offset = free->block.next_free_list_offset;
-                file.io.SetPosition(data_segment_address + *free->prev_block_offset);
-                serde::Write(file.io, block);
-            } else {
-                if (free->block.next_free_list_offset == kLastFreeBlock) {
-                    free_list_head_offset = kUndefinedOffset;
-                } else {
-                    free_list_head_offset = free->block.next_free_list_offset;
-                }
-            }
-        }
-
-        file.io.SetPosition(data_segment_address + free->this_offset);
-        file.io.WriteBuffer(data);
-
-        for (len_t i = 0; i < aligned_size - data.size(); ++i) {
-            serde::Write(file.io, byte_t{});
-        }
-
-        RewriteToFile(file.io);
-
-        return free->this_offset;
-    }
+    hdf5::expected<offset_t> WriteBytes(cstd::span<const byte_t> data, FileLink& file);
 
     hdf5::expected<void> ReserveAdditional(FileLink& file, size_t additional_bytes);
 
