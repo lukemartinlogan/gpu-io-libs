@@ -229,6 +229,8 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     serde::Write(file->io, written_ct);
 }
 
+// semantically, this isn't const, so it's not being made const
+// ReSharper disable once CppMemberFunctionMayBeConst
 cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     JumpToRelativeOffset(0);
 
