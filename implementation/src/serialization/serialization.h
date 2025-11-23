@@ -143,12 +143,9 @@ namespace serde {
 
     // -- DATA TYPES --
     template<typename T>
-    concept NonTriviallySerializable = requires(const T& t, NullSerializer& s) {
-        { t.Serialize(s) } -> std::same_as<void>;
-    } && (
-        requires(NullDeserializer& d) { { T::Deserialize(d) } -> std::same_as<void>; } ||
-        requires(NullDeserializer& d) { { T::Deserialize(d) } -> std::same_as<hdf5::expected<void>>; }
-    );
+    concept NonTriviallySerializable = requires(const T& t, NullSerializer& s) { { t.Serialize(s) } -> std::same_as<void>; }
+        || requires(NullDeserializer& d) { { T::Deserialize(d) } -> std::same_as<void>; }
+        || requires(NullDeserializer& d) { { T::Deserialize(d) } -> std::same_as<hdf5::expected<void>>; };
 
     template<typename T>
     concept TriviallySerializable = std::is_trivially_copyable_v<T> && std::is_standard_layout_v<T> && !NonTriviallySerializable<T>;
