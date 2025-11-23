@@ -71,3 +71,5 @@ public:
     cstd::span<const byte_t> buf;
     size_t cursor;
 };
+
+static_assert(serde::Deserializer<BufferDeserializer>);
