@@ -383,8 +383,7 @@ struct ExternalDataFilesMessage {
         msg.slots.reserve(used_slots);
 
         for (uint16_t i = 0; i < used_slots; ++i) {
-            auto slot_result = serde::Read<D, ExternalFileSlot>(de);
-            if (!slot_result) return cstd::unexpected(slot_result.error());
+            ExternalFileSlot slot_result = serde::Read<D, ExternalFileSlot>(de);
             msg.slots.push_back(*slot_result);
         }
 
