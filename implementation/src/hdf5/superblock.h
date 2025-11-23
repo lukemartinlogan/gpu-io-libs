@@ -114,7 +114,13 @@ struct SuperblockV0 {
         serde::Skip<D, offset_t>(de);
         sb.eof_addr = serde::Read<D, offset_t>(de);
         sb.driver_info_block_addr = serde::Read<D, offset_t>(de);
-        sb.root_group_symbol_table_entry_addr = serde::Read<D, SymbolTableEntry>(de);
+
+        auto entry_result = serde::Read<D, SymbolTableEntry>(de);
+        if (!entry_result) {
+            return cstd::unexpected(entry_result.error());
+        }
+
+        sb.root_group_symbol_table_entry_addr = *entry_result;
 
         return sb;
     }
