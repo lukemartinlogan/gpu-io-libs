@@ -1474,35 +1474,7 @@ struct ObjectHeader {
     }
 
     template<serde::Deserializer D>
-    static hdf5::expected<void> ParseObjectHeaderMessages(ObjectHeader& hd, D& de, uint32_t size_limit, uint16_t total_message_ct) { // NOLINT(*-no-recursion)
-        uint32_t bytes_read = 0;
-
-        while (bytes_read < size_limit && hd.messages.size() < total_message_ct) {
-            size_t before_read = de.GetPosition();
-
-            auto msg_result = serde::Read<ObjectHeaderMessage>(de);
-            if (!msg_result) {
-                return cstd::unexpected(msg_result.error());
-            }
-            hd.messages.push_back(*msg_result);
-
-            bytes_read += de.GetPosition() - before_read;
-
-            if (const auto* cont = cstd::get_if<ObjectHeaderContinuationMessage>(&hd.messages.back().message)) {
-                offset_t return_pos = de.GetPosition();
-
-                de.SetPosition(/* TODO: sb.base_addr + */ cont->offset);
-
-                // TODO: this is recursive!
-                auto result = ParseObjectHeaderMessages(hd, de, cont->length, total_message_ct);
-                if (!result) return cstd::unexpected(result.error());
-
-                de.SetPosition(return_pos);
-            }
-        }
-
-        return {};
-    }
+    static hdf5::expected<void> ParseObjectHeaderMessages(ObjectHeader& hd, D& de, uint32_t size_limit, uint16_t total_message_ct);
 
     // FIXME: ignore unknown messages
     template<serde::Deserializer D>
@@ -1531,6 +1503,7 @@ private:
     friend class Object;
 
     static constexpr uint8_t kVersionNumber = 0x01;
+    static constexpr size_t kMaxContinuationDepth = 16;
 };
 
 // methods for use in object.h/object.cpp
@@ -1550,4 +1523,49 @@ static len_t EmptyHeaderMessagesSize(len_t min_size) {
         min_size,
         sizeof(ObjectHeaderContinuationMessage) + kPrefixSize
     ));
+}
+
+template<serde::Deserializer D>
+hdf5::expected<void> ObjectHeader::ParseObjectHeaderMessages(ObjectHeader& hd, D& de, uint32_t size_limit, uint16_t total_message_ct) {
+    struct StackFrame {
+        offset_t return_pos;
+        uint32_t size_limit;
+        uint32_t bytes_read;
+    };
+
+    cstd::inplace_vector<StackFrame, kMaxContinuationDepth> stack;
+    stack.push_back({de.GetPosition(), size_limit, 0});
+
+    while (!stack.empty()) {
+        auto& frame = stack.back();
+
+        if (frame.bytes_read >= frame.size_limit || hd.messages.size() >= total_message_ct) {
+            // Only restore position for continuation frames, not the initial frame
+            if (stack.size() > 1) {
+                de.SetPosition(frame.return_pos);
+            }
+            stack.pop_back();
+            continue;
+        }
+
+        size_t before_read = de.GetPosition();
+
+        auto msg_result = serde::Read<ObjectHeaderMessage>(de);
+        if (!msg_result) {
+            return cstd::unexpected(msg_result.error());
+        }
+        hd.messages.push_back(*msg_result);
+
+        frame.bytes_read += de.GetPosition() - before_read;
+
+        if (const auto* cont = cstd::get_if<ObjectHeaderContinuationMessage>(&hd.messages.back().message)) {
+            offset_t return_pos = de.GetPosition();
+
+            de.SetPosition(/* TODO: sb.base_addr + */ cont->offset);
+
+            stack.push_back({return_pos, static_cast<uint32_t>(cont->length), 0});
+        }
+    }
+
+    return {};
 }

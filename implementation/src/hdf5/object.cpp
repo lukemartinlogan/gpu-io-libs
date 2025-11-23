@@ -18,9 +18,7 @@ cstd::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) c
     // reserved
     serde::Skip(io, 4);
 
-    uint16_t messages_read = 0;
-
-    return FindSpaceRecursive(io, file->superblock.base_addr, messages_read, total_message_ct, header_size, size, must_be_nil);
+    return FindSpace(io, file->superblock.base_addr, total_message_ct, header_size, size, must_be_nil);
 }
 
 std::vector<byte_t> WriteMessageToBuffer(const HeaderMessageVariant& msg) {
@@ -245,9 +243,7 @@ cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     // reserved
     serde::Skip(file->io, 4);
 
-    uint16_t messages_read = 0;
-
-    cstd::optional<Space> found = FindMessageRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, msg_type);
+    cstd::optional<Space> found = FindMessage(file->io, file->superblock.base_addr, total_message_ct, header_size, msg_type);
 
     if (!found.has_value()) {
         return cstd::nullopt;
@@ -289,9 +285,7 @@ cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
     // reserved
     serde::Skip(file->io, 4);
 
-    uint16_t messages_read = 0;
-
-    cstd::optional<Space> found = FindMessageRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, msg_type);
+    cstd::optional<Space> found = FindMessage(file->io, file->superblock.base_addr, total_message_ct, header_size, msg_type);
 
     if (!found.has_value()) {
         return cstd::nullopt;

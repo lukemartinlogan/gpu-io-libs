@@ -101,24 +101,42 @@ private:
 
     [[nodiscard]] cstd::optional<Space> FindSpace(size_t size, bool must_be_nil) const;
 
-    // TODO: refactor to not be recursive
     // TODO: take predicate visitor?
     template<serde::Deserializer D>
-    [[nodiscard]] static cstd::optional<Object::Space> FindMessageRecursive(  // NOLINT(*-no-recursion
+    [[nodiscard]] static cstd::optional<Space> FindMessage(
         D& de,
         offset_t sb_base_addr,
-        uint16_t& messages_read,
         uint16_t total_message_ct,
         uint32_t size_limit,
         uint16_t msg_type
     ) {
-        uint32_t bytes_read = 0;
+        struct StackFrame {
+            offset_t return_pos;
+            uint32_t size_limit;
+            uint32_t bytes_read;
+        };
 
-        while (bytes_read < size_limit && messages_read < total_message_ct) {
+        cstd::inplace_vector<StackFrame, ObjectHeader::kMaxContinuationDepth> stack;
+        stack.push_back({de.GetPosition(), size_limit, 0});
+
+        uint16_t messages_read = 0;
+
+        while (!stack.empty()) {
+            auto& frame = stack.back();
+
+            if (frame.bytes_read >= frame.size_limit || messages_read >= total_message_ct) {
+                // Only restore position for continuation frames, not the initial frame
+                if (stack.size() > 1) {
+                    de.SetPosition(frame.return_pos);
+                }
+                stack.pop_back();
+                continue;
+            }
+
             auto type = serde::Read<uint16_t>(de);
             auto size_bytes = serde::Read<uint16_t>(de);
 
-            bytes_read += size_bytes + kPrefixSize;
+            frame.bytes_read += size_bytes + kPrefixSize;
             ++messages_read;
 
             // flags + reserved
@@ -130,13 +148,7 @@ private:
                 offset_t return_pos = de.GetPosition();
                 de.SetPosition(sb_base_addr + cont.offset);
 
-                cstd::optional<Space> found = FindMessageRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, msg_type);
-
-                if (found.has_value()) {
-                    return found;
-                }
-
-                de.SetPosition(return_pos);
+                stack.push_back({return_pos, static_cast<uint32_t>(cont.length), 0});
             } else {
                 if (type == msg_type) {
                     uint16_t total_size = size_bytes + kPrefixSize;
@@ -156,26 +168,43 @@ private:
         return cstd::nullopt;
     }
 
-    // TODO: refactor to not be recursive
     template<serde::Deserializer D>
-    [[nodiscard]] static cstd::optional<Object::Space> FindSpaceRecursive(  // NOLINT(*-no-recursion
+    [[nodiscard]] static cstd::optional<Object::Space> FindSpace(
         D& de,
         offset_t sb_base_addr,
-        uint16_t& messages_read,
         uint16_t total_message_ct,
         uint32_t size_limit,
         uint32_t search_size,
         bool must_be_nil
     ) {
-        uint32_t bytes_read = 0;
+        struct StackFrame {
+            offset_t return_pos;
+            uint32_t size_limit;
+            uint32_t bytes_read;
+        };
 
+        cstd::inplace_vector<StackFrame, ObjectHeader::kMaxContinuationDepth> stack;
+        stack.push_back({de.GetPosition(), size_limit, 0});
+
+        uint16_t messages_read = 0;
         cstd::optional<Space> smallest_found{};
 
-        while (bytes_read < size_limit && messages_read < total_message_ct) {
+        while (!stack.empty()) {
+            auto& frame = stack.back();
+
+            if (frame.bytes_read >= frame.size_limit || messages_read >= total_message_ct) {
+                // Only restore position for continuation frames, not the initial frame
+                if (stack.size() > 1) {
+                    de.SetPosition(frame.return_pos);
+                }
+                stack.pop_back();
+                continue;
+            }
+
             auto type = serde::Read<uint16_t>(de);
             auto size_bytes = serde::Read<uint16_t>(de);
 
-            bytes_read += size_bytes + kPrefixSize;
+            frame.bytes_read += size_bytes + kPrefixSize;
             ++messages_read;
 
             // flags + reserved
@@ -187,16 +216,7 @@ private:
                 offset_t return_pos = de.GetPosition();
                 de.SetPosition(sb_base_addr + cont.offset);
 
-                cstd::optional<Space> res = FindSpaceRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, search_size, must_be_nil);
-
-                if (
-                    res.has_value() && res->size >= search_size // FIXME: technically the second check is redundant
-                    && ( !smallest_found.has_value() || res->size < smallest_found->size )
-                ) {
-                    smallest_found = res;
-                }
-
-                de.SetPosition(return_pos);
+                stack.push_back({return_pos, static_cast<uint32_t>(cont.length), 0});
             } else {
                 if (!must_be_nil || type == NilMessage::kType) {
                     uint16_t total_size = size_bytes + kPrefixSize;
