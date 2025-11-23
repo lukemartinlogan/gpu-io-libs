@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cstdint>
-
 #include "cstd.h"
 
 using byte_t = cstd::byte;
