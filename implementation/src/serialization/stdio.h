@@ -11,7 +11,7 @@ public:
         FILE* raw = std::fopen(path.string().c_str(), "wb"); // NOLINT
 
         if (!raw) {
-            return hdf5::error(hdf5::HDF5ErrorCode::IOError, "failed to open file for writing");
+            return hdf5::error(hdf5::HDF5ErrorCode::FileOpenFailed, "failed to open file for writing");
         }
 
         return StdioWriter(path, raw);
@@ -40,7 +40,7 @@ public:
         FILE* raw = std::fopen(path.string().c_str(), "rb"); // NOLINT
 
         if (!raw) {
-            return hdf5::error(hdf5::HDF5ErrorCode::IOError, "failed to open file for reading");
+            return hdf5::error(hdf5::HDF5ErrorCode::FileOpenFailed, "failed to open file for reading");
         }
 
         return StdioReader(path, raw);
@@ -82,7 +82,7 @@ public:
         FILE* raw = std::fopen(path.string().c_str(), "r+b"); // NOLINT
 
         if (!raw) {
-            return hdf5::error(hdf5::HDF5ErrorCode::IOError, "failed to open file for reading/writing");
+            return hdf5::error(hdf5::HDF5ErrorCode::FileOpenFailed, "failed to open file for reading/writing");
         }
 
         return StdioReaderWriter(path, raw);
