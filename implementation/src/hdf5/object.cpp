@@ -78,7 +78,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             uint16_t nil_size = total_nil_size - kPrefixSize;
 
             WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-            serde::Write(file->io, NilMessage { .size = nil_size, })
+            serde::Write(file->io, NilMessage { .size = nil_size, });
 
             // wrote a nil header
             written_ct += 1;
