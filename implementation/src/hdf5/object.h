@@ -61,24 +61,6 @@ public:
         }
     }
 
-private:
-    template<serde::Serializer S>
-    static void WriteHeader(S& s, uint16_t type, uint16_t size, uint8_t flags) {
-        serde::Write(s, type);
-        serde::Write(s, size);
-
-        serde::Write(s, flags);
-        serde::Write<S, cstd::array<byte_t, 3>>(s, {});
-    }
-
-    static len_t EmptyHeaderMessagesSize(len_t min_size) {
-        return EightBytesAlignedSize(std::max(
-            min_size,
-            sizeof(ObjectHeaderContinuationMessage) + kPrefixSize
-        ));
-    }
-
-public:
     template<serde::Serializer S>
     static void WriteEmpty(len_t min_size, S& s) {
         // TODO: this probably shouldn't be unused!
@@ -112,8 +94,6 @@ public:
     std::shared_ptr<FileLink> file;
 
 private:
-    static constexpr uint32_t kPrefixSize = 8;
-
     struct Space {
         offset_t offset;
         len_t size;

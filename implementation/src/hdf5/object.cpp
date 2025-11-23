@@ -2,8 +2,6 @@
 
 #include "../util/align.h"
 
-constexpr uint32_t kPrefixSize = 8;
-
 cstd::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) const {
     JumpToRelativeOffset(0);
 

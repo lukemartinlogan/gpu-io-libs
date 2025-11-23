@@ -7,6 +7,7 @@
 #include "datatype.h"
 #include "../serialization/buffer.h"
 #include "../serialization/serialization.h"
+#include "../util/align.h"
 
 struct NilMessage {
     uint16_t size{};
@@ -1532,3 +1533,22 @@ private:
 
     static constexpr uint8_t kVersionNumber = 0x01;
 };
+
+// methods for use in object.h/object.cpp
+inline constexpr uint32_t kPrefixSize = 8;
+
+template<serde::Serializer S>
+static void WriteHeader(S& s, uint16_t type, uint16_t size, uint8_t flags) {
+    serde::Write(s, type);
+    serde::Write(s, size);
+
+    serde::Write(s, flags);
+    serde::Write<S, cstd::array<byte_t, 3>>(s, {});
+}
+
+static len_t EmptyHeaderMessagesSize(len_t min_size) {
+    return EightBytesAlignedSize(std::max(
+        min_size,
+        sizeof(ObjectHeaderContinuationMessage) + kPrefixSize
+    ));
+}
