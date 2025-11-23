@@ -83,39 +83,39 @@ struct SuperblockV0 {
 
     template<serde::Deserializer D>
     static hdf5::expected<SuperblockV0> Deserialize(D& de) {
-        if (serde::Read<D, cstd::array<uint8_t, 8>>(de) != kSuperblockSignature) {
+        if (serde::Read<cstd::array<uint8_t, 8>>(de) != kSuperblockSignature) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "Superblock signature was invalid");
         }
 
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Superblock version number was invalid");
         }
 
         SuperblockV0 sb{};
 
         // file free space version num
-        serde::Skip<D, uint8_t>(de);
+        serde::Skip<uint8_t>(de);
         // root group symbol table entry version num
-        serde::Skip<D, uint8_t>(de);
+        serde::Skip<uint8_t>(de);
         // reserved
-        serde::Skip<D, uint8_t>(de);
+        serde::Skip<uint8_t>(de);
         // shared header message format version num
-        serde::Skip<D, uint8_t>(de);
-        sb.size_of_offsets = serde::Read<D, uint8_t>(de);
-        sb.size_of_lengths = serde::Read<D, uint8_t>(de);
+        serde::Skip<uint8_t>(de);
+        sb.size_of_offsets = serde::Read<uint8_t>(de);
+        sb.size_of_lengths = serde::Read<uint8_t>(de);
         // reserved
-        serde::Skip<D, uint8_t>(de);
-        sb.group_leaf_node_k = serde::Read<D, uint16_t>(de);
-        sb.group_internal_node_k = serde::Read<D, uint16_t>(de);
+        serde::Skip<uint8_t>(de);
+        sb.group_leaf_node_k = serde::Read<uint16_t>(de);
+        sb.group_internal_node_k = serde::Read<uint16_t>(de);
         // file consistency flags, unused
-        serde::Skip<D, uint32_t>(de);
-        sb.base_addr = serde::Read<D, offset_t>(de);
+        serde::Skip<uint32_t>(de);
+        sb.base_addr = serde::Read<offset_t>(de);
         // file free space info addr, always undefined
-        serde::Skip<D, offset_t>(de);
-        sb.eof_addr = serde::Read<D, offset_t>(de);
-        sb.driver_info_block_addr = serde::Read<D, offset_t>(de);
+        serde::Skip<offset_t>(de);
+        sb.eof_addr = serde::Read<offset_t>(de);
+        sb.driver_info_block_addr = serde::Read<offset_t>(de);
 
-        auto entry_result = serde::Read<D, SymbolTableEntry>(de);
+        auto entry_result = serde::Read<SymbolTableEntry>(de);
         if (!entry_result) {
             return cstd::unexpected(entry_result.error());
         }
@@ -168,29 +168,29 @@ struct SuperblockV2 {
 
     template<serde::Deserializer D>
     static hdf5::expected<SuperblockV2> Deserialize(D& de) {
-        if (serde::Read<D, cstd::array<uint8_t, 8>>(de) != kSuperblockSignature) {
+        if (serde::Read<cstd::array<uint8_t, 8>>(de) != kSuperblockSignature) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "Superblock signature was invalid");
         }
 
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Superblock version number was invalid");
         }
 
         const SuperblockV2 sb {
-            .size_of_offsets = serde::Read<D, uint8_t>(de),
-            .size_of_lengths = serde::Read<D, uint8_t>(de),
-            .file_consistency_flags = serde::Read<D, FileConsistencyFlags>(de),
-            .base_addr = serde::Read<D, offset_t>(de),
-            .superblock_ext = serde::Read<D, offset_t>(de),
-            .eof_addr = serde::Read<D, offset_t>(de),
-            .root_group_header_addr = serde::Read<D, offset_t>(de),
+            .size_of_offsets = serde::Read<uint8_t>(de),
+            .size_of_lengths = serde::Read<uint8_t>(de),
+            .file_consistency_flags = serde::Read<FileConsistencyFlags>(de),
+            .base_addr = serde::Read<offset_t>(de),
+            .superblock_ext = serde::Read<offset_t>(de),
+            .eof_addr = serde::Read<offset_t>(de),
+            .root_group_header_addr = serde::Read<offset_t>(de),
         };
 
         if (sb.size_of_offsets != 8 || sb.size_of_lengths != 8) {
             return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "differently sized offset/len not implemented");
         }
 
-        if (serde::Read<D, uint32_t>(de) != sb.Checksum()) {
+        if (serde::Read<uint32_t>(de) != sb.Checksum()) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidChecksum, "Superblock checksum didn't match");
         }
 

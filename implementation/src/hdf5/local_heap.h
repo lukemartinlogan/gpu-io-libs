@@ -55,22 +55,22 @@ struct LocalHeap {
     static hdf5::expected<LocalHeap> Deserialize(D& de) {
         offset_t this_offset = de.GetPosition();
 
-        if (serde::Read<D, cstd::array<uint8_t, 4>>(de) != kSignature) {
+        if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "LocalHeap signature was invalid");
         }
 
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "LocalHeap version number was invalid");
         }
         // reserved (zero)
-        serde::Skip<D, uint8_t>(de);
-        serde::Skip<D, uint8_t>(de);
-        serde::Skip<D, uint8_t>(de);
+        serde::Skip<uint8_t>(de);
+        serde::Skip<uint8_t>(de);
+        serde::Skip<uint8_t>(de);
 
         LocalHeap heap{};
-        heap.data_segment_size = serde::Read<D, len_t>(de);
-        heap.free_list_head_offset = serde::Read<D, len_t>(de);
-        heap.data_segment_address = serde::Read<D, offset_t>(de);
+        heap.data_segment_size = serde::Read<len_t>(de);
+        heap.free_list_head_offset = serde::Read<len_t>(de);
+        heap.data_segment_address = serde::Read<offset_t>(de);
 
         heap.this_offset = this_offset;
 
@@ -108,7 +108,7 @@ private:
             }
 
             de.SetPosition(data_segment_address + current_offset);
-            auto block = serde::Read<D, FreeListBlock>(de);
+            auto block = serde::Read<FreeListBlock>(de);
 
             if (block.size >= required_size) {
                 return SuitableFreeSpace {

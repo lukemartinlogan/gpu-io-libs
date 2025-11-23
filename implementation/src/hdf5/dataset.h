@@ -34,7 +34,7 @@ public:
 
         object_.file->io.SetPosition(object_.file->superblock.base_addr + props->address + index * size);
 
-        return serde::Read<decltype(object_.file->io), T>(object_.file->io);
+        return serde::Read<T>(object_.file->io);
     }
 
     // FIXME: implement datatype

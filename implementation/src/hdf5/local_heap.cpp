@@ -84,7 +84,7 @@ hdf5::expected<offset_t> LocalHeap::WriteBytes(cstd::span<const byte_t> data, Fi
 
         if (free->prev_block_offset.has_value()) {
             file.io.SetPosition(data_segment_address + *free->prev_block_offset);
-            auto block = serde::Read<decltype(file.io), FreeListBlock>(file.io);
+            auto block = serde::Read<FreeListBlock>(file.io);
 
             block.next_free_list_offset = new_block_offset;
             file.io.SetPosition(data_segment_address + *free->prev_block_offset);
@@ -95,7 +95,7 @@ hdf5::expected<offset_t> LocalHeap::WriteBytes(cstd::span<const byte_t> data, Fi
     } else {
         if (free->prev_block_offset.has_value()) {
             file.io.SetPosition(data_segment_address + *free->prev_block_offset);
-            auto block = serde::Read<decltype(file.io), FreeListBlock>(file.io);
+            auto block = serde::Read<FreeListBlock>(file.io);
 
             block.next_free_list_offset = free->block.next_free_list_offset;
             file.io.SetPosition(data_segment_address + *free->prev_block_offset);

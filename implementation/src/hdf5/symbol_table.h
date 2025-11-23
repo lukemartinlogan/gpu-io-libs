@@ -46,12 +46,12 @@ struct SymbolTableEntry {
     static hdf5::expected<SymbolTableEntry> Deserialize(D& de) {
         SymbolTableEntry ent{};
 
-        ent.link_name_offset = serde::Read<D, offset_t>(de);
-        ent.object_header_addr = serde::Read<D, offset_t>(de);
-        ent.cache_ty = static_cast<SymbolTableEntryCacheType>(serde::Read<D, uint32_t>(de));
+        ent.link_name_offset = serde::Read<offset_t>(de);
+        ent.object_header_addr = serde::Read<offset_t>(de);
+        ent.cache_ty = static_cast<SymbolTableEntryCacheType>(serde::Read<uint32_t>(de));
         // 4 bytes to align scratch pad on 16 byte boundary
-        serde::Skip<D, uint32_t>(de);
-        ent.scratch_pad_space = serde::Read<D, cstd::array<byte_t, 16>>(de);
+        serde::Skip<uint32_t>(de);
+        ent.scratch_pad_space = serde::Read<cstd::array<byte_t, 16>>(de);
 
         constexpr uint8_t kCacheTyAllowedValues = 3;
         if (static_cast<uint8_t>(ent.cache_ty) >= kCacheTyAllowedValues) {
@@ -90,19 +90,19 @@ struct SymbolTableNode {
 
     template<serde::Deserializer D>
     static hdf5::expected<SymbolTableNode> Deserialize(D& de) {
-        if (serde::Read<D, cstd::array<uint8_t, 4>>(de) != kSignature) {
+        if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "symbol table node signature was invalid");
         }
 
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "symbol table node version was invalid");
         }
 
         // reserved (zero)
-        serde::Skip<D, uint8_t>(de);
+        serde::Skip<uint8_t>(de);
 
         // actual data
-        auto num_symbols = serde::Read<D, uint16_t>(de);
+        auto num_symbols = serde::Read<uint16_t>(de);
 
         SymbolTableNode node{};
 
@@ -114,7 +114,7 @@ struct SymbolTableNode {
         }
 
         for (uint16_t i = 0; i < num_symbols; ++i) {
-            auto entry_result = serde::Read<D, SymbolTableEntry>(de);
+            auto entry_result = serde::Read<SymbolTableEntry>(de);
             if (!entry_result) return cstd::unexpected(entry_result.error());
             node.entries.push_back(*entry_result);
         }

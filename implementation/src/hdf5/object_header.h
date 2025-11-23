@@ -75,31 +75,31 @@ struct DataspaceMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<DataspaceMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
         DataspaceMessage msg{};
 
-        auto dimensionality = serde::Read<D, uint8_t>(de);
+        auto dimensionality = serde::Read<uint8_t>(de);
         msg.dimensions.resize(dimensionality);
 
-        msg.bitset_ = serde::Read<D, uint8_t>(de) & 0b11;
+        msg.bitset_ = serde::Read<uint8_t>(de) & 0b11;
 
         // reserved
         serde::Skip(de, 5);
 
         for (DimensionInfo& dimension : msg.dimensions) {
-            dimension.size = serde::Read<D, len_t>(de);
+            dimension.size = serde::Read<len_t>(de);
         }
 
         for (DimensionInfo& dimension : msg.dimensions) {
-            dimension.max_size = serde::Read<D, len_t>(de);
+            dimension.max_size = serde::Read<len_t>(de);
         }
 
         if (msg.PermutationIndicesPresent()) {
             for (DimensionInfo& dimension : msg.dimensions) {
-                dimension.permutation_index = serde::Read<D, len_t>(de);
+                dimension.permutation_index = serde::Read<len_t>(de);
             }
         }
 
@@ -146,26 +146,26 @@ struct LinkInfoMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<LinkInfoMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
         LinkInfoMessage msg{};
 
-        auto flags = serde::Read<D, uint8_t>(de);
+        auto flags = serde::Read<uint8_t>(de);
         cstd::bitset<2> flag_bits(flags);
 
         if (flag_bits.test(0)) {
-            msg.max_creation_index = serde::Read<D, uint64_t>(de);
+            msg.max_creation_index = serde::Read<uint64_t>(de);
         } else {
             msg.max_creation_index = cstd::nullopt;
         }
 
-        msg.fractal_heap_addr = serde::Read<D, offset_t>(de);
-        msg.index_names_btree_addr = serde::Read<D, offset_t>(de);
+        msg.fractal_heap_addr = serde::Read<offset_t>(de);
+        msg.index_names_btree_addr = serde::Read<offset_t>(de);
 
         if (flag_bits.test(1)) {
-            msg.creation_order_btree_addr = serde::Read<D, offset_t>(de);
+            msg.creation_order_btree_addr = serde::Read<offset_t>(de);
         } else {
             msg.creation_order_btree_addr = cstd::nullopt;
         }
@@ -197,7 +197,7 @@ struct FillValueOldMessage {
     static hdf5::expected<FillValueOldMessage> Deserialize(D& de) {
         FillValueOldMessage msg{};
 
-        auto size = serde::Read<D, uint32_t>(de);
+        auto size = serde::Read<uint32_t>(de);
 
         if (size > 0) {
             msg.fill_value.resize(size);
@@ -248,14 +248,14 @@ struct FillValueMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<FillValueMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
         FillValueMessage msg{};
 
         // space allocation time
-        auto space_alloc = serde::Read<D, uint8_t>(de);
+        auto space_alloc = serde::Read<uint8_t>(de);
         if (space_alloc >= 4) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "space alloc time was invalid");
         }
@@ -263,18 +263,18 @@ struct FillValueMessage {
         msg.space_alloc_time = static_cast<SpaceAllocTime>(space_alloc);
 
         // fv write time
-        auto write_time = serde::Read<D, uint8_t>(de);
+        auto write_time = serde::Read<uint8_t>(de);
         if (write_time >= 3) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "fill value write time was invalid");
         }
 
         msg.write_time = static_cast<ValWriteTime>(write_time);
 
-        auto defined = serde::Read<D, uint8_t>(de);
+        auto defined = serde::Read<uint8_t>(de);
         if (defined == 0) {
             msg.fill_value = cstd::nullopt;
         } else if (defined == 1) {
-            auto size = serde::Read<D, uint32_t>(de);
+            auto size = serde::Read<uint32_t>(de);
 
             cstd::inplace_vector<byte_t, kMaxFillValueSizeBytes> fv;
             fv.resize(size);
@@ -329,9 +329,9 @@ struct ExternalDataFilesMessage {
         template<serde::Deserializer D>
         static ExternalFileSlot Deserialize(D& de) {
             return {
-                .name_offset = serde::Read<D, len_t>(de),
-                .file_offset = serde::Read<D, len_t>(de),
-                .data_size = serde::Read<D, len_t>(de)
+                .name_offset = serde::Read<len_t>(de),
+                .file_offset = serde::Read<len_t>(de),
+                .data_size = serde::Read<len_t>(de)
             };
         }
     };
@@ -362,7 +362,7 @@ struct ExternalDataFilesMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<ExternalDataFilesMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != 1) {
+        if (serde::Read<uint8_t>(de) != 1) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "ExternalDataFilesMessage: unsupported version");
         }
 
@@ -370,20 +370,20 @@ struct ExternalDataFilesMessage {
 
         ExternalDataFilesMessage msg{};
 
-        auto allocated_slots = serde::Read<D, uint16_t>(de);
-        auto used_slots = serde::Read<D, uint16_t>(de);
+        auto allocated_slots = serde::Read<uint16_t>(de);
+        auto used_slots = serde::Read<uint16_t>(de);
 
         if (allocated_slots != used_slots) {
             // "The current library simply uses the number of Used Slots for this message"
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "ExternalDataFilesMessage: allocated slots does not match used slots");
         }
 
-        msg.heap_address = serde::Read<D, offset_t>(de);
+        msg.heap_address = serde::Read<offset_t>(de);
 
         msg.slots.reserve(used_slots);
 
         for (uint16_t i = 0; i < used_slots; ++i) {
-            ExternalFileSlot slot_result = serde::Read<D, ExternalFileSlot>(de);
+            ExternalFileSlot slot_result = serde::Read<ExternalFileSlot>(de);
             msg.slots.push_back(*slot_result);
         }
 
@@ -406,7 +406,7 @@ struct BogusMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<BogusMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint32_t>(de) != kBogusValue) {
+        if (serde::Read<uint32_t>(de) != kBogusValue) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "BogusMessage: value is not 0xdeadbeef");
         }
 
@@ -461,22 +461,22 @@ struct GroupInfoMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<GroupInfoMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != 0) {
+        if (serde::Read<uint8_t>(de) != 0) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Invalid version number for GroupInfoMessage");
         }
 
         GroupInfoMessage msg;
 
-        auto flags = serde::Read<D, uint8_t>(de);
+        auto flags = serde::Read<uint8_t>(de);
         cstd::bitset<2> flags_bits(flags);
 
         if (flags_bits.test(0)) {
-            msg.max_compact = serde::Read<D, uint16_t>(de);
-            msg.min_dense = serde::Read<D, uint16_t>(de);
+            msg.max_compact = serde::Read<uint16_t>(de);
+            msg.min_dense = serde::Read<uint16_t>(de);
         }
         if (flags_bits.test(1)) {
-            msg.est_num_entries = serde::Read<D, uint16_t>(de);
-            msg.est_entries_name_len = serde::Read<D, uint16_t>(de);
+            msg.est_num_entries = serde::Read<uint16_t>(de);
+            msg.est_entries_name_len = serde::Read<uint16_t>(de);
         }
 
         return msg;
@@ -516,7 +516,7 @@ struct CompactStorageProperty {
 
     template<serde::Deserializer D>
     static hdf5::expected<CompactStorageProperty> Deserialize(D& de) {
-        auto size = serde::Read<D, uint16_t>(de);
+        auto size = serde::Read<uint16_t>(de);
 
         CompactStorageProperty msg{};
         msg.raw_data.resize(size);
@@ -540,8 +540,8 @@ struct ContiguousStorageProperty {
     template<serde::Deserializer D>
     static hdf5::expected<ContiguousStorageProperty> Deserialize(D& de) {
         return ContiguousStorageProperty {
-            .address = serde::Read<D, offset_t>(de),
-            .size = serde::Read<D, len_t>(de),
+            .address = serde::Read<offset_t>(de),
+            .size = serde::Read<len_t>(de),
         };
     }
 };
@@ -567,18 +567,18 @@ struct ChunkedStorageProperty {
 
     template<serde::Deserializer D>
     static hdf5::expected<ChunkedStorageProperty> Deserialize(D& de) {
-        auto dimensionality = serde::Read<D, uint8_t>(de) - 1;
+        auto dimensionality = serde::Read<uint8_t>(de) - 1;
 
         ChunkedStorageProperty prop{};
 
-        prop.b_tree_addr = serde::Read<D, offset_t>(de);
+        prop.b_tree_addr = serde::Read<offset_t>(de);
 
         prop.dimension_sizes.reserve(dimensionality); // NOLINT(*-static-accessed-through-instance)
         for (uint8_t i = 0; i < dimensionality; ++i) {
-            prop.dimension_sizes.push_back(serde::Read<D, uint32_t>(de));
+            prop.dimension_sizes.push_back(serde::Read<uint32_t>(de));
         }
 
-        prop.elem_size_bytes = serde::Read<D, uint32_t>(de);
+        prop.elem_size_bytes = serde::Read<uint32_t>(de);
 
         return prop;
     }
@@ -611,24 +611,24 @@ struct DataLayoutMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<DataLayoutMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
-        auto layout_class = serde::Read<D, uint8_t>(de);
+        auto layout_class = serde::Read<uint8_t>(de);
 
         DataLayoutMessage msg{};
 
         if (layout_class == kCompact) {
-            auto result = serde::Read<D, CompactStorageProperty>(de);
+            auto result = serde::Read<CompactStorageProperty>(de);
             if (!result) return cstd::unexpected(result.error());
             msg.properties = *result;
         } else if (layout_class == kContiguous) {
-            auto result = serde::Read<D, ContiguousStorageProperty>(de);
+            auto result = serde::Read<ContiguousStorageProperty>(de);
             if (!result) return cstd::unexpected(result.error());
             msg.properties = *result;
         } else if (layout_class == kChunked) {
-            auto result = serde::Read<D, ChunkedStorageProperty>(de);
+            auto result = serde::Read<ChunkedStorageProperty>(de);
             if (!result) return cstd::unexpected(result.error());
             msg.properties = *result;
         } else {
@@ -658,7 +658,7 @@ struct AttributeMessage {
     hdf5::expected<T> ReadDataAs() {
         BufferDeserializer buf_de(data);
 
-        T out = serde::Read<decltype(buf_de), T>(buf_de);
+        T out = serde::Read<T>(buf_de);
 
         if (!buf_de.IsExhausted()) {
             return hdf5::error(hdf5::HDF5ErrorCode::IncorrectByteCount, "Invalid type was read from data");
@@ -701,15 +701,15 @@ struct AttributeMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<AttributeMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
         // reserved (zero)
-        serde::Skip<D, uint8_t>(de);
+        serde::Skip<uint8_t>(de);
 
-        auto name_size = serde::Read<D, uint16_t>(de);
-        auto datatype_size = serde::Read<D, uint16_t>(de);
-        auto dataspace_size = serde::Read<D, uint16_t>(de);
+        auto name_size = serde::Read<uint16_t>(de);
+        auto datatype_size = serde::Read<uint16_t>(de);
+        auto dataspace_size = serde::Read<uint16_t>(de);
 
         auto max_buf_size = std::max(std::max(name_size, datatype_size), dataspace_size);
 
@@ -842,13 +842,13 @@ struct SharedMessageTableMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<SharedMessageTableMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "SharedMessageTableMessage: unsupported version");
         }
 
         return SharedMessageTableMessage{
-            .table_address = serde::Read<D, offset_t>(de),
-            .num_indices = serde::Read<D, uint8_t>(de)
+            .table_address = serde::Read<offset_t>(de),
+            .num_indices = serde::Read<uint8_t>(de)
         };
     }
 
@@ -901,14 +901,14 @@ struct ObjectModificationTimeMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<ObjectModificationTimeMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
         // reserved (zero)
         serde::Skip(de, 3);
 
-        auto seconds_since_epoch = serde::Read<D, uint32_t>(de);
+        auto seconds_since_epoch = serde::Read<uint32_t>(de);
 
         return ObjectModificationTimeMessage{
             .modification_time = cstd::chrono::system_clock::time_point{ cstd::chrono::seconds{seconds_since_epoch} }
@@ -938,14 +938,14 @@ struct BTreeKValuesMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<BTreeKValuesMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "BTreeKValuesMessage: unsupported version");
         }
 
         return BTreeKValuesMessage{
-            .indexed_storage_internal_k = serde::Read<D, uint16_t>(de),
-            .group_internal_k = serde::Read<D, uint16_t>(de),
-            .group_leaf_k = serde::Read<D, uint16_t>(de)
+            .indexed_storage_internal_k = serde::Read<uint16_t>(de),
+            .group_internal_k = serde::Read<uint16_t>(de),
+            .group_leaf_k = serde::Read<uint16_t>(de)
         };
     }
 
@@ -984,7 +984,7 @@ struct DriverInfoMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<DriverInfoMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "DriverInfoMessage: unsupported version");
         }
 
@@ -1000,7 +1000,7 @@ struct DriverInfoMessage {
         msg.driver_id = *driver_id_result;
 
 
-        auto driver_info_size = serde::Read<D, uint16_t>(de);
+        auto driver_info_size = serde::Read<uint16_t>(de);
         msg.driver_info.resize(driver_info_size);
         de.ReadBuffer(msg.driver_info);
 
@@ -1048,26 +1048,26 @@ struct AttributeInfoMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<AttributeInfoMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "AttributeInfoMessage: unsupported version");
         }
 
         AttributeInfoMessage msg{};
 
-        auto flags = serde::Read<D, uint8_t>(de);
+        auto flags = serde::Read<uint8_t>(de);
         cstd::bitset<8> flag_bits(flags);
 
         if (flag_bits.test(0)) {
-            msg.max_creation_index = serde::Read<D, uint16_t>(de);
+            msg.max_creation_index = serde::Read<uint16_t>(de);
         } else {
             msg.max_creation_index = cstd::nullopt;
         }
 
-        msg.fractal_heap_addr = serde::Read<D, offset_t>(de);
-        msg.name_btree_addr = serde::Read<D, offset_t>(de);
+        msg.fractal_heap_addr = serde::Read<offset_t>(de);
+        msg.name_btree_addr = serde::Read<offset_t>(de);
 
         if (flag_bits.test(1)) {
-            msg.creation_order_btree_addr = serde::Read<D, offset_t>(de);
+            msg.creation_order_btree_addr = serde::Read<offset_t>(de);
         } else {
             msg.creation_order_btree_addr = cstd::nullopt;
         }
@@ -1092,12 +1092,12 @@ struct ObjectReferenceCountMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<ObjectReferenceCountMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "ObjectReferenceCountMessage: invalid version");
         }
 
         return ObjectReferenceCountMessage{
-            .reference_count = serde::Read<D, uint32_t>(de)
+            .reference_count = serde::Read<uint32_t>(de)
         };
     }
 
@@ -1164,13 +1164,13 @@ struct FileSpaceInfoMessage {
 
     template<serde::Deserializer D>
     static hdf5::expected<FileSpaceInfoMessage> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "FileSpaceInfoMessage: invalid version");
         }
 
         FileSpaceInfoMessage msg{};
 
-        auto strategy = serde::Read<D, uint8_t>(de);
+        auto strategy = serde::Read<uint8_t>(de);
 
         constexpr uint16_t kStrategyCt = 4;
         if (strategy >= kStrategyCt) {
@@ -1179,16 +1179,16 @@ struct FileSpaceInfoMessage {
 
         msg.strategy = static_cast<Strategy>(strategy);
 
-        auto persisting_free_space = serde::Read<D, uint8_t>(de) != 0;
+        auto persisting_free_space = serde::Read<uint8_t>(de) != 0;
 
-        msg.free_space_threshold = serde::Read<D, len_t>(de);
-        msg.file_space_page_size = serde::Read<D, uint32_t>(de);
-        msg.page_end_metadata_threshold = serde::Read<D, uint16_t>(de);
-        msg.eoa = serde::Read<D, offset_t>(de);
+        msg.free_space_threshold = serde::Read<len_t>(de);
+        msg.file_space_page_size = serde::Read<uint32_t>(de);
+        msg.page_end_metadata_threshold = serde::Read<uint16_t>(de);
+        msg.eoa = serde::Read<offset_t>(de);
 
         if (persisting_free_space) {
-            msg.small_managers = serde::Read<D, cstd::array<offset_t, 6>>(de);
-            msg.large_managers = serde::Read<D, cstd::array<offset_t, 6>>(de);
+            msg.small_managers = serde::Read<cstd::array<offset_t, 6>>(de);
+            msg.large_managers = serde::Read<cstd::array<offset_t, 6>>(de);
         }
 
         return msg;
@@ -1320,12 +1320,12 @@ struct ObjectHeaderMessage {
     // TODO: this method probably shouldn't be public
     template<serde::Deserializer D, typename T>
     static hdf5::expected<HeaderMessageVariant> DeserializeMessageType(D& de) {
-        using Ret = decltype(serde::Read<D, T>(de));
+        using Ret = decltype(serde::Read<T>(de));
 
         if constexpr (std::is_same_v<Ret, T>) {
-            return HeaderMessageVariant(serde::Read<D, T>(de));
+            return HeaderMessageVariant(serde::Read<T>(de));
         } else if constexpr (std::is_same_v<Ret, hdf5::expected<T>>) {
-            auto result = serde::Read<D, T>(de);
+            auto result = serde::Read<T>(de);
 
             if (!result) {
                 return cstd::unexpected(result.error());
@@ -1342,15 +1342,15 @@ struct ObjectHeaderMessage {
     static hdf5::expected<ObjectHeaderMessage> Deserialize(D& de) {
         ObjectHeaderMessage msg{};
 
-        auto type = serde::Read<D, uint16_t>(de);
+        auto type = serde::Read<uint16_t>(de);
 
         constexpr uint16_t kMessageTypeCt = 0x18;
         if (type >= kMessageTypeCt) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidType, "Not a valid message type");
         }
 
-        msg.size = serde::Read<D, uint16_t>(de);
-        msg.flags_ = serde::Read<D, uint8_t>(de);
+        msg.size = serde::Read<uint16_t>(de);
+        msg.flags_ = serde::Read<uint8_t>(de);
         serde::Skip(de, 3);
 
         auto start = de.GetPosition();
@@ -1360,56 +1360,56 @@ struct ObjectHeaderMessage {
                 case NilMessage::kType: {
                     // FIXME: this can be optimized
                     for (uint16_t i = 0; i < msg.size; ++i) {
-                        serde::Skip<D, uint8_t>(de);
+                        serde::Skip<uint8_t>(de);
                     }
                     return HeaderMessageVariant(NilMessage { .size = msg.size });
                 }
                 case DataspaceMessage::kType:
-                    return DeserializeMessageType<D, DataspaceMessage>(de);
+                    return DeserializeMessageType<DataspaceMessage>(de);
                 case LinkInfoMessage::kType:
-                    return DeserializeMessageType<D, LinkInfoMessage>(de);
+                    return DeserializeMessageType<LinkInfoMessage>(de);
                 case DatatypeMessage::kType:
-                    return DeserializeMessageType<D, DatatypeMessage>(de);
+                    return DeserializeMessageType<DatatypeMessage>(de);
                 case FillValueOldMessage::kType:
-                    return DeserializeMessageType<D, FillValueOldMessage>(de);
+                    return DeserializeMessageType<FillValueOldMessage>(de);
                 case FillValueMessage::kType:
-                    return DeserializeMessageType<D, FillValueMessage>(de);
+                    return DeserializeMessageType<FillValueMessage>(de);
                 case LinkMessage::kType:
-                    return DeserializeMessageType<D, LinkMessage>(de);
+                    return DeserializeMessageType<LinkMessage>(de);
                 case ExternalDataFilesMessage::kType:
-                    return DeserializeMessageType<D, ExternalDataFilesMessage>(de);
+                    return DeserializeMessageType<ExternalDataFilesMessage>(de);
                 case DataLayoutMessage::kType:
-                    return DeserializeMessageType<D, DataLayoutMessage>(de);
+                    return DeserializeMessageType<DataLayoutMessage>(de);
                 case BogusMessage::kType:
-                    return DeserializeMessageType<D, BogusMessage>(de);
+                    return DeserializeMessageType<BogusMessage>(de);
                 case GroupInfoMessage::kType:
-                    return DeserializeMessageType<D, GroupInfoMessage>(de);
+                    return DeserializeMessageType<GroupInfoMessage>(de);
                 case FilterPipelineMessage::kType:
-                    return DeserializeMessageType<D, FilterPipelineMessage>(de);
+                    return DeserializeMessageType<FilterPipelineMessage>(de);
                 case AttributeMessage::kType:
-                    return DeserializeMessageType<D, AttributeMessage>(de);
+                    return DeserializeMessageType<AttributeMessage>(de);
                 case ObjectCommentMessage::kType:
-                    return DeserializeMessageType<D, ObjectCommentMessage>(de);
+                    return DeserializeMessageType<ObjectCommentMessage>(de);
                 case ObjectModificationTimeOldMessage::kType:
-                    return DeserializeMessageType<D, ObjectModificationTimeOldMessage>(de);
+                    return DeserializeMessageType<ObjectModificationTimeOldMessage>(de);
                 case SharedMessageTableMessage::kType:
-                    return DeserializeMessageType<D, SharedMessageTableMessage>(de);
+                    return DeserializeMessageType<SharedMessageTableMessage>(de);
                 case ObjectHeaderContinuationMessage::kType:
-                    return DeserializeMessageType<D, ObjectHeaderContinuationMessage>(de);
+                    return DeserializeMessageType<ObjectHeaderContinuationMessage>(de);
                 case SymbolTableMessage::kType:
-                    return DeserializeMessageType<D, SymbolTableMessage>(de);
+                    return DeserializeMessageType<SymbolTableMessage>(de);
                 case ObjectModificationTimeMessage::kType:
-                    return DeserializeMessageType<D, ObjectModificationTimeMessage>(de);
+                    return DeserializeMessageType<ObjectModificationTimeMessage>(de);
                 case BTreeKValuesMessage::kType:
-                    return DeserializeMessageType<D, BTreeKValuesMessage>(de);
+                    return DeserializeMessageType<BTreeKValuesMessage>(de);
                 case DriverInfoMessage::kType:
-                    return DeserializeMessageType<D, DriverInfoMessage>(de);
+                    return DeserializeMessageType<DriverInfoMessage>(de);
                 case AttributeInfoMessage::kType:
-                    return DeserializeMessageType<D, AttributeInfoMessage>(de);
+                    return DeserializeMessageType<AttributeInfoMessage>(de);
                 case ObjectReferenceCountMessage::kType:
-                    return DeserializeMessageType<D, ObjectReferenceCountMessage>(de);
+                    return DeserializeMessageType<ObjectReferenceCountMessage>(de);
                 case FileSpaceInfoMessage::kType:
-                    return DeserializeMessageType<D, FileSpaceInfoMessage>(de);
+                    return DeserializeMessageType<FileSpaceInfoMessage>(de);
                 default:
                     return hdf5::error(hdf5::HDF5ErrorCode::InvalidType, "invalid object header message type");
             }
@@ -1480,7 +1480,7 @@ struct ObjectHeader {
         while (bytes_read < size_limit && hd.messages.size() < total_message_ct) {
             size_t before_read = de.GetPosition();
 
-            auto msg_result = serde::Read<D, ObjectHeaderMessage>(de);
+            auto msg_result = serde::Read<ObjectHeaderMessage>(de);
             if (!msg_result) {
                 return cstd::unexpected(msg_result.error());
             }
@@ -1507,20 +1507,20 @@ struct ObjectHeader {
     // FIXME: ignore unknown messages
     template<serde::Deserializer D>
     static hdf5::expected<ObjectHeader> Deserialize(D& de) {
-        if (serde::Read<D, uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
         // reserved (zero)
-        serde::Skip<D, uint8_t>(de);
+        serde::Skip<uint8_t>(de);
 
-        auto message_count = serde::Read<D, uint16_t>(de);
+        auto message_count = serde::Read<uint16_t>(de);
 
         ObjectHeader hd{};
 
-        hd.object_ref_count = serde::Read<D, uint32_t>(de);
-        hd.object_header_size = serde::Read<D, uint32_t>(de);
+        hd.object_ref_count = serde::Read<uint32_t>(de);
+        hd.object_header_size = serde::Read<uint32_t>(de);
         // reserved (zero)
-        serde::Skip<D, uint32_t>(de);
+        serde::Skip<uint32_t>(de);
 
         auto result = ParseObjectHeaderMessages(hd, de, hd.object_header_size, message_count);
         if (!result) return cstd::unexpected(result.error());
@@ -1542,7 +1542,7 @@ static void WriteHeader(S& s, uint16_t type, uint16_t size, uint8_t flags) {
     serde::Write(s, size);
 
     serde::Write(s, flags);
-    serde::Write<S, cstd::array<byte_t, 3>>(s, {});
+    serde::Write<cstd::array<byte_t, 3>>(s, {});
 }
 
 static len_t EmptyHeaderMessagesSize(len_t min_size) {

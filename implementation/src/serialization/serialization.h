@@ -65,26 +65,26 @@ namespace serde {
 
     // -- SERIALIZE FUNCTIONS --
 
-    template<Serializer S, TriviallySerializable T>
+    template<TriviallySerializable T, Serializer S>
     void Write(S&& s, const T& data) {
         s.WriteBuffer(cstd::as_bytes(cstd::span(&data, 1)));
     }
 
-    template<Serializer S, NonTriviallySerializable T>
+    template<NonTriviallySerializable T, Serializer S>
     void Write(S&& s, const T& data) {
         data.Serialize(s);
     }
 
     // -- DESERIALIZE FUNCTIONS --
 
-    template<Deserializer D, TriviallySerializable T>
+    template<TriviallySerializable T, Deserializer D>
     T Read(D&& d) {
         T out;
         d.ReadBuffer(cstd::as_writable_bytes(cstd::span(&out, 1)));
         return out;
     }
 
-    template<Deserializer D, NonTriviallySerializable T>
+    template<NonTriviallySerializable T, Deserializer D>
     auto Read(D&& d) {
         return T::Deserialize(d);
     }
@@ -97,7 +97,7 @@ namespace serde {
         s.SetPosition(start + count);
     }
 
-    template<Seekable S, typename T>
+    template<typename T, Seekable S>
     void Skip(S&& s) {
         Skip(s, sizeof(T));
     }

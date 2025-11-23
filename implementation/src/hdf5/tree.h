@@ -77,10 +77,10 @@ struct ChunkCoordinates {
     static ChunkCoordinates Deserialize(D& de) {
         ChunkCoordinates chunk_coords{};
 
-        uint64_t dim_ct = serde::Read<D, uint64_t>(de);
+        uint64_t dim_ct = serde::Read<uint64_t>(de);
 
         for (uint64_t i = 0; i < dim_ct; ++i) {
-            chunk_coords.coords.push_back(serde::Read<D, uint64_t>(de));
+            chunk_coords.coords.push_back(serde::Read<uint64_t>(de));
         }
         return chunk_coords;
     }
@@ -122,15 +122,15 @@ struct BTreeChunkedRawDataNodeKey {
     static hdf5::expected<BTreeChunkedRawDataNodeKey> DeserializeWithTermInfo(D& de, ChunkedKeyTerminatorInfo term_info) {
         BTreeChunkedRawDataNodeKey key{};
 
-        key.chunk_size = serde::Read<D, uint32_t>(de);
-        key.filter_mask = serde::Read<D, uint32_t>(de);
+        key.chunk_size = serde::Read<uint32_t>(de);
+        key.filter_mask = serde::Read<uint32_t>(de);
         key.elem_byte_size = term_info.elem_byte_size;
 
         for (uint8_t i = 0; i < term_info.dimensionality; ++i) {
-            key.chunk_offset_in_dataset.coords.push_back(serde::Read<D, uint64_t>(de));
+            key.chunk_offset_in_dataset.coords.push_back(serde::Read<uint64_t>(de));
         }
 
-        auto terminator = serde::Read<D, uint64_t>(de);
+        auto terminator = serde::Read<uint64_t>(de);
 
         bool is_unused_key = key.chunk_size == 0;
 
@@ -589,11 +589,11 @@ void BTreeNode::Serialize(S& s) const {
 
 template<serde::Deserializer D>
 hdf5::expected<BTreeNode> BTreeNode::DeserializeGroup(D& de) {
-    if (serde::Read<D, cstd::array<uint8_t, 4>>(de) != kSignature) {
+    if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "BTree signature was invalid");
     }
 
-    auto type = serde::Read<D, uint8_t>(de);
+    auto type = serde::Read<uint8_t>(de);
 
     if (type != kGroupNodeTy && type != kRawDataChunkNodeTy) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidType, "Invalid BTree node type");
@@ -605,20 +605,20 @@ hdf5::expected<BTreeNode> BTreeNode::DeserializeGroup(D& de) {
 
     BTreeNode node{};
 
-    node.level = serde::Read<D, uint8_t>(de);
-    auto entries_used = serde::Read<D, uint16_t>(de);
+    node.level = serde::Read<uint8_t>(de);
+    auto entries_used = serde::Read<uint16_t>(de);
 
-    node.left_sibling_addr = serde::Read<D, offset_t>(de);
-    node.right_sibling_addr = serde::Read<D, offset_t>(de);
+    node.left_sibling_addr = serde::Read<offset_t>(de);
+    node.right_sibling_addr = serde::Read<offset_t>(de);
 
     BTreeEntries<BTreeGroupNodeKey> entries{};
 
     for (uint16_t i = 0; i < entries_used; ++i) {
-        entries.keys.push_back(serde::Read<D, BTreeGroupNodeKey>(de));
-        entries.child_pointers.push_back(serde::Read<D, offset_t>(de));
+        entries.keys.push_back(serde::Read<BTreeGroupNodeKey>(de));
+        entries.child_pointers.push_back(serde::Read<offset_t>(de));
     }
 
-    entries.keys.push_back(serde::Read<D, BTreeGroupNodeKey>(de));
+    entries.keys.push_back(serde::Read<BTreeGroupNodeKey>(de));
 
     node.entries = entries;
 
@@ -627,11 +627,11 @@ hdf5::expected<BTreeNode> BTreeNode::DeserializeGroup(D& de) {
 
 template<serde::Deserializer D>
 hdf5::expected<BTreeNode> BTreeNode::DeserializeChunked(D& de, ChunkedKeyTerminatorInfo term_info) {
-    if (serde::Read<D, cstd::array<uint8_t, 4>>(de) != kSignature) {
+    if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "BTree signature was invalid");
     }
 
-    auto type = serde::Read<D, uint8_t>(de);
+    auto type = serde::Read<uint8_t>(de);
 
     if (type != kGroupNodeTy && type != kRawDataChunkNodeTy) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidType, "Invalid BTree node type");
@@ -643,11 +643,11 @@ hdf5::expected<BTreeNode> BTreeNode::DeserializeChunked(D& de, ChunkedKeyTermina
 
     BTreeNode node{};
 
-    node.level = serde::Read<D, uint8_t>(de);
-    auto entries_used = serde::Read<D, uint16_t>(de);
+    node.level = serde::Read<uint8_t>(de);
+    auto entries_used = serde::Read<uint16_t>(de);
 
-    node.left_sibling_addr = serde::Read<D, offset_t>(de);
-    node.right_sibling_addr = serde::Read<D, offset_t>(de);
+    node.left_sibling_addr = serde::Read<offset_t>(de);
+    node.right_sibling_addr = serde::Read<offset_t>(de);
 
     node.chunked_key_term_info_ = term_info;
 
@@ -657,7 +657,7 @@ hdf5::expected<BTreeNode> BTreeNode::DeserializeChunked(D& de, ChunkedKeyTermina
         auto key_result = BTreeChunkedRawDataNodeKey::DeserializeWithTermInfo(de, term_info);
         if (!key_result) return cstd::unexpected(key_result.error());
         entries.keys.push_back(*key_result);
-        entries.child_pointers.push_back(serde::Read<D, offset_t>(de));
+        entries.child_pointers.push_back(serde::Read<offset_t>(de));
     }
 
     auto last_key_result = BTreeChunkedRawDataNodeKey::DeserializeWithTermInfo(de, term_info);

@@ -9,11 +9,11 @@ cstd::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) c
 
     serde::Skip(io, 2);
 
-    auto total_message_ct = serde::Read<decltype(io), uint16_t>(io);
+    auto total_message_ct = serde::Read<uint16_t>(io);
 
     serde::Skip(io, 4);
 
-    auto header_size = serde::Read<decltype(io), uint32_t>(io);
+    auto header_size = serde::Read<uint32_t>(io);
 
     // reserved
     serde::Skip(io, 4);
@@ -56,7 +56,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     cstd::optional<Space> nil_space = FindSpace(msg_bytes.size(), true);
 
     JumpToRelativeOffset(2);
-    auto written_ct = serde::Read<decltype(file->io), uint16_t>(file->io);
+    auto written_ct = serde::Read<uint16_t>(file->io);
 
     if (nil_space.has_value()) {
         // overwriting existing nil message
@@ -236,12 +236,11 @@ cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
 
     serde::Skip(file->io, 2);
 
-
-    auto total_message_ct = serde::Read<decltype(file->io), uint16_t>(file->io);
+    auto total_message_ct = serde::Read<uint16_t>(file->io);
 
     serde::Skip(file->io, 4);
 
-    auto header_size = serde::Read<decltype(file->io), uint32_t>(file->io);
+    auto header_size = serde::Read<uint32_t>(file->io);
 
     // reserved
     serde::Skip(file->io, 4);
@@ -255,7 +254,7 @@ cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     }
 
     file->io.SetPosition(found->offset);
-    auto msg_result = serde::Read<decltype(file->io), ObjectHeaderMessage>(file->io);
+    auto msg_result = serde::Read<ObjectHeaderMessage>(file->io);
 
 
     // TODO(refactor-exceptions): this method should return an expected
@@ -280,12 +279,12 @@ cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
 
     serde::Skip(file->io, 2);
 
-    auto total_message_ct = serde::Read<decltype(file->io), uint16_t>(file->io);
+    auto total_message_ct = serde::Read<uint16_t>(file->io);
 
 
     serde::Skip(file->io, 4);
 
-    auto header_size = serde::Read<decltype(file->io), uint32_t>(file->io);
+    auto header_size = serde::Read<uint32_t>(file->io);
 
     // reserved
     serde::Skip(file->io, 4);
@@ -299,7 +298,7 @@ cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
     }
 
     file->io.SetPosition(found->offset);
-    auto msg_result = serde::Read<decltype(file->io), ObjectHeaderMessage>(file->io);
+    auto msg_result = serde::Read<ObjectHeaderMessage>(file->io);
 
     if (!msg_result) {
         return cstd::nullopt;

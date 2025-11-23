@@ -14,7 +14,7 @@ public:
         file->io.SetPosition(pos_);
 
         // FIXME: hardcoded constant
-        if (serde::Read<decltype(file->io), uint8_t>(file->io) != 0x01) {
+        if (serde::Read<uint8_t>(file->io) != 0x01) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Object version number was invalid");
         }
 
@@ -24,7 +24,7 @@ public:
     [[nodiscard]] hdf5::expected<ObjectHeader> GetHeader() const {
         JumpToRelativeOffset(0);
 
-        return serde::Read<decltype(file->io), ObjectHeader>(file->io);
+        return serde::Read<ObjectHeader>(file->io);
     }
 
     [[nodiscard]] offset_t GetAddress() const {
@@ -69,17 +69,17 @@ public:
         serde::Write(s, ObjectHeader::kVersionNumber);
 
         // reserved
-        serde::Write<S, uint8_t>(s, 0);
+        serde::Write<uint8_t>(s, 0);
         // total num of messages (one nil message)
-        serde::Write<S, uint16_t>(s, 1);
+        serde::Write<uint16_t>(s, 1);
 
         // object ref count
-        serde::Write<S, uint32_t>(s, 0);
+        serde::Write<uint32_t>(s, 0);
         // header size
-        serde::Write<S, uint32_t>(s, min_size);
+        serde::Write<uint32_t>(s, min_size);
 
         // reserved
-        serde::Write<S, uint32_t>(s, 0);
+        serde::Write<uint32_t>(s, 0);
 
         // TODO: fix size overflow?
         uint16_t nil_size = min_size - 8;
@@ -115,8 +115,8 @@ private:
         uint32_t bytes_read = 0;
 
         while (bytes_read < size_limit && messages_read < total_message_ct) {
-            auto type = serde::Read<D, uint16_t>(de);
-            auto size_bytes = serde::Read<D, uint16_t>(de);
+            auto type = serde::Read<uint16_t>(de);
+            auto size_bytes = serde::Read<uint16_t>(de);
 
             bytes_read += size_bytes + kPrefixSize;
             ++messages_read;
@@ -125,7 +125,7 @@ private:
             serde::Skip(de, 4);
 
             if (type == ObjectHeaderContinuationMessage::kType) {
-                auto cont = serde::Read<D, ObjectHeaderContinuationMessage>(de);
+                auto cont = serde::Read<ObjectHeaderContinuationMessage>(de);
 
                 offset_t return_pos = de.GetPosition();
                 de.SetPosition(sb_base_addr + cont.offset);
@@ -148,7 +148,7 @@ private:
                 }
 
                 for (size_t b = 0; b < size_bytes; ++b) {
-                    serde::Skip<D, byte_t>(de);
+                    serde::Skip<byte_t>(de);
                 }
             }
         }
@@ -172,8 +172,8 @@ private:
         cstd::optional<Space> smallest_found{};
 
         while (bytes_read < size_limit && messages_read < total_message_ct) {
-            auto type = serde::Read<D, uint16_t>(de);
-            auto size_bytes = serde::Read<D, uint16_t>(de);
+            auto type = serde::Read<uint16_t>(de);
+            auto size_bytes = serde::Read<uint16_t>(de);
 
             bytes_read += size_bytes + kPrefixSize;
             ++messages_read;
@@ -182,7 +182,7 @@ private:
             serde::Skip(de, 4);
 
             if (type == ObjectHeaderContinuationMessage::kType) {
-                auto cont = serde::Read<D, ObjectHeaderContinuationMessage>(de);
+                auto cont = serde::Read<ObjectHeaderContinuationMessage>(de);
 
                 offset_t return_pos = de.GetPosition();
                 de.SetPosition(sb_base_addr + cont.offset);

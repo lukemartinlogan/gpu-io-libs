@@ -24,7 +24,7 @@ hdf5::expected<Group> Group::New(const Object& object) {
     auto symb_tbl = cstd::get<SymbolTableMessage>(symb_tbl_msg->message);
 
     object.file->io.SetPosition(object.file->superblock.base_addr + symb_tbl.local_heap_addr);
-    auto local_heap_result = serde::Read<decltype(object.file->io), LocalHeap>(object.file->io);
+    auto local_heap_result = serde::Read<LocalHeap>(object.file->io);
     if (!local_heap_result) return cstd::unexpected(local_heap_result.error());
 
     GroupBTree table(symb_tbl.b_tree_addr, object.file, *local_heap_result);
@@ -257,7 +257,7 @@ hdf5::expected<cstd::optional<Object>> Group::Get(hdf5::string_view name) const 
     offset_t base_addr = object_.file->superblock.base_addr;
 
     object_.file->io.SetPosition(base_addr + *sym_table_node_ptr);
-    auto symbol_table_node_result = serde::Read<decltype(object_.file->io), SymbolTableNode>(object_.file->io);
+    auto symbol_table_node_result = serde::Read<SymbolTableNode>(object_.file->io);
     if (!symbol_table_node_result) return cstd::unexpected(symbol_table_node_result.error());
 
     auto entry_addr_result = symbol_table_node_result->FindEntry(name, GetLocalHeap(), object_.file->io);
@@ -316,7 +316,7 @@ hdf5::expected<SymbolTableNode> Group::GetSymbolTableNode() const {
     offset_t sym_tbl_node = entries->child_pointers.front();
     object_.file->io.SetPosition(object_.file->superblock.base_addr + sym_tbl_node);
 
-    return serde::Read<decltype(object_.file->io), SymbolTableNode>(object_.file->io);
+    return serde::Read<SymbolTableNode>(object_.file->io);
 }
 
 void Group::UpdateBTreePointer() {

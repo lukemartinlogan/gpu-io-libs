@@ -55,13 +55,13 @@ struct FixedPoint {
         FixedPoint fp{};
 
         // first four bits are used
-        fp.bitset_ = serde::Read<D, uint8_t>(de) & 0x0f;
+        fp.bitset_ = serde::Read<uint8_t>(de) & 0x0f;
         // reserved (zero)
-        serde::Skip<D, uint16_t>(de);
+        serde::Skip<uint16_t>(de);
 
-        fp.size = serde::Read<D, uint32_t>(de);
-        fp.bit_offset = serde::Read<D, uint16_t>(de);
-        fp.bit_precision = serde::Read<D, uint16_t>(de);
+        fp.size = serde::Read<uint32_t>(de);
+        fp.bit_offset = serde::Read<uint16_t>(de);
+        fp.bit_precision = serde::Read<uint16_t>(de);
 
         return fp;
     }
@@ -148,20 +148,20 @@ struct FloatingPoint {
     static hdf5::expected<FloatingPoint> Deserialize(D& de) {
         FloatingPoint fp{};
 
-        fp.bitset_ = serde::Read<D, uint8_t>(de) & 0x7f;
-        fp.sign_location = serde::Read<D, uint8_t>(de);
+        fp.bitset_ = serde::Read<uint8_t>(de) & 0x7f;
+        fp.sign_location = serde::Read<uint8_t>(de);
         // reserved (zero)
-        serde::Skip<D, uint8_t>(de);
+        serde::Skip<uint8_t>(de);
 
-        fp.size = serde::Read<D, uint32_t>(de);
+        fp.size = serde::Read<uint32_t>(de);
 
-        fp.bit_offset = serde::Read<D, uint16_t>(de);
-        fp.bit_precision = serde::Read<D, uint16_t>(de);
-        fp.exponent_location = serde::Read<D, uint8_t>(de);
-        fp.exponent_size = serde::Read<D, uint8_t>(de);
-        fp.mantissa_location = serde::Read<D, uint8_t>(de);
-        fp.mantissa_size = serde::Read<D, uint8_t>(de);
-        fp.exponent_bias = serde::Read<D, uint32_t>(de);
+        fp.bit_offset = serde::Read<uint16_t>(de);
+        fp.bit_precision = serde::Read<uint16_t>(de);
+        fp.exponent_location = serde::Read<uint8_t>(de);
+        fp.exponent_size = serde::Read<uint8_t>(de);
+        fp.mantissa_location = serde::Read<uint8_t>(de);
+        fp.mantissa_size = serde::Read<uint8_t>(de);
+        fp.exponent_bias = serde::Read<uint32_t>(de);
 
         return fp;
     }
@@ -224,7 +224,7 @@ struct VariableLength {
 
     template<serde::Deserializer D>
     static hdf5::expected<VariableLength> Deserialize(D& de) {
-        auto bitset_1 = serde::Read<D, uint8_t>(de);
+        auto bitset_1 = serde::Read<uint8_t>(de);
 
         VariableLength vl{};
 
@@ -247,7 +247,7 @@ struct VariableLength {
         vl.padding = static_cast<PaddingType>(padding_ty);
 
         // charset
-        auto charset = serde::Read<D, uint8_t>(de) & 0b1111;
+        auto charset = serde::Read<uint8_t>(de) & 0b1111;
 
         if (charset >= 2) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "charset wasn't valid");
@@ -256,12 +256,12 @@ struct VariableLength {
         vl.charset = static_cast<Charset>(charset);
 
         // reserved (zero)
-        serde::Skip<D, uint8_t>(de);
+        serde::Skip<uint8_t>(de);
 
-        vl.size = serde::Read<D, uint32_t>(de);
+        vl.size = serde::Read<uint32_t>(de);
 
         if (vl.type != Type::kString) {
-            auto datatype_result = serde::Read<D, DatatypeMessage>(de);
+            auto datatype_result = serde::Read<DatatypeMessage>(de);
             if (!datatype_result) return cstd::unexpected(datatype_result.error());
             vl.parent_type = std::make_unique<DatatypeMessage>(*datatype_result);
         }
@@ -403,27 +403,27 @@ hdf5::expected<CompoundMember> CompoundMember::Deserialize(D& de) {
     if (!name_result) return cstd::unexpected(name_result.error());
     mem.name = *name_result;
 
-    mem.byte_offset = serde::Read<D, uint32_t>(de);
+    mem.byte_offset = serde::Read<uint32_t>(de);
 
-    auto dimensionality = serde::Read<D, uint8_t>(de);
+    auto dimensionality = serde::Read<uint8_t>(de);
     // reserved (zero)
-    serde::Skip<D, uint8_t>(de);
-    serde::Skip<D, uint8_t>(de);
-    serde::Skip<D, uint8_t>(de);
+    serde::Skip<uint8_t>(de);
+    serde::Skip<uint8_t>(de);
+    serde::Skip<uint8_t>(de);
     // dimension permutation (unused)
-    serde::Skip<D, uint32_t>(de);
+    serde::Skip<uint32_t>(de);
     // reserved (zero)
-    serde::Skip<D, uint32_t>(de);
+    serde::Skip<uint32_t>(de);
 
     for (uint8_t i = 0; i < 4; ++i) {
-        auto size = serde::Read<D, uint32_t>(de);
+        auto size = serde::Read<uint32_t>(de);
 
         if (size < dimensionality) {
             mem.dimension_sizes.push_back(size);
         }
     }
 
-    auto msg_result = serde::Read<D, DatatypeMessage>(de);
+    auto msg_result = serde::Read<DatatypeMessage>(de);
     if (!msg_result) return cstd::unexpected(msg_result.error());
 
     mem.message = std::make_unique<DatatypeMessage>(*msg_result);
@@ -448,9 +448,9 @@ void CompoundDatatype::Serialize(S& s) const {
 
 template<serde::Deserializer D>
 hdf5::expected<CompoundDatatype> CompoundDatatype::Deserialize(D& de) {
-    auto num_members = serde::Read<D, uint16_t>(de);
+    auto num_members = serde::Read<uint16_t>(de);
     // reserved (zero)
-    serde::Skip<D, uint8_t>(de);
+    serde::Skip<uint8_t>(de);
 
     CompoundDatatype comp{};
 
@@ -461,10 +461,10 @@ hdf5::expected<CompoundDatatype> CompoundDatatype::Deserialize(D& de) {
         );
     }
 
-    comp.size = serde::Read<D, uint32_t>(de);
+    comp.size = serde::Read<uint32_t>(de);
 
     for (uint16_t i = 0; i < num_members; ++i) {
-        auto member_result = serde::Read<D, CompoundMember>(de);
+        auto member_result = serde::Read<CompoundMember>(de);
         if (!member_result) return cstd::unexpected(member_result.error());
         comp.members.push_back(*member_result);
     }
@@ -486,7 +486,7 @@ void DatatypeMessage::Serialize(S& s) const {
 
 template<serde::Deserializer D>
 hdf5::expected<DatatypeMessage> DatatypeMessage::Deserialize(D& de) {
-    auto class_and_version = serde::Read<D, uint8_t>(de);
+    auto class_and_version = serde::Read<uint8_t>(de);
 
     // high
     uint8_t version = ((class_and_version >> 4) & 0x0f);
@@ -508,25 +508,25 @@ hdf5::expected<DatatypeMessage> DatatypeMessage::Deserialize(D& de) {
 
     switch (msg.class_v) {
         case Class::kFixedPoint: {
-            auto result = serde::Read<D, FixedPoint>(de);
+            auto result = serde::Read<FixedPoint>(de);
             if (!result) return cstd::unexpected(result.error());
             msg.data = *result;
             break;
         }
         case Class::kFloatingPoint: {
-            auto result = serde::Read<D, FloatingPoint>(de);
+            auto result = serde::Read<FloatingPoint>(de);
             if (!result) return cstd::unexpected(result.error());
             msg.data = *result;
             break;
         }
         case Class::kCompound: {
-            auto result = serde::Read<D, CompoundDatatype>(de);
+            auto result = serde::Read<CompoundDatatype>(de);
             if (!result) return cstd::unexpected(result.error());
             msg.data = *result;
             break;
         }
         case Class::kVariableLength: {
-            auto result = serde::Read<D, VariableLength>(de);
+            auto result = serde::Read<VariableLength>(de);
             if (!result) return cstd::unexpected(result.error());
             msg.data = *result;
             break;
