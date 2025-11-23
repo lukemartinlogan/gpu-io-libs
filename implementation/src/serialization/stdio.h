@@ -5,7 +5,7 @@
 #include "serialization.h"
 #include "../hdf5/types.h"
 
-class StdioWriter : public VirtualSerializer {
+class StdioWriter {
 public:
     explicit StdioWriter(const std::filesystem::path& path)
         : path_(path), file_(nullptr, &std::fclose)
@@ -19,9 +19,10 @@ public:
         file_.reset(raw);
     }
 
-    bool WriteBuffer(cstd::span<const byte_t> data) final {
+    void WriteBuffer(cstd::span<const byte_t> data) {
         size_t bytes_written = std::fwrite(data.data(), 1, data.size(), file_.get());
-        return bytes_written == data.size();
+
+        ASSERT(bytes_written == data.size(), "failed to write all bytes to file");
     }
 
 private:
@@ -29,7 +30,9 @@ private:
     std::unique_ptr<FILE, std::function<int(FILE*)>> file_;
 };
 
-class StdioReader : public VirtualDeserializer {
+static_assert(serde::Serializer<StdioWriter>);
+
+class StdioReader {
 public:
     explicit StdioReader(const std::filesystem::path& path)
         : path_(path), file_(nullptr, &std::fclose)
@@ -43,25 +46,22 @@ public:
         file_.reset(raw);
     }
 
-    bool ReadBuffer(cstd::span<byte_t> out) final {
+    void ReadBuffer(cstd::span<byte_t> out) {
         size_t bytes_read = std::fread(out.data(), 1, out.size(), file_.get());
-        return bytes_read == out.size();
+
+        ASSERT(bytes_read == out.size(), "failed to read all bytes from file");
     }
 
-    [[nodiscard]] offset_t GetPosition() final {
+    [[nodiscard]] offset_t GetPosition() const {
         const long pos = std::ftell(file_.get());
 
-        if (pos < 0) {
-            throw std::runtime_error("failed to get position");
-        }
+        ASSERT(pos >= 0, "failed to get position");
 
         return static_cast<offset_t>(pos);
     }
 
-    void SetPosition(offset_t offset) final {
-        if (std::fseek(file_.get(), static_cast<long>(offset), SEEK_SET) != 0) {
-            throw std::runtime_error("Seek failed");
-        }
+    void SetPosition(offset_t offset) {
+        ASSERT(std::fseek(file_.get(), static_cast<long>(offset), SEEK_SET) == 0, "seek failed");
     }
 
 private:
@@ -69,8 +69,10 @@ private:
     std::unique_ptr<FILE, std::function<int(FILE*)>> file_;
 };
 
+static_assert(serde::Deserializer<StdioReader>);
+
 // TODO: is there a way to do this without code duplication
-class StdioReaderWriter : public VirtualReaderWriter {
+class StdioReaderWriter {
 public:
     explicit StdioReaderWriter(const std::filesystem::path& path)
     : path_(path), file_(nullptr, &std::fclose)
@@ -84,38 +86,33 @@ public:
         file_.reset(raw);
     }
 
-    // bool WriteBuffer(std::span<const byte_t> data) final {
-    //     size_t bytes_written = std::fwrite(data.data(), 1, data.size(), file_.get());
-    //     return bytes_written == data.size();
-    // }
-
-    bool WriteBuffer(cstd::span<const byte_t> data) final {
+    void WriteBuffer(cstd::span<const byte_t> data) const {
         size_t bytes_written = std::fwrite(data.data(), 1, data.size(), file_.get());
-        return bytes_written == data.size();
+
+        ASSERT(bytes_written == data.size(), "failed to write all bytes to file");
     }
 
-    bool ReadBuffer(cstd::span<byte_t> out) final {
+    void ReadBuffer(cstd::span<byte_t> out) const {
         size_t bytes_read = std::fread(out.data(), 1, out.size(), file_.get());
-        return bytes_read == out.size();
+
+        ASSERT(bytes_read == out.size(), "failed to read all bytes from file");
     }
 
-    [[nodiscard]] offset_t GetPosition() final {
+    [[nodiscard]] offset_t GetPosition() const {
         const long pos = std::ftell(file_.get());
 
-        if (pos < 0) {
-            throw std::runtime_error("failed to get position");
-        }
+        ASSERT(pos >= 0, "failed to get position");
 
         return static_cast<offset_t>(pos);
     }
 
-    void SetPosition(offset_t offset) final {
-        if (std::fseek(file_.get(), static_cast<long>(offset), SEEK_SET) != 0) {
-            throw std::runtime_error("Seek failed");
-        }
+    void SetPosition(offset_t offset) const {
+        ASSERT(std::fseek(file_.get(), static_cast<long>(offset), SEEK_SET) == 0, "seek failed");
     }
 
 private:
     std::filesystem::path path_;
     std::unique_ptr<FILE, std::function<int(FILE*)>> file_;
 };
+
+static_assert(serde::Serializer<StdioReaderWriter> && serde::Deserializer<StdioReaderWriter>);
