@@ -333,7 +333,7 @@ hdf5::expected<void> Dataset::ReadHyperslab(
                     std::fill_n(buffer.data() + buffer_offset, element_size, byte_t{0});
                 } else {
                     object_.file->io.SetPosition(*element_file_offset);
-                    object_.file->io.ReadBuffer(std::span(buffer.data() + buffer_offset, element_size));
+                    object_.file->io.ReadBuffer(cstd::span(buffer.data() + buffer_offset, element_size));
                 }
                 return {};
             });
@@ -407,7 +407,7 @@ hdf5::expected<void> Dataset::WriteHyperslab(
             offset_t file_offset = contiguous->address + *linear_index * element_size;
 
             object_.file->io.SetPosition(file_offset);
-            object_.file->io.WriteBuffer(std::span(data.data() + data_offset, element_size));
+            object_.file->io.WriteBuffer(cstd::span(data.data() + data_offset, element_size));
 
             data_offset += element_size;
             iterator.Advance();
@@ -425,7 +425,7 @@ hdf5::expected<void> Dataset::WriteHyperslab(
                 }
 
                 object_.file->io.SetPosition(*element_file_offset);
-                object_.file->io.WriteBuffer(std::span(data.data() + buffer_offset, element_size));
+                object_.file->io.WriteBuffer(cstd::span(data.data() + buffer_offset, element_size));
                 return {};
             });
         if (!process_result) {

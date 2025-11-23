@@ -272,7 +272,7 @@ BTreeNode BTreeNode::Split(KValues k) {
 
 len_t BTreeNode::WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues k) const {
     file.io.SetPosition(offset);
-    file.io.WriteComplex(*this);
+    serde::Write(file.io, *this);
 
     len_t written_bytes = file.io.GetPosition() - offset;
 

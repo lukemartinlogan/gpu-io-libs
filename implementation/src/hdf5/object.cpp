@@ -29,12 +29,12 @@ std::vector<byte_t> WriteMessageToBuffer(const HeaderMessageVariant& msg) {
     DynamicBufferSerializer msg_data;
 
     // reserve eight bytes for prefix
-    msg_data.Write<cstd::array<byte_t, kPrefixSize>>({});
+    serde::Write(msg_data, cstd::array<byte_t, kPrefixSize>{}); // reserved
 
-    cstd::visit([&msg_data](const auto& m) { msg_data.WriteComplex(m); }, msg);
+    cstd::visit([&msg_data](const auto& m) { serde::Write(msg_data, m); }, msg);
 
     while (msg_data.buf.size() % 8 != 0) {
-        msg_data.Write<uint8_t>(0);
+        serde::Write(msg_data, byte_t{});
     }
 
     size_t msg_size = msg_data.buf.size();

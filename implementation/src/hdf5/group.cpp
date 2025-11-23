@@ -123,7 +123,7 @@ hdf5::expected<Dataset> Group::CreateDataset(
     SymbolTableNode node { .entries = { ent }, };
 
     DynamicBufferSerializer ser;
-    ser.WriteComplex(node);
+    serde::Write(ser, node);
 
     size_t padding_size = (2 * object_.file->superblock.group_leaf_node_k - node.entries.size()) * 40;
 
@@ -215,7 +215,7 @@ hdf5::expected<Group> Group::CreateGroup(hdf5::string_view name) {
     SymbolTableNode node { .entries = { ent }, };
 
     DynamicBufferSerializer ser;
-    ser.WriteComplex(node);
+    serde::Write(ser, node);
 
     size_t padding_size = (2 * object_.file->superblock.group_leaf_node_k - node.entries.size()) * 40;
 
