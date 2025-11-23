@@ -1320,13 +1320,22 @@ struct ObjectHeaderMessage {
     // TODO: this method probably shouldn't be public
     template<serde::Deserializer D, typename T>
     static hdf5::expected<HeaderMessageVariant> DeserializeMessageType(D& de) {
-        auto result = serde::Read<D, T>(de);
+        using Ret = decltype(serde::Read<D, T>(de));
 
-        if (!result) {
-            return cstd::unexpected(result.error());
+        if constexpr (std::is_same_v<Ret, T>) {
+            return HeaderMessageVariant(serde::Read<D, T>(de));
+        } else if constexpr (std::is_same_v<Ret, hdf5::expected<T>>) {
+            auto result = serde::Read<D, T>(de);
+
+            if (!result) {
+                return cstd::unexpected(result.error());
+            }
+
+            return HeaderMessageVariant(*result);
+        } else {
+            UNREACHABLE("DeserializeMessageType: unsupported return type from Deserialize");
+            return {};
         }
-
-        return HeaderMessageVariant(*result);
     }
 
     template<serde::Deserializer D>
