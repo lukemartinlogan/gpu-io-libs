@@ -11,7 +11,7 @@ hdf5::expected<hdf5::string> ReadNullTerminatedString(D& de, size_t max_size = h
     ASSERT(max_size <= hdf5::gpu_string<>::max_size(), "max_size must be less than inplace string max size");
 
     while (str.size() < max_size) {
-        auto c = static_cast<char>(serde::Read<D, byte_t>(de));
+        auto c = static_cast<char>(serde::Read<byte_t>(de));
 
         if (c == '\0') {
             found = true;
