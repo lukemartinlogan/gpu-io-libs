@@ -2,162 +2,37 @@
 
 #include "../util/align.h"
 
-constexpr uint32_t kPrefixSize = 8;
-
-// TODO: take predicate lambda?
-cstd::optional<Object::Space> Object::FindMessageRecursive(  // NOLINT(*-no-recursion
-    Deserializer& de,
-    offset_t sb_base_addr,
-    uint16_t& messages_read,
-    uint16_t total_message_ct,
-    uint32_t size_limit,
-    uint16_t msg_type
-) {
-    uint32_t bytes_read = 0;
-
-    while (bytes_read < size_limit && messages_read < total_message_ct) {
-        auto type = de.Read<uint16_t>();
-        auto size_bytes = de.Read<uint16_t>();
-
-        bytes_read += size_bytes + kPrefixSize;
-        ++messages_read;
-
-        // flags + reserved
-        de.Skip<4>();
-
-        if (type == ObjectHeaderContinuationMessage::kType) {
-            auto cont = de.Read<ObjectHeaderContinuationMessage>();
-
-            offset_t return_pos = de.GetPosition();
-            de.SetPosition(sb_base_addr + cont.offset);
-
-            cstd::optional<Space> found = FindMessageRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, msg_type);
-
-            if (found.has_value()) {
-                return found;
-            }
-
-            de.SetPosition(return_pos);
-        } else {
-            if (type == msg_type) {
-                uint16_t total_size = size_bytes + kPrefixSize;
-
-                return Space {
-                    .offset = de.GetPosition() - kPrefixSize,
-                    .size = total_size,
-                };
-            }
-
-            for (size_t b = 0; b < size_bytes; ++b) {
-                de.Skip<byte_t>();
-            }
-        }
-    }
-
-    return cstd::nullopt;
-}
-
-cstd::optional<Object::Space> Object::FindSpaceRecursive(  // NOLINT(*-no-recursion
-    Deserializer& de,
-    offset_t sb_base_addr,
-    uint16_t& messages_read,
-    uint16_t total_message_ct,
-    uint32_t size_limit,
-    uint32_t search_size,
-    bool must_be_nil
-) {
-    uint32_t bytes_read = 0;
-
-    cstd::optional<Space> smallest_found{};
-
-    while (bytes_read < size_limit && messages_read < total_message_ct) {
-        auto type = de.Read<uint16_t>();
-        auto size_bytes = de.Read<uint16_t>();
-
-        bytes_read += size_bytes + kPrefixSize;
-        ++messages_read;
-
-        // flags + reserved
-        de.Skip<4>();
-
-        if (type == ObjectHeaderContinuationMessage::kType) {
-            auto cont = de.Read<ObjectHeaderContinuationMessage>();
-
-            offset_t return_pos = de.GetPosition();
-            de.SetPosition(sb_base_addr + cont.offset);
-
-            cstd::optional<Space> res = FindSpaceRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, search_size, must_be_nil);
-
-            if (
-                res.has_value() && res->size >= search_size // FIXME: technically the second check is redundant
-                && ( !smallest_found.has_value() || res->size < smallest_found->size )
-            ) {
-                smallest_found = res;
-            }
-
-            de.SetPosition(return_pos);
-        } else {
-            if (!must_be_nil || type == NilMessage::kType) {
-                uint16_t total_size = size_bytes + kPrefixSize;
-
-                if (
-                    // no new nil header needed || nil header needed
-                    total_size == search_size || total_size >= search_size + kPrefixSize
-                    && ( !smallest_found.has_value() || total_size < smallest_found->size )
-                ) {
-                    smallest_found = {
-                        .offset = de.GetPosition() - kPrefixSize,
-                        .size = total_size,
-                    };
-                }
-            }
-
-            for (size_t b = 0; b < size_bytes; ++b) {
-                de.Skip<byte_t>();
-            }
-        }
-    }
-
-    return smallest_found;
-}
-
 cstd::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) const {
     JumpToRelativeOffset(0);
 
-    file->io.Skip<2>();
+    auto& io = file->io;
 
-    auto total_message_ct = file->io.Read<uint16_t>();
+    serde::Skip(io, 2);
 
-    file->io.Skip<4>();
+    auto total_message_ct = serde::Read<uint16_t>(io);
 
-    auto header_size = file->io.Read<uint32_t>();
+    serde::Skip(io, 4);
+
+    auto header_size = serde::Read<uint32_t>(io);
 
     // reserved
-    file->io.Skip<4>();
+    serde::Skip(io, 4);
 
     uint16_t messages_read = 0;
 
-    return FindSpaceRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, size, must_be_nil);
-}
-
-void WriteHeader(Serializer& s, uint16_t type, uint16_t size, uint8_t flags) {
-    s.Write(type);
-    s.Write(size);
-
-    s.Write(flags);
-    s.Write<cstd::array<byte_t, 3>>({});
+    return FindSpaceRecursive(io, file->superblock.base_addr, messages_read, total_message_ct, header_size, size, must_be_nil);
 }
 
 std::vector<byte_t> WriteMessageToBuffer(const HeaderMessageVariant& msg) {
     DynamicBufferSerializer msg_data;
 
     // reserve eight bytes for prefix
-    msg_data.Write<cstd::array<byte_t, kPrefixSize>>({});
+    serde::Write(msg_data, cstd::array<byte_t, kPrefixSize>{}); // reserved
 
-    cstd::visit([&msg_data](const auto& m) { msg_data.WriteComplex(m); }, msg);
+    cstd::visit([&msg_data](const auto& m) { serde::Write(msg_data, m); }, msg);
 
     while (msg_data.buf.size() % 8 != 0) {
-        msg_data.Write<uint8_t>(0);
+        serde::Write(msg_data, byte_t{});
     }
 
     size_t msg_size = msg_data.buf.size();
@@ -181,7 +56,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     cstd::optional<Space> nil_space = FindSpace(msg_bytes.size(), true);
 
     JumpToRelativeOffset(2);
-    auto written_ct = file->io.Read<uint16_t>();
+    auto written_ct = serde::Read<uint16_t>(file->io);
 
     if (nil_space.has_value()) {
         // overwriting existing nil message
@@ -203,7 +78,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             uint16_t nil_size = total_nil_size - kPrefixSize;
 
             WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-            file->io.WriteComplex(NilMessage { .size = nil_size, });
+            serde::Write(file->io, NilMessage { .size = nil_size, });
 
             // wrote a nil header
             written_ct += 1;
@@ -234,7 +109,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             // write object header
             file->io.SetPosition(space_cont->offset);
             WriteHeader(file->io, ObjectHeaderContinuationMessage::kType, sizeof(ObjectHeaderContinuationMessage), /* FIXME(flags) */0);
-            file->io.WriteComplex(cont);
+            serde::Write(file->io, cont);
 
             // write cont msg
             written_ct += 1;
@@ -249,7 +124,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
                 WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-                file->io.Write(NilMessage { .size = nil_size, });
+                serde::Write(file->io, NilMessage { .size = nil_size, });
 
                 // writing nil message
                 written_ct += 1;
@@ -272,7 +147,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
                 WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-                file->io.WriteComplex(NilMessage { .size = nil_size, });
+                serde::Write(file->io, NilMessage { .size = nil_size, });
 
                 // writing nil message
                 written_ct += 1;
@@ -304,7 +179,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             // write object header
             file->io.SetPosition(space->offset);
             WriteHeader(file->io, ObjectHeaderContinuationMessage::kType, sizeof(ObjectHeaderContinuationMessage), /* FIXME(flags) */0);
-            file->io.WriteComplex(cont);
+            serde::Write(file->io, cont);
 
             // writing cont
             written_ct += 1;
@@ -319,7 +194,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
                 WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-                file->io.WriteComplex(NilMessage { .size = nil_size, });
+                serde::Write(file->io, NilMessage { .size = nil_size, });
 
                 // writing nil
                 written_ct += 1;
@@ -342,7 +217,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
                 WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-                file->io.WriteComplex(NilMessage { .size = nil_size, });
+                serde::Write(file->io, NilMessage { .size = nil_size, });
 
                 // writing nil
                 written_ct += 1;
@@ -351,22 +226,24 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     }
 
     JumpToRelativeOffset(2);
-    file->io.Write(written_ct);
+    serde::Write(file->io, written_ct);
 }
 
+// semantically, this isn't const, so it's not being made const
+// ReSharper disable once CppMemberFunctionMayBeConst
 cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     JumpToRelativeOffset(0);
 
-    file->io.Skip<2>();
+    serde::Skip(file->io, 2);
 
-    auto total_message_ct = file->io.Read<uint16_t>();
+    auto total_message_ct = serde::Read<uint16_t>(file->io);
 
-    file->io.Skip<4>();
+    serde::Skip(file->io, 4);
 
-    auto header_size = file->io.Read<uint32_t>();
+    auto header_size = serde::Read<uint32_t>(file->io);
 
     // reserved
-    file->io.Skip<4>();
+    serde::Skip(file->io, 4);
 
     uint16_t messages_read = 0;
 
@@ -377,7 +254,8 @@ cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     }
 
     file->io.SetPosition(found->offset);
-    auto msg_result = file->io.ReadComplex<ObjectHeaderMessage>();
+    auto msg_result = serde::Read<ObjectHeaderMessage>(file->io);
+
 
     // TODO(refactor-exceptions): this method should return an expected
     if (!msg_result) {
@@ -390,7 +268,7 @@ cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     uint16_t nil_size = found->size - kPrefixSize;
 
     WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-    file->io.WriteComplex(NilMessage { .size = nil_size, });
+    serde::Write(file->io, NilMessage { .size = nil_size, });
 
     return *msg_result;
 }
@@ -399,16 +277,17 @@ cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
 cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
     JumpToRelativeOffset(0);
 
-    file->io.Skip<2>();
+    serde::Skip(file->io, 2);
 
-    auto total_message_ct = file->io.Read<uint16_t>();
+    auto total_message_ct = serde::Read<uint16_t>(file->io);
 
-    file->io.Skip<4>();
 
-    auto header_size = file->io.Read<uint32_t>();
+    serde::Skip(file->io, 4);
+
+    auto header_size = serde::Read<uint32_t>(file->io);
 
     // reserved
-    file->io.Skip<4>();
+    serde::Skip(file->io, 4);
 
     uint16_t messages_read = 0;
 
@@ -419,7 +298,7 @@ cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
     }
 
     file->io.SetPosition(found->offset);
-    auto msg_result = file->io.ReadComplex<ObjectHeaderMessage>();
+    auto msg_result = serde::Read<ObjectHeaderMessage>(file->io);
 
     if (!msg_result) {
         return cstd::nullopt;
@@ -428,37 +307,6 @@ cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
     ASSERT(file->io.GetPosition() <= found->offset + found->size, "Read too many bytes for message");
 
     return *msg_result;
-}
-
-inline len_t EmptyHeaderMessagesSize(len_t min_size) {
-    return EightBytesAlignedSize(std::max(
-        min_size,
-        sizeof(ObjectHeaderContinuationMessage) + kPrefixSize
-    ));
-}
-
-void Object::WriteEmpty(len_t min_size, Serializer& s) {
-    len_t aligned_size = EmptyHeaderMessagesSize(min_size);
-
-    s.Write(ObjectHeader::kVersionNumber);
-    // reserved
-    s.Write<uint8_t>(0);
-    // total num of messages (one nil message)
-    s.Write<uint16_t>(1);
-
-    // object ref count
-    s.Write<uint32_t>(0);
-    // header size
-    s.Write<uint32_t>(min_size);
-
-    // reserved
-    s.Write<uint32_t>(0);
-
-    // TODO: fix size overflow?
-    uint16_t nil_size = min_size - 8;
-
-    WriteHeader(s, NilMessage::kType, nil_size, 0);
-    s.WriteComplex(NilMessage { .size = nil_size });
 }
 
 Object Object::AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file) {

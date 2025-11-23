@@ -5,9 +5,15 @@ hdf5::expected<File> File::New(const std::filesystem::path& path) {
 
     // scope since file_io and superblock are invalid after make_shared
     {
-        StdioReaderWriter file_io(path);
+        auto file_io_result = StdioReaderWriter::Open(path);
 
-        auto superblock_result = file_io.ReadComplex<SuperblockV0>();
+        if (!file_io_result)
+            return cstd::unexpected(file_io_result.error());
+
+        auto file_io = std::move(*file_io_result);
+
+        auto superblock_result = serde::Read<SuperblockV0>(file_io);
+
         if (!superblock_result) return cstd::unexpected(superblock_result.error());
         auto superblock = *superblock_result;
 

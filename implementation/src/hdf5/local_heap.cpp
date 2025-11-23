@@ -3,57 +3,46 @@
 
 #include "local_heap.h"
 
-#include "../util/align.h"
 #include "file_link.h"
 #include "../util/string.h"
 
-// TODO(cuda_vector): many calls of this function don't need ownership; 'LocalHeap::ViewString'?
-hdf5::expected<hdf5::string> LocalHeap::ReadString(offset_t offset, Deserializer& de) const {
-    if (offset >= data_segment_size) {
-        return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "LocalHeap: offset out of bounds");
-    }
+hdf5::expected<offset_t> LocalHeap::WriteString(hdf5::string_view string, FileLink& file) {
+    hdf5::string null_terminated_str(string);
 
-    auto rem_size = data_segment_size - offset;
-
-    de.SetPosition(data_segment_address + offset);
-
-    return ReadNullTerminatedString(de, rem_size);
+    return WriteBytes(
+        cstd::span(
+            reinterpret_cast<const byte_t*>(null_terminated_str.c_str()),
+            null_terminated_str.size() + 1
+        ),
+        file
+    );
 }
 
-hdf5::expected<cstd::optional<LocalHeap::SuitableFreeSpace>> LocalHeap::FindFreeSpace(len_t required_size, Deserializer& de) const {
-    static_assert(sizeof(FreeListBlock) == 2 * sizeof(len_t), "mismatch between spec");
+cstd::tuple<LocalHeap, offset_t> LocalHeap::AllocateNew(FileLink& file, len_t min_size) {
+    len_t aligned_size = std::max(EightBytesAlignedSize(min_size), sizeof(FreeListBlock));
 
-    if (free_list_head_offset == kUndefinedOffset) {
-        return cstd::nullopt;
-    }
+    offset_t heap_offset = file.AllocateAtEOF(kHeaderSize + aligned_size);
 
-    offset_t current_offset = free_list_head_offset;
-    cstd::optional<offset_t> prev_block_offset = cstd::nullopt;
+    LocalHeap heap;
+    heap.this_offset = heap_offset;
+    heap.data_segment_address = heap_offset + kHeaderSize;
+    heap.data_segment_size = aligned_size;
+    heap.free_list_head_offset = 0;
 
-    while (current_offset != kLastFreeBlock) {
-        if (current_offset + sizeof(FreeListBlock) > data_segment_size) {
-            return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "LocalHeap: free list offset out of bounds");
-        }
+    FreeListBlock new_fl {
+        .next_free_list_offset = kLastFreeBlock,
+        .size = aligned_size,
+    };
 
-        de.SetPosition(data_segment_address + current_offset);
-        auto block = de.ReadRaw<FreeListBlock>();
+    file.io.SetPosition(heap.data_segment_address);
+    serde::Write(file.io, new_fl);
 
-        if (block.size >= required_size) {
-            return SuitableFreeSpace {
-                .prev_block_offset = prev_block_offset,
-                .this_offset = current_offset,
-                .block = block,
-            };
-        }
+    heap.RewriteToFile(file.io);
 
-        prev_block_offset = current_offset;
-        current_offset = block.next_free_list_offset;
-    }
-
-    return cstd::nullopt;
+    return { heap, heap_offset };
 }
 
-hdf5::expected<offset_t> LocalHeap::WriteBytes(std::span<const byte_t> data, FileLink& file) {
+hdf5::expected<offset_t> LocalHeap::WriteBytes(cstd::span<const byte_t> data, FileLink& file) {
     len_t aligned_size = EightBytesAlignedSize(data.size());
 
     auto free_result = FindFreeSpace(aligned_size, file.io);
@@ -91,26 +80,26 @@ hdf5::expected<offset_t> LocalHeap::WriteBytes(std::span<const byte_t> data, Fil
 
         offset_t new_block_offset = free->this_offset + aligned_size;
         file.io.SetPosition(data_segment_address + new_block_offset);
-        file.io.WriteRaw(new_block);
+        serde::Write(file.io, new_block);
 
         if (free->prev_block_offset.has_value()) {
             file.io.SetPosition(data_segment_address + *free->prev_block_offset);
-            auto block = file.io.ReadRaw<FreeListBlock>();
+            auto block = serde::Read<FreeListBlock>(file.io);
 
             block.next_free_list_offset = new_block_offset;
             file.io.SetPosition(data_segment_address + *free->prev_block_offset);
-            file.io.WriteRaw(block);
+            serde::Write(file.io, block);
         } else {
             free_list_head_offset = new_block_offset;
         }
     } else {
         if (free->prev_block_offset.has_value()) {
             file.io.SetPosition(data_segment_address + *free->prev_block_offset);
-            auto block = file.io.ReadRaw<FreeListBlock>();
+            auto block = serde::Read<FreeListBlock>(file.io);
 
             block.next_free_list_offset = free->block.next_free_list_offset;
             file.io.SetPosition(data_segment_address + *free->prev_block_offset);
-            file.io.WriteRaw(block);
+            serde::Write(file.io, block);
         } else {
             if (free->block.next_free_list_offset == kLastFreeBlock) {
                 free_list_head_offset = kUndefinedOffset;
@@ -124,48 +113,12 @@ hdf5::expected<offset_t> LocalHeap::WriteBytes(std::span<const byte_t> data, Fil
     file.io.WriteBuffer(data);
 
     for (len_t i = 0; i < aligned_size - data.size(); ++i) {
-        file.io.WriteRaw<byte_t>({});
+        serde::Write(file.io, byte_t{});
     }
 
     RewriteToFile(file.io);
 
     return free->this_offset;
-}
-
-hdf5::expected<offset_t> LocalHeap::WriteString(hdf5::string_view string, FileLink& file) {
-    hdf5::string null_terminated_str(string);
-
-    return WriteBytes(
-        std::span(
-            reinterpret_cast<const byte_t*>(null_terminated_str.c_str()),
-            null_terminated_str.size() + 1
-        ),
-        file
-    );
-}
-
-cstd::tuple<LocalHeap, offset_t> LocalHeap::AllocateNew(FileLink& file, len_t min_size) {
-    len_t aligned_size = std::max(EightBytesAlignedSize(min_size), sizeof(FreeListBlock));
-
-    offset_t heap_offset = file.AllocateAtEOF(kHeaderSize + aligned_size);
-
-    LocalHeap heap;
-    heap.this_offset = heap_offset;
-    heap.data_segment_address = heap_offset + kHeaderSize;
-    heap.data_segment_size = aligned_size;
-    heap.free_list_head_offset = 0;
-
-    FreeListBlock new_fl {
-        .next_free_list_offset = kLastFreeBlock,
-        .size = aligned_size,
-    };
-
-    file.io.SetPosition(heap.data_segment_address);
-    file.io.WriteRaw(new_fl);
-
-    heap.RewriteToFile(file.io);
-
-    return { heap, heap_offset };
 }
 
 // note: this method does not rewrite to file
@@ -198,9 +151,9 @@ hdf5::expected<void> LocalHeap::ReserveAdditional(FileLink& file, size_t additio
     file.io.SetPosition(alloc);
     file.io.WriteBuffer(buffer_span);
 
-    // additional bytes are already zeroed since writing to EOF?
+    // TODO: additional bytes are already zeroed since writing to EOF?
     for (len_t i = 0; i < new_size - data_segment_size; ++i) {
-        file.io.WriteRaw<byte_t>({});
+        serde::Write(file.io, byte_t{});
     }
 
     // 4. update free list
@@ -214,7 +167,7 @@ hdf5::expected<void> LocalHeap::ReserveAdditional(FileLink& file, size_t additio
     }
 
     file.io.SetPosition(alloc + data_segment_size);
-    file.io.WriteRaw(block);
+    serde::Write(file.io, block);
 
     free_list_head_offset = data_segment_size;
 
@@ -223,47 +176,4 @@ hdf5::expected<void> LocalHeap::ReserveAdditional(FileLink& file, size_t additio
     data_segment_size = new_size;
 
     return {};
-}
-
-void LocalHeap::RewriteToFile(ReaderWriter& rw) const {
-    rw.SetPosition(this_offset);
-    rw.WriteComplex<LocalHeap>(*this);
-}
-
-void LocalHeap::Serialize(Serializer& s) const {
-    s.Write(kSignature);
-    s.Write(kVersionNumber);
-
-    // reserved (zero)
-    s.Write<cstd::array<byte_t, 3>>({});
-
-    s.Write<len_t>(data_segment_size);
-    s.Write(free_list_head_offset);
-    s.Write(data_segment_address);
-}
-
-hdf5::expected<LocalHeap> LocalHeap::Deserialize(Deserializer& de) {
-    offset_t this_offset = de.GetPosition();
-
-    if (de.Read<cstd::array<uint8_t, 4>>() != kSignature) {
-        return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "LocalHeap signature was invalid");
-    }
-
-    if (de.Read<uint8_t>() != kVersionNumber) {
-        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "LocalHeap version number was invalid");
-    }
-    // reserved (zero)
-    de.Skip<uint8_t>();
-    de.Skip<uint8_t>();
-    de.Skip<uint8_t>();
-
-
-    LocalHeap heap{};
-    heap.data_segment_size = de.Read<len_t>();
-    heap.free_list_head_offset = de.Read<len_t>();
-    heap.data_segment_address = de.Read<offset_t>();
-
-    heap.this_offset = this_offset;
-
-    return heap;
 }

@@ -6,23 +6,76 @@
 #include "types.h"
 #include "../serialization/serialization.h"
 #include "gpu_string.h"
+#include "../util/align.h"
+#include "../util/string.h"
 
 struct FileLink;
 
 struct LocalHeap {
     len_t free_list_head_offset{};
 
-    [[nodiscard]] hdf5::expected<hdf5::string> ReadString(offset_t offset, Deserializer& de) const;
+    // TODO(cuda_vector): many calls of this function don't need ownership; 'LocalHeap::ViewString'?
+    template<serde::Deserializer D>
+    [[nodiscard]] hdf5::expected<hdf5::string> ReadString(offset_t offset, D& de) const {
+        if (offset >= data_segment_size) {
+            return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "LocalHeap: offset out of bounds");
+        }
+
+        auto rem_size = data_segment_size - offset;
+
+        de.SetPosition(data_segment_address + offset);
+
+        return ReadNullTerminatedString(de, rem_size);
+    }
 
     hdf5::expected<offset_t> WriteString(hdf5::string_view string, FileLink& file);
 
     static cstd::tuple<LocalHeap, offset_t> AllocateNew(FileLink& file, len_t min_size);
 
-    void RewriteToFile(ReaderWriter& rw) const;
+    template<serde::Serializer S> requires serde::Seekable<S>
+    void RewriteToFile(S& s) const {
+        s.SetPosition(this_offset);
+        serde::Write(s, *this);
+    }
 
-    void Serialize(Serializer& s) const;
+    template<serde::Serializer S>
+    void Serialize(S& s) const {
+        serde::Write(s, kSignature);
+        serde::Write(s, kVersionNumber);
 
-    static hdf5::expected<LocalHeap> Deserialize(Deserializer& de);
+        // reserved (zero)
+        serde::Write(s, cstd::array<byte_t, 3>{});
+
+        serde::Write(s, data_segment_size);
+        serde::Write(s, free_list_head_offset);
+        serde::Write(s, data_segment_address);
+    }
+
+    template<serde::Deserializer D>
+    static hdf5::expected<LocalHeap> Deserialize(D& de) {
+        offset_t this_offset = de.GetPosition();
+
+        if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
+            return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "LocalHeap signature was invalid");
+        }
+
+        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+            return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "LocalHeap version number was invalid");
+        }
+        // reserved (zero)
+        serde::Skip<uint8_t>(de);
+        serde::Skip<uint8_t>(de);
+        serde::Skip<uint8_t>(de);
+
+        LocalHeap heap{};
+        heap.data_segment_size = serde::Read<len_t>(de);
+        heap.free_list_head_offset = serde::Read<len_t>(de);
+        heap.data_segment_address = serde::Read<offset_t>(de);
+
+        heap.this_offset = this_offset;
+
+        return heap;
+    }
 
 private:
     struct FreeListBlock {
@@ -30,15 +83,49 @@ private:
         len_t size;
     };
 
+    static_assert(serde::TriviallySerializable<FreeListBlock>);
+
     struct SuitableFreeSpace {
         cstd::optional<offset_t> prev_block_offset;
         offset_t this_offset;
         FreeListBlock block;
     };
 
-    hdf5::expected<cstd::optional<SuitableFreeSpace>> FindFreeSpace(len_t required_size, Deserializer& de) const;
+    template<serde::Deserializer D>
+    hdf5::expected<cstd::optional<SuitableFreeSpace>> FindFreeSpace(len_t required_size, D& de) const {
+        static_assert(sizeof(FreeListBlock) == 2 * sizeof(len_t), "mismatch between spec");
 
-    hdf5::expected<offset_t> WriteBytes(std::span<const byte_t> data, FileLink& file);
+        if (free_list_head_offset == kUndefinedOffset) {
+            return cstd::nullopt;
+        }
+
+        offset_t current_offset = free_list_head_offset;
+        cstd::optional<offset_t> prev_block_offset = cstd::nullopt;
+
+        while (current_offset != kLastFreeBlock) {
+            if (current_offset + sizeof(FreeListBlock) > data_segment_size) {
+                return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "LocalHeap: free list offset out of bounds");
+            }
+
+            de.SetPosition(data_segment_address + current_offset);
+            auto block = serde::Read<FreeListBlock>(de);
+
+            if (block.size >= required_size) {
+                return SuitableFreeSpace {
+                    .prev_block_offset = prev_block_offset,
+                    .this_offset = current_offset,
+                    .block = block,
+                };
+            }
+
+            prev_block_offset = current_offset;
+            current_offset = block.next_free_list_offset;
+        }
+
+        return cstd::nullopt;
+    }
+
+    hdf5::expected<offset_t> WriteBytes(cstd::span<const byte_t> data, FileLink& file);
 
     hdf5::expected<void> ReserveAdditional(FileLink& file, size_t additional_bytes);
 

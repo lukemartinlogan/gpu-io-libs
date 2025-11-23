@@ -3,9 +3,6 @@
 // Central header for all standard library includes with CUDA/std switching
 // All other headers should include this instead of duplicating the conditional logic
 
-#include <cstddef>
-#include <cstdint>
-#include <limits>
 
 #ifdef LIBCUDACXX_AVAILABLE
     #include <cuda/std/optional>
@@ -19,6 +16,10 @@
     #include <cuda/std/inplace_vector>
     #include <cuda/std/expected>
     #include <cuda/std/cassert>
+    #include <cuda/std/limits>
+    #include <cuda/std/cstdint>
+    #include <cuda/std/cstddef>
+    #include <cuda/std/type_traits>
 
     namespace cstd = cuda::std;
 
@@ -40,6 +41,10 @@
     #include <vector>  // Fallback for inplace_vector
     #include <expected>
     #include <cassert>
+    #include <limits>
+    #include <cstdint>
+    #include <cstddef>
+    #include <type_traits>
 
     namespace cstd = std;
 

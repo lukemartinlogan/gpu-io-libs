@@ -3,66 +3,64 @@
 
 #include "serialization.h"
 
-class BufferSerializer : public Serializer {
+class BufferSerializer {
 public:
-    explicit BufferSerializer(std::span<byte_t> buf) // NOLINT
+    explicit BufferSerializer(cstd::span<byte_t> buf) // NOLINT
         : buf(buf), cursor(0) {}
 
-    bool WriteBuffer(cstd::span<const byte_t> data) final {
-        if (data.size() > buf.size() - cursor) {
-            // not enough remaining space
-            return false;
-        }
+    void WriteBuffer(cstd::span<const byte_t> data) {
+        ASSERT(
+            data.size() <= buf.size() - cursor,
+            "BufferSerializer: not enough space in buffer"
+        );
 
         std::ranges::copy(data, buf.data() + cursor);
 
         cursor += data.size();
-
-        return true;
     }
 
-    std::span<byte_t> buf;
+    cstd::span<byte_t> buf;
     size_t cursor;
 };
 
-class DynamicBufferSerializer : public Serializer {
+static_assert(serde::Serializer<BufferSerializer>);
+
+class DynamicBufferSerializer {
 public:
     explicit DynamicBufferSerializer(size_t size = 0) {
         buf.reserve(size);
     }
 
-    bool WriteBuffer(cstd::span<const byte_t> data) final {
+    void WriteBuffer(cstd::span<const byte_t> data) {
         buf.insert(buf.end(), data.begin(), data.end());
-        // FIXME: no error reporting
-        return true;
     }
 
     std::vector<byte_t> buf;
 };
 
-class BufferDeserializer : public Deserializer {
+static_assert(serde::Serializer<DynamicBufferSerializer>);
+
+class BufferDeserializer {
 public:
-    explicit BufferDeserializer(std::span<const byte_t> buf) // NOLINT
+    explicit BufferDeserializer(cstd::span<const byte_t> buf) // NOLINT
         : buf(buf), cursor(0) {}
 
-    bool ReadBuffer(cstd::span<byte_t> out) final {
-        if (out.size() > buf.size() - cursor) {
-            // not enough remaining data
-            return false;
-        }
+    void ReadBuffer(cstd::span<byte_t> out) {
+        ASSERT(
+            out.size() <= buf.size() - cursor,
+            "BufferDeserializer: not enough data in buffer"
+        );
 
         std::copy_n(buf.begin() + static_cast<std::ptrdiff_t>(cursor), out.size(), out.begin());
 
         cursor += out.size();
-
-        return true;
     }
 
-    [[nodiscard]] offset_t GetPosition() final {
+    [[nodiscard]] offset_t GetPosition() const {
         return cursor;
     };
 
-    void SetPosition(offset_t offset) final {
+    void SetPosition(offset_t offset) {
         cursor = offset;
     }
 
@@ -70,6 +68,8 @@ public:
         return cursor == buf.size();
     }
 
-    std::span<const byte_t> buf;
+    cstd::span<const byte_t> buf;
     size_t cursor;
 };
+
+static_assert(serde::Deserializer<BufferDeserializer>);

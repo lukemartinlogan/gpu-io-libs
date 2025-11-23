@@ -1,10 +1,5 @@
 #pragma once
-#include <array>
 #include <functional>
-#include <type_traits>
-#include <utility>
-#include <variant>
-#include <vector>
 
 #include "file_link.h"
 #include "local_heap.h"
@@ -19,16 +14,10 @@ struct BTreeGroupNodeKey {
     // first object name in the subtree the key describes
     len_t first_object_name;
 
-    void Serialize(Serializer& s) const {
-        s.WriteRaw<BTreeGroupNodeKey>(*this);
-    }
-
-    static BTreeGroupNodeKey Deserialize(Deserializer& de) {
-        return de.ReadRaw<BTreeGroupNodeKey>();
-    }
-
     static constexpr len_t kAllocationSize = sizeof(len_t);
 };
+
+static_assert(serde::TriviallySerializable<BTreeGroupNodeKey>);
 
 static_assert(
     BTreeGroupNodeKey::kAllocationSize == sizeof(BTreeGroupNodeKey),
@@ -70,6 +59,26 @@ struct ChunkCoordinates {
     [[nodiscard]] size_t Dimensions() const {
         return coords.size();
     }
+
+    template<serde::Serializer S>
+    void Serialize(S& s) const {
+        serde::Write(s, static_cast<uint64_t>(coords.size()));
+        for (const uint64_t coord: coords) {
+            serde::Write(s, coord);
+        }
+    }
+
+    template<serde::Deserializer D>
+    static ChunkCoordinates Deserialize(D& de) {
+        ChunkCoordinates chunk_coords{};
+
+        uint64_t dim_ct = serde::Read<uint64_t>(de);
+
+        for (uint64_t i = 0; i < dim_ct; ++i) {
+            chunk_coords.coords.push_back(serde::Read<uint64_t>(de));
+        }
+        return chunk_coords;
+    }
 };
 
 struct ChunkedKeyTerminatorInfo {
@@ -88,9 +97,45 @@ struct BTreeChunkedRawDataNodeKey {
 
     size_t elem_byte_size;
 
-    void Serialize(Serializer& s) const;
+    template<serde::Serializer S>
+    void Serialize(S& s) const {
+        serde::Write(s, chunk_size);
+        serde::Write(s, filter_mask);
 
-    static hdf5::expected<BTreeChunkedRawDataNodeKey> DeserializeWithTermInfo(Deserializer& de, ChunkedKeyTerminatorInfo term_info);
+        for (const uint64_t offset: chunk_offset_in_dataset.coords) {
+            serde::Write(s, offset);
+        }
+
+        if (chunk_size == 0) {
+            serde::Write(s, static_cast<uint64_t>(4));
+        } else {
+            serde::Write(s, static_cast<uint64_t>(0));
+        }
+    }
+
+    template<serde::Deserializer D>
+    static hdf5::expected<BTreeChunkedRawDataNodeKey> DeserializeWithTermInfo(D& de, ChunkedKeyTerminatorInfo term_info) {
+        BTreeChunkedRawDataNodeKey key{};
+
+        key.chunk_size = serde::Read<uint32_t>(de);
+        key.filter_mask = serde::Read<uint32_t>(de);
+        key.elem_byte_size = term_info.elem_byte_size;
+
+        for (uint8_t i = 0; i < term_info.dimensionality; ++i) {
+            key.chunk_offset_in_dataset.coords.push_back(serde::Read<uint64_t>(de));
+        }
+
+        auto terminator = serde::Read<uint64_t>(de);
+
+        bool is_unused_key = key.chunk_size == 0;
+
+        // TODO: is terminator always the size of the type?
+        if ((is_unused_key && terminator != key.elem_byte_size) || (!is_unused_key && terminator != 0)) {
+            return hdf5::error(hdf5::HDF5ErrorCode::InvalidTerminator, "BTreeChunkedRawDataNodeKey: incorrect terminator");
+        }
+
+        return key;
+    }
 
     [[nodiscard]] uint16_t AllocationSize() const {
         // Key size = chunk_size + filter_mask + (dimensions * sizeof(uint64_t))
@@ -158,10 +203,14 @@ struct BTreeNode {
 
     [[nodiscard]] cstd::optional<offset_t> GetChunk(const ChunkCoordinates& chunk_coords, FileLink& file) const;
 
-    void Serialize(Serializer& s) const;
+    template<serde::Serializer S>
+    void Serialize(S& s) const;
 
-    static hdf5::expected<BTreeNode> DeserializeGroup(Deserializer& de);
-    static hdf5::expected<BTreeNode> DeserializeChunked(Deserializer& de, ChunkedKeyTerminatorInfo term_info);
+    template<serde::Deserializer D>
+    static hdf5::expected<BTreeNode> DeserializeGroup(D& de);
+
+    template<serde::Deserializer D>
+    static hdf5::expected<BTreeNode> DeserializeChunked(D& de, ChunkedKeyTerminatorInfo term_info);
 
 private:
     friend struct GroupBTree;
@@ -177,7 +226,19 @@ private:
         }
     };
 
-    hdf5::expected<BTreeNode> ReadChild(Deserializer& de) const;
+    template<serde::Deserializer D>
+    hdf5::expected<BTreeNode> ReadChild(D& de) const {
+        if (cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+            return DeserializeGroup(de);
+        } else if (cstd::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
+            ASSERT(chunked_key_term_info_.has_value(), "BTreeNode::ReadChild: dimensionality not set for chunked node");
+
+            return DeserializeChunked(de, *chunked_key_term_info_);
+        } else {
+            UNREACHABLE("Variant has invalid state");
+            return {};
+        }
+    }
 
     [[nodiscard]] BTreeNode Split(KValues k);
 
@@ -190,13 +251,95 @@ private:
         FileLink& file
     );
 
-    hdf5::expected<cstd::optional<uint16_t>> FindGroupIndex(hdf5::string_view key, const LocalHeap& heap, Deserializer& de) const;
+    template<serde::Deserializer D>
+    hdf5::expected<cstd::optional<uint16_t>> FindGroupIndex(hdf5::string_view key, const LocalHeap& heap, D& de) const {
+        if (!cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+            return cstd::nullopt;
+        }
+
+        // TODO: can we binary search here?
+
+        const auto& group_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+
+        uint16_t entries_ct = EntriesUsed();
+
+        if (entries_ct == 0) {
+            // empty node, no entries
+            return cstd::nullopt;
+        }
+
+        // find correct child pointer
+        uint16_t child_index = entries_ct + 1;
+
+        auto prev_result = heap.ReadString(group_entries.keys.front().first_object_name, de);
+        if (!prev_result) {
+            return cstd::unexpected(prev_result.error());
+        }
+
+        hdf5::string prev = std::move(*prev_result);
+
+        for (size_t i = 1; i < group_entries.keys.size(); ++i) {
+            auto next = heap.ReadString(group_entries.keys[i].first_object_name, de);
+
+            if (!next) {
+                return cstd::unexpected(next.error());
+            }
+
+            if (prev < key && key <= *next) {
+                child_index = i - 1;
+                break;
+            }
+
+            prev = std::move(*next);
+        }
+
+        if (child_index == entries_ct + 1) {
+            // name is greater than all keys
+            return cstd::nullopt;
+        }
+
+        return child_index;
+    }
 
     [[nodiscard]] cstd::optional<uint16_t> FindChunkedIndex(const ChunkCoordinates& chunk_coords) const;
 
     [[nodiscard]] bool AtCapacity(KValues k) const;
 
-    hdf5::expected<uint16_t> GroupInsertionPosition(hdf5::string_view key, const LocalHeap& heap, Deserializer& de) const;
+    template<serde::Deserializer D>
+    hdf5::expected<uint16_t> GroupInsertionPosition(hdf5::string_view key, const LocalHeap& heap, D& de) const {
+        if (!cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+            return hdf5::error(hdf5::HDF5ErrorCode::WrongNodeType, "InsertionPosition only supported for group nodes");
+        }
+
+        // TODO: can we binary search here?
+
+        const auto& group_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+
+        uint16_t entries_ct = EntriesUsed();
+
+        if (entries_ct == 0) {
+            return 0;
+        }
+
+        // find correct child pointer
+        uint16_t child_index = entries_ct;
+
+        for (size_t i = 0; i < entries_ct; ++i) {
+            // TODO(cuda_vector): this doesn't need to be allocated
+            auto next = heap.ReadString(group_entries.keys.at(i + 1).first_object_name, de);
+
+            if (!next) {
+                return cstd::unexpected(next.error());
+            }
+
+            if (key <= *next) {
+                child_index = i;
+                break;
+            }
+        }
+
+        return child_index;
+    }
 
     [[nodiscard]] uint16_t ChunkedInsertionPosition(const ChunkCoordinates& chunk_coords) const;
 
@@ -394,3 +537,129 @@ private:
 
     ChunkedKeyTerminatorInfo terminator_info_{};
 };
+
+// these implementations are here because of declaration order
+template<typename K, serde::Serializer S>
+void WriteEntries(const BTreeEntries<K>& entries, S& s) {
+    uint16_t entries_ct = entries.child_pointers.size();
+
+    ASSERT(entries.keys.size() == entries_ct + 1, "Shape of entries was invalid");
+
+    for (uint16_t i = 0; i < entries_ct; ++i) {
+        serde::Write(s, entries.keys.at(i));
+        serde::Write(s, entries.child_pointers.at(i));
+    }
+
+    serde::Write(s, entries.keys.back());
+}
+
+template<serde::Serializer S>
+void BTreeNode::Serialize(S& s) const {
+    uint8_t type;
+    if (cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
+        type = kGroupNodeTy;
+    } else if (cstd::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
+        type = kRawDataChunkNodeTy;
+    } else {
+        UNREACHABLE("Variant has invalid state");
+    }
+
+    serde::Write(s, kSignature);
+
+    serde::Write(s, type);
+    serde::Write(s, level);
+    serde::Write(s, EntriesUsed());
+
+    serde::Write(s, left_sibling_addr);
+    serde::Write(s, right_sibling_addr);
+
+    if (type == kGroupNodeTy) {
+        const auto& entr = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(entries);
+        WriteEntries(entr, s);
+    } else {
+        const auto& entr = cstd::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries);
+        WriteEntries(entr, s);
+    }
+}
+
+template<serde::Deserializer D>
+hdf5::expected<BTreeNode> BTreeNode::DeserializeGroup(D& de) {
+    if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "BTree signature was invalid");
+    }
+
+    auto type = serde::Read<uint8_t>(de);
+
+    if (type != kGroupNodeTy && type != kRawDataChunkNodeTy) {
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidType, "Invalid BTree node type");
+    }
+
+    if (type != kGroupNodeTy) {
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidType, "BTreeNode::DeserializeGroup called on non-group node");
+    }
+
+    BTreeNode node{};
+
+    node.level = serde::Read<uint8_t>(de);
+    auto entries_used = serde::Read<uint16_t>(de);
+
+    node.left_sibling_addr = serde::Read<offset_t>(de);
+    node.right_sibling_addr = serde::Read<offset_t>(de);
+
+    BTreeEntries<BTreeGroupNodeKey> entries{};
+
+    for (uint16_t i = 0; i < entries_used; ++i) {
+        entries.keys.push_back(serde::Read<BTreeGroupNodeKey>(de));
+        entries.child_pointers.push_back(serde::Read<offset_t>(de));
+    }
+
+    entries.keys.push_back(serde::Read<BTreeGroupNodeKey>(de));
+
+    node.entries = entries;
+
+    return node;
+}
+
+template<serde::Deserializer D>
+hdf5::expected<BTreeNode> BTreeNode::DeserializeChunked(D& de, ChunkedKeyTerminatorInfo term_info) {
+    if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "BTree signature was invalid");
+    }
+
+    auto type = serde::Read<uint8_t>(de);
+
+    if (type != kGroupNodeTy && type != kRawDataChunkNodeTy) {
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidType, "Invalid BTree node type");
+    }
+
+    if (type != kRawDataChunkNodeTy) {
+        return hdf5::error(hdf5::HDF5ErrorCode::InvalidType, "BTreeNode::DeserializeChunked called on non-chunked node");
+    }
+
+    BTreeNode node{};
+
+    node.level = serde::Read<uint8_t>(de);
+    auto entries_used = serde::Read<uint16_t>(de);
+
+    node.left_sibling_addr = serde::Read<offset_t>(de);
+    node.right_sibling_addr = serde::Read<offset_t>(de);
+
+    node.chunked_key_term_info_ = term_info;
+
+    BTreeEntries<BTreeChunkedRawDataNodeKey> entries{};
+
+    for (uint16_t i = 0; i < entries_used; ++i) {
+        auto key_result = BTreeChunkedRawDataNodeKey::DeserializeWithTermInfo(de, term_info);
+        if (!key_result) return cstd::unexpected(key_result.error());
+        entries.keys.push_back(*key_result);
+        entries.child_pointers.push_back(serde::Read<offset_t>(de));
+    }
+
+    auto last_key_result = BTreeChunkedRawDataNodeKey::DeserializeWithTermInfo(de, term_info);
+    if (!last_key_result) return cstd::unexpected(last_key_result.error());
+    entries.keys.push_back(*last_key_result);
+
+    node.entries = entries;
+
+    return node;
+}
