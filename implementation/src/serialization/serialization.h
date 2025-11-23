@@ -39,18 +39,18 @@ namespace serde {
 
     // -- CONCEPTS
     template<typename S>
-    concept Serializer = requires(S& s, cstd::span<const byte_t> data) {
+    concept Serializer = requires(S&& s, cstd::span<const byte_t> data) {
         { s.WriteBuffer(data) } -> std::same_as<void>;
     };
 
     template<typename S>
-    concept Seekable = requires(S& s, offset_t pos) {
+    concept Seekable = requires(S&& s, offset_t pos) {
         { s.GetPosition() } -> std::same_as<offset_t>;
         { s.SetPosition(pos) } -> std::same_as<void>;
     };
 
     template<typename D>
-    concept Deserializer = Seekable<D> && requires(D& d, cstd::span<byte_t> data) {
+    concept Deserializer = Seekable<D> && requires(D&& d, cstd::span<byte_t> data) {
         { d.ReadBuffer(data) } -> std::same_as<void>;
     };
 
@@ -66,39 +66,39 @@ namespace serde {
     // -- SERIALIZE FUNCTIONS --
 
     template<Serializer S, TriviallySerializable T>
-    void Write(S& s, const T& data) {
+    void Write(S&& s, const T& data) {
         s.WriteBuffer(cstd::as_bytes(cstd::span(&data, 1)));
     }
 
     template<Serializer S, NonTriviallySerializable T>
-    void Write(S& s, const T& data) {
+    void Write(S&& s, const T& data) {
         data.Serialize(s);
     }
 
     // -- DESERIALIZE FUNCTIONS --
 
     template<Deserializer D, TriviallySerializable T>
-    T Read(D& d) {
+    T Read(D&& d) {
         T out;
         d.ReadBuffer(cstd::as_writable_bytes(cstd::span(&out, 1)));
         return out;
     }
 
     template<Deserializer D, NonTriviallySerializable T>
-    auto Read(D& d) {
+    auto Read(D&& d) {
         return T::Deserialize(d);
     }
 
     // -- SEEKABLE FUNCTIONS --
 
     template<Seekable S>
-    void Skip(S& s, offset_t count) {
+    void Skip(S&& s, offset_t count) {
         offset_t start = s.GetPosition();
         s.SetPosition(start + count);
     }
 
     template<Seekable S, typename T>
-    void Skip(S& s) {
+    void Skip(S&& s) {
         Skip(s, sizeof(T));
     }
 }
