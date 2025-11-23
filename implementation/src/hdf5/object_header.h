@@ -1318,8 +1318,8 @@ struct ObjectHeaderMessage {
     }
 
     // TODO: this method probably shouldn't be public
-    template<serde::Deserializer D, typename T>
-    static hdf5::expected<HeaderMessageVariant> DeserializeMessageType(D& de) {
+    template<typename T, serde::Deserializer D>
+    static hdf5::expected<HeaderMessageVariant> DeserializeMessageType(D&& de) {
         using Ret = decltype(serde::Read<T>(de));
 
         if constexpr (std::is_same_v<Ret, T>) {
