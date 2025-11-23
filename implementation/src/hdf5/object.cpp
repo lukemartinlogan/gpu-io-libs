@@ -226,7 +226,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     }
 
     JumpToRelativeOffset(2);
-    file->io.Write(written_ct);
+    serde::Write(file->io, written_ct);
 }
 
 cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
