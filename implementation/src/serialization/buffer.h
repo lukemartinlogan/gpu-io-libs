@@ -3,21 +3,6 @@
 
 #include "serialization.h"
 
-class DynamicBufferSerializer {
-public:
-    explicit DynamicBufferSerializer(size_t size = 0) {
-        buf.reserve(size);
-    }
-
-    void WriteBuffer(cstd::span<const byte_t> data) {
-        buf.insert(buf.end(), data.begin(), data.end());
-    }
-
-    std::vector<byte_t> buf;
-};
-
-static_assert(serde::Serializer<DynamicBufferSerializer>);
-
 class BufferDeserializer {
 public:
     explicit BufferDeserializer(cstd::span<const byte_t> buf) // NOLINT
