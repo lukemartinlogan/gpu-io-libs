@@ -64,11 +64,14 @@ struct SymbolTableEntry {
 
         return ent;
     }
+
+    static constexpr uint16_t kSerializedSizeBytes = sizeof(offset_t) * 5;
 };
 
 struct SymbolTableNode {
     // TODO: not sure about this size, may need to be increased or max have a fixed size max
-    static constexpr size_t kMaxSymbolTableEntries = 32;
+    // might need to be bigger? but group_leaf_node_k is ~ 4
+    static constexpr size_t kMaxSymbolTableEntries = 16;
 
     cstd::inplace_vector<SymbolTableEntry, kMaxSymbolTableEntries> entries;
 
@@ -135,6 +138,8 @@ struct SymbolTableNode {
 
         return node;
     }
+
+    static constexpr uint16_t kMaxSerializedSize = SymbolTableEntry::kSerializedSizeBytes * kMaxSymbolTableEntries + 8;
 
 private:
     static constexpr uint8_t kVersionNumber = 0x01;

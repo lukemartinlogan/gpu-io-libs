@@ -2,8 +2,6 @@
 
 #include "symbol_table.h"
 
-// might need to be bigger? but group_leaf_node_k is ~ 4
-constexpr size_t kMaxGroupSymbolTablePaddingSizeBytes = 2 * 8 * 40;
 
 hdf5::expected<Group> Group::New(const Object& object) {
     auto header_result = object.GetHeader();
@@ -123,7 +121,7 @@ hdf5::expected<Dataset> Group::CreateDataset(
     SymbolTableNode node { .entries = { ent }, };
 
     // this should zero out the rest of the padding bytes for later
-    cstd::array<byte_t, kMaxGroupSymbolTablePaddingSizeBytes> node_buf{};
+    cstd::array<byte_t, SymbolTableNode::kMaxSerializedSize> node_buf{};
 
     BufferReaderWriter node_buf_rw(node_buf);
 
@@ -131,7 +129,7 @@ hdf5::expected<Dataset> Group::CreateDataset(
 
     size_t padding_size = (2 * object_.file->superblock.group_leaf_node_k - node.entries.size()) * 40;
 
-    if (node_buf_rw.GetPosition() + padding_size > kMaxGroupSymbolTablePaddingSizeBytes) {
+    if (node_buf_rw.GetPosition() + padding_size > node_buf.size()) {
         return hdf5::error(
             hdf5::HDF5ErrorCode::CapacityExceeded,
             "Group leaf node padding exceeds maximum size"
