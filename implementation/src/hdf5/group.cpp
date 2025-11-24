@@ -122,24 +122,27 @@ hdf5::expected<Dataset> Group::CreateDataset(
 
     SymbolTableNode node { .entries = { ent }, };
 
-    DynamicBufferSerializer ser;
-    serde::Write(ser, node);
+    // this should zero out the rest of the padding bytes for later
+    cstd::array<byte_t, kMaxGroupSymbolTablePaddingSizeBytes> node_buf{};
+
+    BufferReaderWriter node_buf_rw(node_buf);
+
+    serde::Write(node_buf_rw, node);
 
     size_t padding_size = (2 * object_.file->superblock.group_leaf_node_k - node.entries.size()) * 40;
 
-    if (padding_size > kMaxGroupSymbolTablePaddingSizeBytes) {
+    if (node_buf_rw.GetPosition() + padding_size > kMaxGroupSymbolTablePaddingSizeBytes) {
         return hdf5::error(
             hdf5::HDF5ErrorCode::CapacityExceeded,
             "Group leaf node padding exceeds maximum size"
         );
     }
 
-    cstd::array<byte_t, kMaxGroupSymbolTablePaddingSizeBytes> padding_buffer{};
-    ser.WriteBuffer(cstd::span(padding_buffer.data(), padding_size));
+    serde::Skip(node_buf_rw, padding_size);
 
-    offset_t node_alloc = object_.file->AllocateAtEOF(ser.buf.size());
+    offset_t node_alloc = object_.file->AllocateAtEOF(node_buf_rw.GetPosition());
     object_.file->io.SetPosition(node_alloc);
-    object_.file->io.WriteBuffer(ser.buf);
+    object_.file->io.WriteBuffer(node_buf_rw.GetWritten());
 
     auto insert_result = table_.InsertGroup(name_offset, node_alloc);
     if (!insert_result) {
