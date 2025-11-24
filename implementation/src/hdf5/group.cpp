@@ -112,42 +112,11 @@ hdf5::expected<Dataset> Group::CreateDataset(
         .modification_time = cstd::chrono::system_clock::now(),
     });
 
-    SymbolTableEntry ent {
+    WriteEntryToNewNode({
         .link_name_offset = name_offset,
         .object_header_addr = new_ds.GetAddress(),
         .cache_ty = SymbolTableEntryCacheType::kNoDataCached,
-    };
-
-    SymbolTableNode node { .entries = { ent }, };
-
-    // this should zero out the rest of the padding bytes for later
-    cstd::array<byte_t, SymbolTableNode::kMaxSerializedSize> node_buf{};
-
-    BufferReaderWriter node_buf_rw(node_buf);
-
-    serde::Write(node_buf_rw, node);
-
-    size_t padding_size = (2 * object_.file->superblock.group_leaf_node_k - node.entries.size()) * 40;
-
-    if (node_buf_rw.GetPosition() + padding_size > node_buf.size()) {
-        return hdf5::error(
-            hdf5::HDF5ErrorCode::CapacityExceeded,
-            "Group leaf node padding exceeds maximum size"
-        );
-    }
-
-    serde::Skip(node_buf_rw, padding_size);
-
-    offset_t node_alloc = object_.file->AllocateAtEOF(node_buf_rw.GetPosition());
-    object_.file->io.SetPosition(node_alloc);
-    object_.file->io.WriteBuffer(node_buf_rw.GetWritten());
-
-    auto insert_result = table_.InsertGroup(name_offset, node_alloc);
-    if (!insert_result) {
-        return cstd::unexpected(insert_result.error());
-    }
-
-    UpdateBTreePointer();
+    });
 
     return Dataset::New(new_ds);
 }
@@ -207,39 +176,11 @@ hdf5::expected<Group> Group::CreateGroup(hdf5::string_view name) {
         .local_heap_addr = heap_offset
     });
 
-    SymbolTableEntry ent {
+    WriteEntryToNewNode({
         .link_name_offset = name_offset,
         .object_header_addr = new_group_obj.GetAddress(),
         .cache_ty = SymbolTableEntryCacheType::kNoDataCached,
-    };
-
-    SymbolTableNode node { .entries = { ent }, };
-
-    DynamicBufferSerializer ser;
-    serde::Write(ser, node);
-
-    size_t padding_size = (2 * object_.file->superblock.group_leaf_node_k - node.entries.size()) * 40;
-
-    if (padding_size > kMaxGroupSymbolTablePaddingSizeBytes) {
-        return hdf5::error(
-            hdf5::HDF5ErrorCode::CapacityExceeded,
-            "Group leaf node padding exceeds maximum size"
-        );
-    }
-
-    cstd::array<byte_t, kMaxGroupSymbolTablePaddingSizeBytes> padding_buffer{};
-    ser.WriteBuffer(cstd::span(padding_buffer.data(), padding_size));
-
-    offset_t node_alloc = object_.file->AllocateAtEOF(ser.buf.size());
-    object_.file->io.SetPosition(node_alloc);
-    object_.file->io.WriteBuffer(ser.buf);
-
-    auto insert_result = table_.InsertGroup(name_offset, node_alloc);
-    if (!insert_result) {
-        return cstd::unexpected(insert_result.error());
-    }
-
-    UpdateBTreePointer();
+    });
 
     return New(new_group_obj);
 }
@@ -287,6 +228,44 @@ hdf5::expected<void> Group::Insert(hdf5::string_view name, offset_t object_heade
     }
 
     UpdateBTreePointer();
+    return {};
+}
+
+hdf5::expected<void> Group::WriteEntryToNewNode(SymbolTableEntry entry) {
+    offset_t name_offset = entry.link_name_offset;
+
+    SymbolTableNode node { .entries = { std::move(entry) }, };
+
+    // this should zero out the rest of the padding bytes for later
+    cstd::array<byte_t, SymbolTableNode::kMaxSerializedSize> node_buf{};
+
+    BufferReaderWriter node_buf_rw(node_buf);
+
+    serde::Write(node_buf_rw, node);
+
+    size_t padding_size = (2 * object_.file->superblock.group_leaf_node_k - node.entries.size()) * 40;
+
+    if (node_buf_rw.GetPosition() + padding_size > node_buf.size()) {
+        return hdf5::error(
+            hdf5::HDF5ErrorCode::CapacityExceeded,
+            "Group leaf node padding exceeds maximum size"
+        );
+    }
+
+    serde::Skip(node_buf_rw, padding_size);
+
+    offset_t node_alloc = object_.file->AllocateAtEOF(node_buf_rw.GetPosition());
+    object_.file->io.SetPosition(node_alloc);
+    object_.file->io.WriteBuffer(node_buf_rw.GetWritten());
+
+    auto insert_result = table_.InsertGroup(name_offset, node_alloc);
+
+    if (!insert_result) {
+        return cstd::unexpected(insert_result.error());
+    }
+
+    UpdateBTreePointer();
+
     return {};
 }
 

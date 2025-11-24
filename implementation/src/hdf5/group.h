@@ -32,6 +32,8 @@ public:
 private:
     hdf5::expected<void> Insert(hdf5::string_view name, offset_t object_header_ptr);
 
+    hdf5::expected<void> WriteEntryToNewNode(SymbolTableEntry entry);
+
     // FIXME: get rid of this method
     [[nodiscard]] const LocalHeap& GetLocalHeap() const {
         return table_.heap_;
