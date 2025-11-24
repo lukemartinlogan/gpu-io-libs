@@ -1508,6 +1508,8 @@ private:
 
     static constexpr uint8_t kVersionNumber = 0x01;
     static constexpr size_t kMaxContinuationDepth = 16;
+    // TODO: honestly, no idea what to guess this size should be
+    static constexpr size_t kMaxHeaderMessageSerializedSizeBytes = 1024 * 8;
 };
 
 // methods for use in object.h/object.cpp

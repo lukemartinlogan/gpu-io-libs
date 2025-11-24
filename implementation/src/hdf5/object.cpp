@@ -21,35 +21,56 @@ cstd::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) c
     return FindSpace(io, file->superblock.base_addr, total_message_ct, header_size, size, must_be_nil);
 }
 
-std::vector<byte_t> WriteMessageToBuffer(const HeaderMessageVariant& msg) {
-    DynamicBufferSerializer msg_data;
+template<serde::Serializer S> requires serde::Seekable<S>
+void WriteMessageToBuffer(S& s, const HeaderMessageVariant& msg) {
+    offset_t start_pos = s.GetPosition();
 
     // reserve eight bytes for prefix
-    serde::Write(msg_data, cstd::array<byte_t, kPrefixSize>{}); // reserved
+    serde::Write(s, cstd::array<byte_t, kPrefixSize>{}); // reserved
 
-    cstd::visit([&msg_data](const auto& m) { serde::Write(msg_data, m); }, msg);
+    cstd::visit([&s](const auto& m) { serde::Write(s, m); }, msg);
 
-    while (msg_data.buf.size() % 8 != 0) {
-        serde::Write(msg_data, byte_t{});
+    // TODO: this loop can be optimized, generalized too
+    while ((s.GetPosition() - start_pos) % 8 != 0) {
+        serde::Write(s, byte_t{});
     }
 
-    size_t msg_size = msg_data.buf.size();
-
-    BufferSerializer prefix_s(msg_data.buf);
+    size_t msg_size = s.GetPosition() - start_pos;
 
     uint16_t kType = cstd::visit([](const auto& m) { return m.kType; }, msg);
 
-    WriteHeader(prefix_s, kType, msg_size - kPrefixSize, /* FIXME: support flags */ 0);
+    cstd::array<byte_t, kPrefixSize> header{};
+    BufferReaderWriter header_s(header);
 
-    ASSERT(prefix_s.cursor == kPrefixSize, "prefix size was not eight bytes");
+    WriteHeader(header_s, kType, msg_size - kPrefixSize, /* FIXME: support flags */ 0);
 
-    // ReSharper disable once CppDFAUnreachableCode : for some reason, it thinks the cursor prefix size check always throws
-    return msg_data.buf;
+    ASSERT(header_s.GetWritten().size() == kPrefixSize, "prefix size was not eight bytes");
+
+    s.WriteBuffer(header_s.GetWritten());
 }
 
 void Object::WriteMessage(const HeaderMessageVariant& msg) const {
-    // TODO: chunk message writes
-    std::vector<byte_t> msg_bytes = WriteMessageToBuffer(msg);
+    // this is how many bytes should be allocated if something needs to be moved
+    // TODO: not sure how large this should be in practice
+    static constexpr size_t kExtraMovingBufferSize = 1024;
+
+    cstd::inplace_vector<byte_t, ObjectHeader::kMaxHeaderMessageSerializedSizeBytes + kExtraMovingBufferSize> msg_bytes;
+
+    {
+        // TODO: don't love this vector size manipulation
+        msg_bytes.resize(ObjectHeader::kMaxHeaderMessageSerializedSizeBytes, byte_t{});
+        BufferReaderWriter msg_buffer_rw(msg_bytes);
+
+        ASSERT(
+            msg_buffer_rw.remaining() >= ObjectHeader::kMaxHeaderMessageSerializedSizeBytes,
+            "message buffer too small for message"
+        );
+
+        // TODO: chunk message writes
+        WriteMessageToBuffer(msg_buffer_rw, msg);
+
+        msg_bytes.resize(msg_buffer_rw.GetPosition());
+    }
 
     cstd::optional<Space> nil_space = FindSpace(msg_bytes.size(), true);
 
@@ -159,7 +180,12 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             ASSERT(space.has_value(), "there should always be an object header message that can be moved");
 
             // move the bytes into write buffer
-            std::vector<byte_t> moving(space->size);
+            ASSERT(
+                space->size <= kExtraMovingBufferSize,
+                "should have allocated enough space to move message"
+            );
+
+            cstd::inplace_vector<byte_t, kExtraMovingBufferSize> moving(space->size);
             file->io.SetPosition(space->offset);
             file->io.ReadBuffer(moving);
 
