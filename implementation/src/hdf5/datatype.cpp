@@ -128,7 +128,7 @@ __device__ __host__
 CompoundMember::CompoundMember(const CompoundMember& other)
         : name(other.name),
           byte_offset(other.byte_offset),
-          dimension_sizes(other.dimension_sizes),
+          dimension_sizes(other.dimension_sizes)
           // message(std::make_unique<DatatypeMessage>(*other.message)) /* TODO(recursive-datatypes) */
 { }
 
