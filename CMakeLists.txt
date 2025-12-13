@@ -56,8 +56,8 @@ endif()
 file(GLOB_RECURSE SOURCES
     "src/*.cpp"
     "src/*.h"
-    "include/*.cpp"
-    "include/*.h"
+    "third_party/*.cpp"
+    "third_party/*.h"
 )
 
 add_executable(hdf5_implementation ${SOURCES})
