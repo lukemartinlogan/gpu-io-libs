@@ -21,6 +21,7 @@
     #include <cuda/std/cstddef>
     #include <cuda/std/type_traits>
     #include <cuda/std/algorithm>
+    #include <cuda/std/atomic>
 
     // Workaround for MSVC + cuda::std::copy compatibility issue
     namespace cuda::std {
@@ -58,6 +59,7 @@
     #include <cstdint>
     #include <cstddef>
     #include <type_traits>
+    #include <atomic>
 
     // Alias for non-CUDA builds
     namespace std {
