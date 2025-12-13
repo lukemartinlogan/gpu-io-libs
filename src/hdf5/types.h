@@ -5,6 +5,7 @@
 using byte_t = cstd::byte;
 using offset_t = uint64_t;
 using len_t = uint64_t;
+using ssize_t = ptrdiff_t;
 
 constexpr offset_t kUndefinedOffset = cstd::numeric_limits<offset_t>::max();
 

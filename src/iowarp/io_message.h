@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../hdf5/cstd.h"
+#include "../hdf5/types.h"
 
 namespace iowarp {
 
@@ -26,7 +27,7 @@ struct IoMessage {
 
   // outputs
   int fd;             // output for kOpen, input for kRead/kWrite/kClose
-  int32_t result_;    // return value from syscall (bytes read/written, or -1)
+  ssize_t result_;    // return value from syscall (bytes read/written, or -1)
   int errno_;         // error code if result_ < 0
 
   // factory methods
