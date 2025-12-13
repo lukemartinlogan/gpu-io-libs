@@ -5,51 +5,55 @@
 #include "serialization.h"
 #include "../hdf5/types.h"
 
-class FStreamWriter: public Serializer {
+class FStreamWriter {
 public:
     explicit FStreamWriter(const std::filesystem::path& path)
         : path_(path), stream_(path, std::ofstream::out | std::ofstream::binary) {}
 
-    bool WriteBuffer(std::span<const byte_t> data) final {
+    void WriteBuffer(cstd::span<const byte_t> data) {
         stream_.write(reinterpret_cast<const char*>(data.data()), data.size());
 
-        return stream_.good();
+        ASSERT(stream_.good(), "failed to write all bytes to file");
     }
 private:
     std::filesystem::path path_;
     std::ofstream stream_;
 };
 
-class FStreamReader: public Deserializer {
+static_assert(serde::Serializer<FStreamWriter>);
+
+class FStreamReader {
 public:
     explicit FStreamReader(const std::filesystem::path& path)
         : path_(path), stream_(path, std::ofstream::in | std::ofstream::binary) {}
 
-    bool ReadBuffer(std::span<byte_t> out) final {
+    void ReadBuffer(cstd::span<byte_t> out) {
         stream_.read(reinterpret_cast<char*>(out.data()), out.size());
 
-        return stream_.gcount() == out.size() && stream_.good();
+        ASSERT(
+            stream_.gcount() == out.size() && stream_.good(),
+            "failed to read all bytes from file"
+        );
     }
 
-    offset_t GetPosition() final {
+    offset_t GetPosition() {
         const std::streampos pos = stream_.tellg();
 
-        if (pos < 0) {
-            throw std::runtime_error("failed to get position");
-        }
+
+        ASSERT(pos >= 0, "failed to get position");
 
         return pos;
     }
 
-    void SetPosition(offset_t offset) final {
+    void SetPosition(offset_t offset) {
         stream_.seekg(static_cast<std::streamoff>(offset));
 
-        if (stream_.fail()) {
-            throw std::runtime_error("Seek failed");
-        }
+        ASSERT(!stream_.fail(), "seek failed");
     }
 
 private:
     std::filesystem::path path_;
     std::ifstream stream_;
 };
+
+static_assert(serde::Deserializer<FStreamReader>);

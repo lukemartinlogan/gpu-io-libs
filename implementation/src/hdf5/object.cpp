@@ -2,188 +2,83 @@
 
 #include "../util/align.h"
 
-constexpr uint32_t kPrefixSize = 8;
-
-// TODO: take predicate lambda?
-std::optional<Object::Space> Object::FindMessageRecursive(  // NOLINT(*-no-recursion
-    Deserializer& de,
-    offset_t sb_base_addr,
-    uint16_t& messages_read,
-    uint16_t total_message_ct,
-    uint32_t size_limit,
-    uint16_t msg_type
-) {
-    uint32_t bytes_read = 0;
-
-    while (bytes_read < size_limit && messages_read < total_message_ct) {
-        auto type = de.Read<uint16_t>();
-        auto size_bytes = de.Read<uint16_t>();
-
-        bytes_read += size_bytes + kPrefixSize;
-        ++messages_read;
-
-        // flags + reserved
-        de.Skip<4>();
-
-        if (type == ObjectHeaderContinuationMessage::kType) {
-            auto cont = de.Read<ObjectHeaderContinuationMessage>();
-
-            offset_t return_pos = de.GetPosition();
-            de.SetPosition(sb_base_addr + cont.offset);
-
-            std::optional<Space> found = FindMessageRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, msg_type);
-
-            if (found.has_value()) {
-                return found;
-            }
-
-            de.SetPosition(return_pos);
-        } else {
-            if (type == msg_type) {
-                uint16_t total_size = size_bytes + kPrefixSize;
-
-                return Space {
-                    .offset = de.GetPosition() - kPrefixSize,
-                    .size = total_size,
-                };
-            }
-
-            for (size_t b = 0; b < size_bytes; ++b) {
-                de.Skip<byte_t>();
-            }
-        }
-    }
-
-    return std::nullopt;
-}
-
-std::optional<Object::Space> Object::FindSpaceRecursive(  // NOLINT(*-no-recursion
-    Deserializer& de,
-    offset_t sb_base_addr,
-    uint16_t& messages_read,
-    uint16_t total_message_ct,
-    uint32_t size_limit,
-    uint32_t search_size,
-    bool must_be_nil
-) {
-    uint32_t bytes_read = 0;
-
-    std::optional<Space> smallest_found{};
-
-    while (bytes_read < size_limit && messages_read < total_message_ct) {
-        auto type = de.Read<uint16_t>();
-        auto size_bytes = de.Read<uint16_t>();
-
-        bytes_read += size_bytes + kPrefixSize;
-        ++messages_read;
-
-        // flags + reserved
-        de.Skip<4>();
-
-        if (type == ObjectHeaderContinuationMessage::kType) {
-            auto cont = de.Read<ObjectHeaderContinuationMessage>();
-
-            offset_t return_pos = de.GetPosition();
-            de.SetPosition(sb_base_addr + cont.offset);
-
-            std::optional<Space> res = FindSpaceRecursive(de, sb_base_addr, messages_read, total_message_ct, cont.length, search_size, must_be_nil);
-
-            if (
-                res.has_value() && res->size >= search_size // FIXME: technically the second check is redundant
-                && ( !smallest_found.has_value() || res->size < smallest_found->size )
-            ) {
-                smallest_found = res;
-            }
-
-            de.SetPosition(return_pos);
-        } else {
-            if (!must_be_nil || type == NilMessage::kType) {
-                uint16_t total_size = size_bytes + kPrefixSize;
-
-                if (
-                    // no new nil header needed || nil header needed
-                    total_size == search_size || total_size >= search_size + kPrefixSize
-                    && ( !smallest_found.has_value() || total_size < smallest_found->size )
-                ) {
-                    smallest_found = {
-                        .offset = de.GetPosition() - kPrefixSize,
-                        .size = total_size,
-                    };
-                }
-            }
-
-            for (size_t b = 0; b < size_bytes; ++b) {
-                de.Skip<byte_t>();
-            }
-        }
-    }
-
-    return smallest_found;
-}
-
-std::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) const {
+__device__ __host__
+cstd::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) const {
     JumpToRelativeOffset(0);
 
-    file->io.Skip<2>();
+    auto& io = file->io;
 
-    auto total_message_ct = file->io.Read<uint16_t>();
+    serde::Skip(io, 2);
 
-    file->io.Skip<4>();
+    auto total_message_ct = serde::Read<uint16_t>(io);
 
-    auto header_size = file->io.Read<uint32_t>();
+    serde::Skip(io, 4);
+
+    auto header_size = serde::Read<uint32_t>(io);
 
     // reserved
-    file->io.Skip<4>();
+    serde::Skip(io, 4);
 
-    uint16_t messages_read = 0;
-
-    return FindSpaceRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, size, must_be_nil);
+    return FindSpace(io, file->superblock.base_addr, total_message_ct, header_size, size, must_be_nil);
 }
 
-void WriteHeader(Serializer& s, uint16_t type, uint16_t size, uint8_t flags) {
-    s.Write(type);
-    s.Write(size);
-
-    s.Write(flags);
-    s.Write<std::array<byte_t, 3>>({});
-}
-
-std::vector<byte_t> WriteMessageToBuffer(const HeaderMessageVariant& msg) {
-    DynamicBufferSerializer msg_data;
+__device__ __host__
+template<serde::Serializer S> requires serde::Seekable<S>
+void WriteMessageToBuffer(S& s, const HeaderMessageVariant& msg) {
+    offset_t start_pos = s.GetPosition();
 
     // reserve eight bytes for prefix
-    msg_data.Write<std::array<byte_t, kPrefixSize>>({});
+    serde::Write(s, cstd::array<byte_t, kPrefixSize>{}); // reserved
 
-    std::visit([&msg_data](const auto& m) { msg_data.WriteComplex(m); }, msg);
+    cstd::visit([&s](const auto& m) { serde::Write(s, m); }, msg);
 
-    while (msg_data.buf.size() % 8 != 0) {
-        msg_data.Write<uint8_t>(0);
+    // TODO: this loop can be optimized, generalized too
+    while ((s.GetPosition() - start_pos) % 8 != 0) {
+        serde::Write(s, byte_t{});
     }
 
-    size_t msg_size = msg_data.buf.size();
+    size_t msg_size = s.GetPosition() - start_pos;
 
-    BufferSerializer prefix_s(msg_data.buf);
+    uint16_t kType = cstd::visit([](const auto& m) { return m.kType; }, msg);
 
-    uint16_t kType = std::visit([](const auto& m) { return m.kType; }, msg);
+    cstd::array<byte_t, kPrefixSize> header{};
+    BufferReaderWriter header_s(header);
 
-    WriteHeader(prefix_s, kType, msg_size - kPrefixSize, /* FIXME: support flags */ 0);
+    WriteHeader(header_s, kType, msg_size - kPrefixSize, /* FIXME: support flags */ 0);
 
-    if (prefix_s.cursor != kPrefixSize) { // NOLINT: isn't actually always true
-        throw std::runtime_error("prefix size was not eight bytes");
-    }
+    ASSERT(header_s.GetWritten().size() == kPrefixSize, "prefix size was not eight bytes");
 
-    // ReSharper disable once CppDFAUnreachableCode : for some reason, it thinks the cursor prefix size check always throws
-    return msg_data.buf;
+    s.WriteBuffer(header_s.GetWritten());
 }
 
+__device__ __host__
 void Object::WriteMessage(const HeaderMessageVariant& msg) const {
-    // TODO: chunk message writes
-    std::vector<byte_t> msg_bytes = WriteMessageToBuffer(msg);
+    // this is how many bytes should be allocated if something needs to be moved
+    // TODO: not sure how large this should be in practice
+    static constexpr size_t kExtraMovingBufferSize = 1024;
 
-    std::optional<Space> nil_space = FindSpace(msg_bytes.size(), true);
+    cstd::inplace_vector<byte_t, ObjectHeader::kMaxHeaderMessageSerializedSizeBytes + kExtraMovingBufferSize> msg_bytes;
+
+    {
+        // TODO: don't love this vector size manipulation
+        msg_bytes.resize(ObjectHeader::kMaxHeaderMessageSerializedSizeBytes, byte_t{});
+        BufferReaderWriter msg_buffer_rw(msg_bytes);
+
+        ASSERT(
+            msg_buffer_rw.remaining() >= ObjectHeader::kMaxHeaderMessageSerializedSizeBytes,
+            "message buffer too small for message"
+        );
+
+        // TODO: chunk message writes
+        WriteMessageToBuffer(msg_buffer_rw, msg);
+
+        msg_bytes.resize(msg_buffer_rw.GetPosition());
+    }
+
+    cstd::optional<Space> nil_space = FindSpace(msg_bytes.size(), true);
 
     JumpToRelativeOffset(2);
-    auto written_ct = file->io.Read<uint16_t>();
+    auto written_ct = serde::Read<uint16_t>(file->io);
 
     if (nil_space.has_value()) {
         // overwriting existing nil message
@@ -199,24 +94,22 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             uint16_t total_nil_size = nil_space->size - msg_bytes.size();
 
             if (total_nil_size < kPrefixSize) {
-                throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+                UNREACHABLE("FindFreeSpace didn't return enough size for a nil message header");
             }
 
             uint16_t nil_size = total_nil_size - kPrefixSize;
 
             WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-            file->io.WriteComplex(NilMessage { .size = nil_size, });
+            serde::Write(file->io, NilMessage { .size = nil_size, });
 
             // wrote a nil header
             written_ct += 1;
         }
 
-        if (file->io.GetPosition() > nil_space->offset + nil_space->size) {
-            throw std::logic_error("wrote more bytes than the nil space allowed");
-        }
+        ASSERT(file->io.GetPosition() <= nil_space->offset + nil_space->size, "wrote more bytes than the nil space allowed");
     } else {
         size_t cont_size = sizeof(ObjectHeaderContinuationMessage) + kPrefixSize;
-        std::optional<Space> space_cont;
+        cstd::optional<Space> space_cont;
 
         if (cont_size < msg_bytes.size()) {
             space_cont = FindSpace(cont_size, true);
@@ -238,7 +131,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             // write object header
             file->io.SetPosition(space_cont->offset);
             WriteHeader(file->io, ObjectHeaderContinuationMessage::kType, sizeof(ObjectHeaderContinuationMessage), /* FIXME(flags) */0);
-            file->io.WriteComplex(cont);
+            serde::Write(file->io, cont);
 
             // write cont msg
             written_ct += 1;
@@ -247,13 +140,13 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
                 uint16_t total_nil_size = space_cont->size - cont_size;
 
                 if (total_nil_size < kPrefixSize) {
-                    throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+                    UNREACHABLE("FindFreeSpace didn't return enough size for a nil message header");
                 }
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
                 WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-                file->io.Write(NilMessage { .size = nil_size, });
+                serde::Write(file->io, NilMessage { .size = nil_size, });
 
                 // writing nil message
                 written_ct += 1;
@@ -270,13 +163,13 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
                 uint16_t total_nil_size = cont.length - msg_bytes.size();
 
                 if (total_nil_size < kPrefixSize) {
-                    throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+                    UNREACHABLE("FindFreeSpace didn't return enough size for a nil message header");
                 }
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
                 WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-                file->io.WriteComplex(NilMessage { .size = nil_size, });
+                serde::Write(file->io, NilMessage { .size = nil_size, });
 
                 // writing nil message
                 written_ct += 1;
@@ -285,14 +178,17 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             // overwriting this message
             written_ct -= 1;
 
-            std::optional<Space> space = FindSpace(cont_size, false);
+            cstd::optional<Space> space = FindSpace(cont_size, false);
 
-            if (!space.has_value()) {
-                throw std::logic_error("there should always be an object header message that can be moved");
-            }
+            ASSERT(space.has_value(), "there should always be an object header message that can be moved");
 
             // move the bytes into write buffer
-            std::vector<byte_t> moving(space->size);
+            ASSERT(
+                space->size <= kExtraMovingBufferSize,
+                "should have allocated enough space to move message"
+            );
+
+            cstd::inplace_vector<byte_t, kExtraMovingBufferSize> moving(space->size);
             file->io.SetPosition(space->offset);
             file->io.ReadBuffer(moving);
 
@@ -310,7 +206,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             // write object header
             file->io.SetPosition(space->offset);
             WriteHeader(file->io, ObjectHeaderContinuationMessage::kType, sizeof(ObjectHeaderContinuationMessage), /* FIXME(flags) */0);
-            file->io.WriteComplex(cont);
+            serde::Write(file->io, cont);
 
             // writing cont
             written_ct += 1;
@@ -319,13 +215,13 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
                 uint16_t total_nil_size = space->size - cont_size;
 
                 if (total_nil_size < kPrefixSize) {
-                    throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+                    UNREACHABLE("FindFreeSpace didn't return enough size for a nil message header");
                 }
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
                 WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-                file->io.WriteComplex(NilMessage { .size = nil_size, });
+                serde::Write(file->io, NilMessage { .size = nil_size, });
 
                 // writing nil
                 written_ct += 1;
@@ -342,13 +238,13 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
                 uint16_t total_nil_size = cont.length - msg_bytes.size();
 
                 if (total_nil_size < kPrefixSize) {
-                    throw std::runtime_error("FindFreeSpace didn't return enough size for a nil message header");
+                    UNREACHABLE("FindFreeSpace didn't return enough size for a nil message header");
                 }
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
                 WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-                file->io.WriteComplex(NilMessage { .size = nil_size, });
+                serde::Write(file->io, NilMessage { .size = nil_size, });
 
                 // writing nil
                 written_ct += 1;
@@ -357,111 +253,88 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     }
 
     JumpToRelativeOffset(2);
-    file->io.Write(written_ct);
+    serde::Write(file->io, written_ct);
 }
 
-std::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
+// semantically, this isn't const, so it's not being made const
+// ReSharper disable once CppMemberFunctionMayBeConst
+__device__ __host__
+cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     JumpToRelativeOffset(0);
 
-    file->io.Skip<2>();
+    serde::Skip(file->io, 2);
 
-    auto total_message_ct = file->io.Read<uint16_t>();
+    auto total_message_ct = serde::Read<uint16_t>(file->io);
 
-    file->io.Skip<4>();
+    serde::Skip(file->io, 4);
 
-    auto header_size = file->io.Read<uint32_t>();
+    auto header_size = serde::Read<uint32_t>(file->io);
 
     // reserved
-    file->io.Skip<4>();
+    serde::Skip(file->io, 4);
 
-    uint16_t messages_read = 0;
-
-    std::optional<Space> found = FindMessageRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, msg_type);
+    cstd::optional<Space> found = FindMessage(file->io, file->superblock.base_addr, total_message_ct, header_size, msg_type);
 
     if (!found.has_value()) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     file->io.SetPosition(found->offset);
-    auto msg = file->io.ReadComplex<ObjectHeaderMessage>();
+    auto msg_result = serde::Read<ObjectHeaderMessage>(file->io);
 
-    if (file->io.GetPosition() > found->offset + found->size) {
-        throw std::logic_error("Read too many bytes for message");
+
+    // TODO(refactor-exceptions): this method should return an expected
+    if (!msg_result) {
+        return cstd::nullopt;
     }
+
+    ASSERT(file->io.GetPosition() <= found->offset + found->size, "Read too many bytes for message");
 
     file->io.SetPosition(found->offset);
     uint16_t nil_size = found->size - kPrefixSize;
 
     WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-    file->io.WriteComplex(NilMessage { .size = nil_size, });
+    serde::Write(file->io, NilMessage { .size = nil_size, });
 
-    return msg;
+    return *msg_result;
 }
 
 // TODO: fix code duplication
-std::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
+__device__ __host__
+cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
     JumpToRelativeOffset(0);
 
-    file->io.Skip<2>();
+    serde::Skip(file->io, 2);
 
-    auto total_message_ct = file->io.Read<uint16_t>();
+    auto total_message_ct = serde::Read<uint16_t>(file->io);
 
-    file->io.Skip<4>();
 
-    auto header_size = file->io.Read<uint32_t>();
+    serde::Skip(file->io, 4);
+
+    auto header_size = serde::Read<uint32_t>(file->io);
 
     // reserved
-    file->io.Skip<4>();
+    serde::Skip(file->io, 4);
 
-    uint16_t messages_read = 0;
-
-    std::optional<Space> found = FindMessageRecursive(file->io, file->superblock.base_addr, messages_read, total_message_ct, header_size, msg_type);
+    cstd::optional<Space> found = FindMessage(file->io, file->superblock.base_addr, total_message_ct, header_size, msg_type);
 
     if (!found.has_value()) {
-        return std::nullopt;
+        return cstd::nullopt;
     }
 
     file->io.SetPosition(found->offset);
-    auto msg = file->io.ReadComplex<ObjectHeaderMessage>();
+    auto msg_result = serde::Read<ObjectHeaderMessage>(file->io);
 
-    if (file->io.GetPosition() > found->offset + found->size) {
-        throw std::logic_error("Read too many bytes for message");
+    if (!msg_result) {
+        return cstd::nullopt;
     }
 
-    return msg;
+    ASSERT(file->io.GetPosition() <= found->offset + found->size, "Read too many bytes for message");
+
+    return *msg_result;
 }
 
-inline len_t EmptyHeaderMessagesSize(len_t min_size) {
-    return EightBytesAlignedSize(std::max(
-        min_size,
-        sizeof(ObjectHeaderContinuationMessage) + kPrefixSize
-    ));
-}
-
-void Object::WriteEmpty(len_t min_size, Serializer& s) {
-    len_t aligned_size = EmptyHeaderMessagesSize(min_size);
-
-    s.Write(ObjectHeader::kVersionNumber);
-    // reserved
-    s.Write<uint8_t>(0);
-    // total num of messages (one nil message)
-    s.Write<uint16_t>(1);
-
-    // object ref count
-    s.Write<uint32_t>(0);
-    // header size
-    s.Write<uint32_t>(min_size);
-
-    // reserved
-    s.Write<uint32_t>(0);
-
-    // TODO: fix size overflow?
-    uint16_t nil_size = min_size - 8;
-
-    WriteHeader(s, NilMessage::kType, nil_size, 0);
-    s.WriteComplex(NilMessage { .size = nil_size });
-}
-
+__device__ __host__
 Object Object::AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file) {
     len_t alloc_size = EmptyHeaderMessagesSize(min_size) + 16;
 
@@ -471,9 +344,7 @@ Object Object::AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink
 
     len_t bytes_written = file->io.GetPosition() - alloc_start;
 
-    if (bytes_written != alloc_size) {
-        throw std::logic_error("AllocateEmptyAtEOF: size mismatch");
-    }
+    ASSERT(bytes_written == alloc_size, "AllocateEmptyAtEOF: size mismatch");
 
     return Object(file, alloc_start);
 }

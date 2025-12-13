@@ -1,6 +1,5 @@
 #pragma once
 
-#include <optional>
 
 #include "dataset.h"
 #include "local_heap.h"
@@ -8,46 +7,66 @@
 #include "tree.h"
 #include "file_link.h"
 #include "object.h"
+#include "gpu_string.h"
 
 class Group {
 public:
-    explicit Group(const Object& object);
+    __device__ __host__
+    static hdf5::expected<Group> New(const Object& object);
 
-    [[nodiscard]] Dataset OpenDataset(std::string_view dataset_name) const;
+    __device__ __host__
+    [[nodiscard]] hdf5::expected<Dataset> OpenDataset(hdf5::string_view dataset_name) const;
 
-    Dataset CreateDataset(
-        std::string_view dataset_name,
-        const std::vector<len_t>& dimension_sizes,
+    __device__ __host__
+    hdf5::expected<Dataset> CreateDataset(
+        hdf5::string_view dataset_name,
+        const hdf5::dim_vector<len_t>& dimension_sizes,
         const DatatypeMessage& type,
-        std::optional<std::vector<uint32_t>> chunk_dims = std::nullopt,
-        std::optional<std::vector<byte_t>> fill_value = std::nullopt
+        cstd::optional<hdf5::dim_vector<uint32_t>> chunk_dims = cstd::nullopt,
+        cstd::optional<cstd::inplace_vector<byte_t, FillValueMessage::kMaxFillValueSizeBytes>> fill_value = cstd::nullopt
     );
 
-    [[nodiscard]] Group OpenGroup(std::string_view group_name) const;
+    __device__ __host__
+    [[nodiscard]] hdf5::expected<Group> OpenGroup(hdf5::string_view group_name) const;
 
-    Group CreateGroup(std::string_view name);
+    __device__ __host__
+    hdf5::expected<Group> CreateGroup(hdf5::string_view name);
 
-    [[nodiscard]] std::optional<Object> Get(std::string_view name) const;
+    __device__ __host__
+    [[nodiscard]] hdf5::expected<cstd::optional<Object>> Get(hdf5::string_view name) const;
 
 private:
-    Group() = default;
+    __device__ __host__
+    hdf5::expected<void> Insert(hdf5::string_view name, offset_t object_header_ptr);
 
-    void Insert(std::string_view name, offset_t object_header_ptr);
+    __device__ __host__
+    hdf5::expected<void> WriteEntryToNewNode(SymbolTableEntry entry);
 
     // FIXME: get rid of this method
+    __device__ __host__
     [[nodiscard]] const LocalHeap& GetLocalHeap() const {
         return table_.heap_;
     }
 
     // FIXME: get rid of this method
+    __device__ __host__
     LocalHeap& GetLocalHeap() {
         return table_.heap_;
     }
 
     // FIXME: get rid of this method
-    [[nodiscard]] SymbolTableNode GetSymbolTableNode() const;
+    __device__ __host__
+    [[nodiscard]] hdf5::expected<SymbolTableNode> GetSymbolTableNode() const;
 
+    __device__ __host__
     void UpdateBTreePointer();
+
+    __device__ __host__
+    Group() = default;
+
+    __device__ __host__
+    Group(Object object, GroupBTree table)
+        : object_(std::move(object)), table_(std::move(table)) {}
 
 private:
 public:

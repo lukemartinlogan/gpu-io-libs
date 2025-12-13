@@ -5,112 +5,120 @@
 #include "serialization.h"
 #include "../hdf5/types.h"
 
-class StdioWriter : public Serializer {
+class StdioWriter {
 public:
-    explicit StdioWriter(const std::filesystem::path& path)
-        : path_(path), file_(nullptr, &std::fclose)
-    {
+    static hdf5::expected<StdioWriter> Open(const std::filesystem::path& path) {
         FILE* raw = std::fopen(path.string().c_str(), "wb"); // NOLINT
 
         if (!raw) {
-            throw std::runtime_error("failed to open file");
+            return hdf5::error(hdf5::HDF5ErrorCode::FileOpenFailed, "failed to open file for writing");
         }
 
-        file_.reset(raw);
+        return StdioWriter(path, raw);
     }
 
-    bool WriteBuffer(std::span<const byte_t> data) final {
+    void WriteBuffer(cstd::span<const byte_t> data) {
         size_t bytes_written = std::fwrite(data.data(), 1, data.size(), file_.get());
-        return bytes_written == data.size();
+
+        ASSERT(bytes_written == data.size(), "failed to write all bytes to file");
     }
 
 private:
+    StdioWriter(const std::filesystem::path& path, FILE* file)
+        : path_(path), file_(file, &std::fclose)
+    {}
+
     std::filesystem::path path_;
     std::unique_ptr<FILE, std::function<int(FILE*)>> file_;
 };
 
-class StdioReader : public Deserializer {
+static_assert(serde::Serializer<StdioWriter>);
+
+class StdioReader {
 public:
-    explicit StdioReader(const std::filesystem::path& path)
-        : path_(path), file_(nullptr, &std::fclose)
-    {
+    static hdf5::expected<StdioReader> Open(const std::filesystem::path& path) {
         FILE* raw = std::fopen(path.string().c_str(), "rb"); // NOLINT
 
         if (!raw) {
-            throw std::runtime_error("failed to open file");
+            return hdf5::error(hdf5::HDF5ErrorCode::FileOpenFailed, "failed to open file for reading");
         }
 
-        file_.reset(raw);
+        return StdioReader(path, raw);
     }
 
-    bool ReadBuffer(std::span<byte_t> out) final {
+    void ReadBuffer(cstd::span<byte_t> out) {
         size_t bytes_read = std::fread(out.data(), 1, out.size(), file_.get());
-        return bytes_read == out.size();
+
+        ASSERT(bytes_read == out.size(), "failed to read all bytes from file");
     }
 
-    [[nodiscard]] offset_t GetPosition() final {
+    [[nodiscard]] offset_t GetPosition() const {
         const long pos = std::ftell(file_.get());
 
-        if (pos < 0) {
-            throw std::runtime_error("failed to get position");
-        }
+        ASSERT(pos >= 0, "failed to get position");
 
         return static_cast<offset_t>(pos);
     }
 
-    void SetPosition(offset_t offset) final {
-        if (std::fseek(file_.get(), static_cast<long>(offset), SEEK_SET) != 0) {
-            throw std::runtime_error("Seek failed");
-        }
+    void SetPosition(offset_t offset) {
+        ASSERT(std::fseek(file_.get(), static_cast<long>(offset), SEEK_SET) == 0, "seek failed");
     }
 
 private:
+    StdioReader(const std::filesystem::path& path, FILE* file)
+        : path_(path), file_(file, &std::fclose)
+    {}
+
     std::filesystem::path path_;
     std::unique_ptr<FILE, std::function<int(FILE*)>> file_;
 };
 
+static_assert(serde::Deserializer<StdioReader>);
+
 // TODO: is there a way to do this without code duplication
-class StdioReaderWriter : public ReaderWriter {
+class StdioReaderWriter {
 public:
-    explicit StdioReaderWriter(const std::filesystem::path& path)
-    : path_(path), file_(nullptr, &std::fclose)
-    {
+    static hdf5::expected<StdioReaderWriter> Open(const std::filesystem::path& path) {
         FILE* raw = std::fopen(path.string().c_str(), "r+b"); // NOLINT
 
         if (!raw) {
-            throw std::runtime_error("failed to open file");
+            return hdf5::error(hdf5::HDF5ErrorCode::FileOpenFailed, "failed to open file for reading/writing");
         }
 
-        file_.reset(raw);
+        return StdioReaderWriter(path, raw);
     }
 
-    bool WriteBuffer(std::span<const byte_t> data) final {
+    void WriteBuffer(cstd::span<const byte_t> data) const {
         size_t bytes_written = std::fwrite(data.data(), 1, data.size(), file_.get());
-        return bytes_written == data.size();
+
+        ASSERT(bytes_written == data.size(), "failed to write all bytes to file");
     }
 
-    bool ReadBuffer(std::span<byte_t> out) final {
+    void ReadBuffer(cstd::span<byte_t> out) const {
         size_t bytes_read = std::fread(out.data(), 1, out.size(), file_.get());
-        return bytes_read == out.size();
+
+        ASSERT(bytes_read == out.size(), "failed to read all bytes from file");
     }
 
-    [[nodiscard]] offset_t GetPosition() final {
+    [[nodiscard]] offset_t GetPosition() const {
         const long pos = std::ftell(file_.get());
 
-        if (pos < 0) {
-            throw std::runtime_error("failed to get position");
-        }
+        ASSERT(pos >= 0, "failed to get position");
 
         return static_cast<offset_t>(pos);
     }
 
-    void SetPosition(offset_t offset) final {
-        if (std::fseek(file_.get(), static_cast<long>(offset), SEEK_SET) != 0) {
-            throw std::runtime_error("Seek failed");
-        }
+    void SetPosition(offset_t offset) const {
+        ASSERT(std::fseek(file_.get(), static_cast<long>(offset), SEEK_SET) == 0, "seek failed");
     }
 
 private:
+    StdioReaderWriter(const std::filesystem::path& path, FILE* file)
+        : path_(path), file_(file, &std::fclose)
+    {}
+
     std::filesystem::path path_;
     std::unique_ptr<FILE, std::function<int(FILE*)>> file_;
 };
+
+static_assert(serde::Serializer<StdioReaderWriter> && serde::Deserializer<StdioReaderWriter>);

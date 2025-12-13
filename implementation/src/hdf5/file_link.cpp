@@ -1,5 +1,6 @@
 #include "file_link.h"
 
+__device__ __host__
 offset_t FileLink::AllocateAtEOF(len_t size_bytes) {
     offset_t addr = superblock.eof_addr;
     superblock.eof_addr += size_bytes;
@@ -8,7 +9,7 @@ offset_t FileLink::AllocateAtEOF(len_t size_bytes) {
     // io.SetPosition(superblock.base_addr);
     // io.WriteComplex(superblock);
     io.SetPosition(superblock.base_addr + 40);
-    io.Write(superblock.eof_addr);
+    serde::Write(io, superblock.eof_addr);
 
     io.SetPosition(addr);
 
