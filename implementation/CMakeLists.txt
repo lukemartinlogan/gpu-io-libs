@@ -41,9 +41,15 @@ if(CMAKE_CUDA_COMPILER)
     target_compile_definitions(hdf5_implementation PRIVATE
         CUDA_ENABLED=1
         LIBCUDACXX_AVAILABLE=1
+        _CCCL_HAS_SORTING_ALGORITHMS=1
     )
-    target_include_directories(hdf5_implementation PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
-    message(STATUS "Building with CUDA and libcu++ support")
+    target_include_directories(hdf5_implementation PRIVATE
+        ${CMAKE_SOURCE_DIR}/../external/cccl/libcudacxx/include
+        ${CMAKE_SOURCE_DIR}/../external/cccl/thrust
+        ${CMAKE_SOURCE_DIR}/../external/cccl/cub
+        ${CUDAToolkit_INCLUDE_DIRS}
+    )
+    message(STATUS "Building with CUDA and libcu++ support (using external CCCL)")
 else()
     message(STATUS "Building CPU-only version")
 endif()
