@@ -8,8 +8,10 @@
 class Object {
 public:
     // FIXME: get rid of this ctor
+    __device__ __host__
     Object() = default;
 
+    __device__ __host__
     static hdf5::expected<Object> New(const std::shared_ptr<FileLink>& file, offset_t pos_) {
         file->io.SetPosition(pos_);
 
@@ -21,22 +23,27 @@ public:
         return Object(file, pos_);
     }
 
+    __device__ __host__
     [[nodiscard]] hdf5::expected<ObjectHeader> GetHeader() const {
         JumpToRelativeOffset(0);
 
         return serde::Read<ObjectHeader>(file->io);
     }
 
+    __device__ __host__
     [[nodiscard]] offset_t GetAddress() const {
         return file_pos_;
     }
 
     // TODO: should this mutate an internally held object as well?
     // TODO: add a 'dirty' field to header messages
+    __device__ __host__
     void WriteMessage(const HeaderMessageVariant& msg) const;
 
+    __device__ __host__
     cstd::optional<ObjectHeaderMessage> DeleteMessage(uint16_t msg_type);
 
+    __device__ __host__
     template<typename T>
     cstd::optional<T> DeleteMessage() {
         cstd::optional<ObjectHeaderMessage> msg = DeleteMessage(T::kType);
@@ -48,8 +55,10 @@ public:
         }
     }
 
+    __device__ __host__
     cstd::optional<ObjectHeaderMessage> GetMessage(uint16_t msg_type);
 
+    __device__ __host__
     template<typename T>
     cstd::optional<T> GetMessage() {
         cstd::optional<ObjectHeaderMessage> msg = GetMessage(T::kType);
@@ -61,6 +70,7 @@ public:
         }
     }
 
+    __device__ __host__
     template<serde::Serializer S>
     static void WriteEmpty(len_t min_size, S& s) {
         // TODO: this probably shouldn't be unused!
@@ -88,6 +98,7 @@ public:
         serde::Write(s, NilMessage { .size = nil_size });
     }
 
+    __device__ __host__
     static Object AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file);
 
 public:
@@ -99,9 +110,11 @@ private:
         len_t size;
     };
 
+    __device__ __host__
     [[nodiscard]] cstd::optional<Space> FindSpace(size_t size, bool must_be_nil) const;
 
     // TODO: take predicate visitor?
+    __device__ __host__
     template<serde::Deserializer D>
     [[nodiscard]] static cstd::optional<Space> FindMessage(
         D& de,
@@ -168,6 +181,7 @@ private:
         return cstd::nullopt;
     }
 
+    __device__ __host__
     template<serde::Deserializer D>
     [[nodiscard]] static cstd::optional<Object::Space> FindSpace(
         D& de,
@@ -242,10 +256,12 @@ private:
         return smallest_found;
     }
 
+    __device__ __host__
     void JumpToRelativeOffset(offset_t offset) const {
         file->io.SetPosition(file_pos_ + offset);
     }
 
+    __device__ __host__
     explicit Object(const std::shared_ptr<FileLink>& file, offset_t pos_)
         : file(file), file_pos_(pos_) {}
 

@@ -16,6 +16,7 @@ struct LocalHeap {
 
     // TODO(cuda_vector): many calls of this function don't need ownership; 'LocalHeap::ViewString'?
     template<serde::Deserializer D>
+    __device__ __host__
     [[nodiscard]] hdf5::expected<hdf5::string> ReadString(offset_t offset, D& de) const {
         if (offset >= data_segment_size) {
             return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "LocalHeap: offset out of bounds");
@@ -33,12 +34,14 @@ struct LocalHeap {
     static cstd::tuple<LocalHeap, offset_t> AllocateNew(FileLink& file, len_t min_size);
 
     template<serde::Serializer S> requires serde::Seekable<S>
+    __device__ __host__
     void RewriteToFile(S& s) const {
         s.SetPosition(this_offset);
         serde::Write(s, *this);
     }
 
     template<serde::Serializer S>
+    __device__ __host__
     void Serialize(S& s) const {
         serde::Write(s, kSignature);
         serde::Write(s, kVersionNumber);
@@ -52,6 +55,7 @@ struct LocalHeap {
     }
 
     template<serde::Deserializer D>
+    __device__ __host__
     static hdf5::expected<LocalHeap> Deserialize(D& de) {
         offset_t this_offset = de.GetPosition();
 
@@ -92,6 +96,7 @@ private:
     };
 
     template<serde::Deserializer D>
+    __device__ __host__
     hdf5::expected<cstd::optional<SuitableFreeSpace>> FindFreeSpace(len_t required_size, D& de) const {
         static_assert(sizeof(FreeListBlock) == 2 * sizeof(len_t), "mismatch between spec");
 

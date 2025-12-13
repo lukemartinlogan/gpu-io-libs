@@ -6,32 +6,38 @@
 namespace serde {
     // (quirk with C++ concepts)
     struct NullSerializer {
+        __device__ __host__
         NullSerializer() = delete;
 
         // ReSharper disable once CppMemberFunctionMayBeStatic
         // NOLINTNEXTLINE(*-convert-member-functions-to-static)
+        __device__ __host__
         void WriteBuffer(cstd::span<const byte_t>) {
             ASSERT(false, "NullSerializer shouldn't be called");
         }
     };
 
     struct NullDeserializer {
+        __device__ __host__
         NullDeserializer() = delete;
 
         // ReSharper disable once CppMemberFunctionMayBeStatic
         // NOLINTNEXTLINE(*-convert-member-functions-to-static)
+        __device__ __host__
         void ReadBuffer(cstd::span<byte_t>) {
             ASSERT(false, "NullDeserializer shouldn't be called");
         }
 
         // ReSharper disable once CppMemberFunctionMayBeStatic
         // NOLINTNEXTLINE(*-convert-member-functions-to-static)
+        __device__ __host__
         offset_t GetPosition() {
             ASSERT(false, "NullDeserializer shouldn't be called");
             return 0;
         }
         // ReSharper disable once CppMemberFunctionMayBeStatic
         // NOLINTNEXTLINE(*-convert-member-functions-to-static)
+        __device__ __host__
         void SetPosition(offset_t) {
             ASSERT(false, "NullDeserializer shouldn't be called");
         }
@@ -66,11 +72,13 @@ namespace serde {
     // -- SERIALIZE FUNCTIONS --
 
     template<TriviallySerializable T, Serializer S>
+    __device__ __host__
     void Write(S&& s, const T& data) {
         s.WriteBuffer(cstd::as_bytes(cstd::span(&data, 1)));
     }
 
     template<NonTriviallySerializable T, Serializer S>
+    __device__ __host__
     void Write(S&& s, const T& data) {
         data.Serialize(s);
     }
@@ -78,6 +86,7 @@ namespace serde {
     // -- DESERIALIZE FUNCTIONS --
 
     template<TriviallySerializable T, Deserializer D>
+    __device__ __host__
     T Read(D&& d) {
         T out;
         d.ReadBuffer(cstd::as_writable_bytes(cstd::span(&out, 1)));
@@ -85,6 +94,7 @@ namespace serde {
     }
 
     template<NonTriviallySerializable T, Deserializer D>
+    __device__ __host__
     auto Read(D&& d) {
         return T::Deserialize(d);
     }
@@ -92,12 +102,14 @@ namespace serde {
     // -- SEEKABLE FUNCTIONS --
 
     template<Seekable S>
+    __device__ __host__
     void Skip(S&& s, offset_t count) {
         offset_t start = s.GetPosition();
         s.SetPosition(start + count);
     }
 
     template<typename T, Seekable S>
+    __device__ __host__
     void Skip(S&& s) {
         Skip(s, sizeof(T));
     }

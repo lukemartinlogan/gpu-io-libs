@@ -10,9 +10,11 @@
 
 class Dataset {
 public:
+    __device__ __host__
     static hdf5::expected<Dataset> New(const Object& object);
 
     // TODO: multidimensional coords
+    __device__ __host__
     template <typename T>
     hdf5::expected<T> Get(size_t index) const {
         if (index >= space_.TotalElements()) {
@@ -37,9 +39,11 @@ public:
     }
 
     // FIXME: implement datatype
+    __device__ __host__
     hdf5::expected<void> Read(cstd::span<byte_t> buffer, size_t start_index, size_t count) const;
 
     // FIXME: impl datatype instead
+    __host__
     template<typename T>
     hdf5::expected<std::vector<T>> Read(size_t start_index, size_t count) const {
         std::vector<T> out(count);
@@ -60,6 +64,7 @@ public:
         return out;
     }
 
+    __device__ __host__
     hdf5::expected<void> ReadHyperslab(
         cstd::span<byte_t> buffer,
         const hdf5::dim_vector<uint64_t>& start,
@@ -68,6 +73,7 @@ public:
         const hdf5::dim_vector<uint64_t>& block = {}
     ) const;
 
+    __host__
     template<typename T>
     hdf5::expected<std::vector<T>> ReadHyperslab(
         const hdf5::dim_vector<uint64_t>& start,
@@ -97,8 +103,10 @@ public:
         return result;
     }
 
+    __device__ __host__
     hdf5::expected<void> Write(cstd::span<const byte_t> data, size_t start_index) const;
 
+    __device__ __host__
     template<typename T>
     hdf5::expected<void> Write(cstd::span<const T> data, size_t start_index) const {
         return Write(
@@ -110,6 +118,7 @@ public:
         );
     }
 
+    __device__ __host__
     hdf5::expected<void> WriteHyperslab(
         cstd::span<const byte_t> data,
         const hdf5::dim_vector<uint64_t>& start,
@@ -118,6 +127,7 @@ public:
         const hdf5::dim_vector<uint64_t>& block = {}
     ) const;
 
+    __device__ __host__
     template<typename T>
     hdf5::expected<void> WriteHyperslab(
         cstd::span<const T> data,
@@ -138,8 +148,10 @@ public:
         );
     }
 
+    __device__ __host__
     [[nodiscard]] hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> RawOffsets() const;
 
+    __device__ __host__
     [[nodiscard]] hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> GetHyperslabChunkRawOffsets(
         const hdf5::dim_vector<uint64_t>& start,
         const hdf5::dim_vector<uint64_t>& count,
@@ -148,9 +160,11 @@ public:
     ) const;
 
 private:
+    __device__ __host__
     Dataset(Object object, DataLayoutMessage layout, DatatypeMessage type, const DataspaceMessage& space)
         : object_(std::move(object)), layout_(std::move(layout)), type_(std::move(type)), space_(space) {}
 
+    __device__ __host__
     static size_t TotalElements(const hdf5::dim_vector<uint64_t>& count, const hdf5::dim_vector<uint64_t>& block) {
         size_t total_elements = 1;
         for (size_t i = 0; i < count.size(); ++i) {

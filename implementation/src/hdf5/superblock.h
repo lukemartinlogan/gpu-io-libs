@@ -9,14 +9,17 @@
 inline constexpr cstd::array<uint8_t, 8> kSuperblockSignature = { 0x89, 'H', 'D', 'F', '\r', '\n', 0x1a, '\n' };
 
 struct FileConsistencyFlags {
+    __device__ __host__
     [[nodiscard]] bool WriteAccess() const {
         return Get(0);
     }
 
+    __device__ __host__
     [[nodiscard]] bool SWMR() const {
         return Get(2);
     }
 private:
+    __device__ __host__
     [[nodiscard]] bool Get(uint8_t bit) const {
         return bitmap & 1u << bit;
     }
@@ -54,6 +57,7 @@ struct SuperblockV0 {
     SymbolTableEntry root_group_symbol_table_entry_addr;
 
     template<serde::Serializer S>
+    __device__ __host__
     void Serialize(S& s) const {
         serde::Write(s, kSuperblockSignature);
         serde::Write(s, kVersionNumber);
@@ -82,6 +86,7 @@ struct SuperblockV0 {
     }
 
     template<serde::Deserializer D>
+    __device__ __host__
     static hdf5::expected<SuperblockV0> Deserialize(D& de) {
         if (serde::Read<cstd::array<uint8_t, 8>>(de) != kSuperblockSignature) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "Superblock signature was invalid");
@@ -151,6 +156,7 @@ struct SuperblockV2 {
     offset_t root_group_header_addr = kUndefinedOffset;
 
     template<serde::Serializer S>
+    __device__ __host__
     void Serialize(S& s) const {
         const uint32_t checksum = Checksum();
 
@@ -167,6 +173,7 @@ struct SuperblockV2 {
     }
 
     template<serde::Deserializer D>
+    __device__ __host__
     static hdf5::expected<SuperblockV2> Deserialize(D& de) {
         if (serde::Read<cstd::array<uint8_t, 8>>(de) != kSuperblockSignature) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "Superblock signature was invalid");

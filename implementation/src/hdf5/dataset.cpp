@@ -3,6 +3,7 @@
 #include <unordered_set>
 #include <numeric>
 
+__device__ __host__
 hdf5::expected<Dataset> Dataset::New(const Object& object) {
     auto header_result = object.GetHeader();
     if (!header_result) return cstd::unexpected(header_result.error());
@@ -34,6 +35,7 @@ hdf5::expected<Dataset> Dataset::New(const Object& object) {
     return Dataset(object, layout, type, space);
 }
 
+__device__ __host__
 hdf5::expected<void> Dataset::Read(cstd::span<byte_t> buffer, size_t start_index, size_t count) const {
     if (start_index + count > space_.TotalElements()) {
         return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "Index range out of bounds for dataset");
@@ -81,6 +83,7 @@ hdf5::expected<void> Dataset::Read(cstd::span<byte_t> buffer, size_t start_index
     return {};
 }
 
+__device__ __host__
 hdf5::expected<void> Dataset::Write(cstd::span<const byte_t> data, size_t start_index) const {
     if (data.size() % type_.Size() != 0) {
         return hdf5::error(hdf5::HDF5ErrorCode::BufferNotAligned, "Buffer size must be a multiple of the datatype size");
@@ -126,6 +129,7 @@ hdf5::expected<void> Dataset::Write(cstd::span<const byte_t> data, size_t start_
     return {};
 }
 
+__device__ __host__
 hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Dataset::RawOffsets() const {
     auto props = layout_.properties;
 
@@ -161,6 +165,7 @@ hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>>
     }
 }
 
+__device__ __host__
 template<typename Visitor>
 hdf5::expected<void> ProcessChunkedHyperslab(
     const ChunkedStorageProperty* chunked,
@@ -228,6 +233,7 @@ hdf5::expected<void> ProcessChunkedHyperslab(
     return {};
 }
 
+__device__ __host__
 hdf5::expected<void> Dataset::ReadHyperslab(
     cstd::span<byte_t> buffer,
     const hdf5::dim_vector<uint64_t>& start,
@@ -340,6 +346,7 @@ hdf5::expected<void> Dataset::ReadHyperslab(
     return {};
 }
 
+__device__ __host__
 hdf5::expected<void> Dataset::WriteHyperslab(
     cstd::span<const byte_t> data,
     const hdf5::dim_vector<uint64_t>& start,
@@ -432,6 +439,7 @@ hdf5::expected<void> Dataset::WriteHyperslab(
     return {};
 }
 
+__device__ __host__
 hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Dataset::GetHyperslabChunkRawOffsets(
     const hdf5::dim_vector<uint64_t>& start,
     const hdf5::dim_vector<uint64_t>& count,

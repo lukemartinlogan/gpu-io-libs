@@ -1,5 +1,6 @@
 #include "file.h"
 
+__device__ __host__
 hdf5::expected<File> File::New(const std::filesystem::path& path) {
     std::shared_ptr<FileLink> file_link;
 

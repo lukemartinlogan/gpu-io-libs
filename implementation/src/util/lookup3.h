@@ -11,19 +11,23 @@ extern "C" {
 
 namespace lookup3 {
 
+    __device__ __host__
     inline uint32_t HashWord(cstd::span<const uint32_t> key, uint32_t init_val = 0) {
         return hashword(key.data(), key.size(), init_val);
     }
 
+    __device__ __host__
     inline uint32_t HashLittle(cstd::span<const byte_t> data, uint32_t init_val = 0) {
         return hashlittle(data.data(), data.size(), init_val);
     }
 
+    __device__ __host__
     inline cstd::tuple<uint32_t, uint32_t> HashLittle2(cstd::span<const byte_t> data, uint32_t init_val1 = 0, uint32_t init_val2 = 0) {
         hashlittle2(data.data(), data.size(), &init_val1, &init_val2);
         return { init_val1, init_val2 };
     }
 
+    __device__ __host__
     inline uint32_t HashBig(cstd::span<const byte_t> data, uint32_t init_val = 0) {
         return hashbig(data.data(), data.size(), init_val);
     }

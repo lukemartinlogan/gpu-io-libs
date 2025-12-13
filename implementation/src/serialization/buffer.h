@@ -8,6 +8,7 @@ public:
     explicit BufferDeserializer(cstd::span<const byte_t> buf) // NOLINT
         : buf(buf), cursor(0) {}
 
+    __device__ __host__
     void ReadBuffer(cstd::span<byte_t> out) {
         ASSERT(
             out.size() <= buf.size() - cursor,
@@ -23,14 +24,17 @@ public:
         cursor += out.size();
     }
 
+    __device__ __host__
     [[nodiscard]] offset_t GetPosition() const {
         return cursor;
     };
 
+    __device__ __host__
     void SetPosition(offset_t offset) {
         cursor = offset;
     }
 
+    __device__ __host__
     [[nodiscard]] bool IsExhausted() const {
         return cursor == buf.size();
     }
@@ -46,6 +50,7 @@ public:
     explicit BufferReaderWriter(cstd::span<byte_t> buf) // NOLINT
         : buf(buf), cursor(0) {}
 
+    __device__ __host__
     void WriteBuffer(cstd::span<const byte_t> data) {
         ASSERT(
             data.size() <= buf.size() - cursor,
@@ -57,6 +62,7 @@ public:
         cursor += data.size();
     }
 
+    __device__ __host__
     void ReadBuffer(cstd::span<byte_t> out) {
         ASSERT(
             out.size() <= buf.size() - cursor,
@@ -68,23 +74,28 @@ public:
         cursor += out.size();
     }
 
+    __device__ __host__
     [[nodiscard]] offset_t GetPosition() const {
         return cursor;
     }
 
+    __device__ __host__
     void SetPosition(offset_t offset) {
         ASSERT(offset <= buf.size(), "BufferReaderWriter: SetPosition out of bounds");
         cursor = offset;
     }
 
+    __device__ __host__
     cstd::span<byte_t> GetWritten() const {
         return buf.subspan(0, cursor);
     }
 
+    __device__ __host__
     [[nodiscard]] bool IsExhausted() const {
         return cursor == buf.size();
     }
 
+    __device__ __host__
     [[nodiscard]] size_t remaining() const {
         return buf.size() - cursor;
     }

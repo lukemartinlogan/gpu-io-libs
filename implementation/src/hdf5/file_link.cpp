@@ -1,5 +1,6 @@
 #include "file_link.h"
 
+__device__ __host__
 offset_t FileLink::AllocateAtEOF(len_t size_bytes) {
     offset_t addr = superblock.eof_addr;
     superblock.eof_addr += size_bytes;
