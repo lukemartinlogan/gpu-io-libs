@@ -12,6 +12,7 @@ enum class IoType : uint8_t {
   kShutdown
 };
 
+// TODO: surely this can be represented with a variant?
 struct IoMessage {
   IoType type_;
 
