@@ -124,8 +124,8 @@ hdf5::expected<uint64_t> HyperslabIterator::GetTotalElements() const {
 void HyperslabIterator::Reset() {
     at_end_ = false;
 
-    std::ranges::fill(block_index_, 0);
-    std::ranges::fill(count_index_, 0);
+    cstd::fill(block_index_.begin(), block_index_.end(), 0);
+    cstd::fill(count_index_.begin(), count_index_.end(), 0);
 
     current_coord_ = start_;
 }

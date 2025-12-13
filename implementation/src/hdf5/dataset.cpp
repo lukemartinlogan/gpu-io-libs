@@ -62,11 +62,7 @@ hdf5::expected<void> Dataset::Read(cstd::span<byte_t> buffer, size_t start_index
             return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "Index range out of bounds for compact storage dataset");
         }
 
-        std::copy_n(
-            start,
-            total_bytes,
-            buffer.data()
-        );
+        cstd::_copy(start, start + total_bytes, buffer.data());
 
     } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
         if ((start_index + count) * element_size > contiguous->size) {
@@ -111,11 +107,7 @@ hdf5::expected<void> Dataset::Write(cstd::span<const byte_t> data, size_t start_
             return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "Index range out of bounds for compact storage dataset");
         }
 
-        std::copy_n(
-            data.begin(),
-            data.size(),
-            start
-        );
+        cstd::_copy(data.begin(), data.end(), start);
 
     } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
         if ((start_index + count) * element_size > contiguous->size) {
@@ -249,10 +241,11 @@ hdf5::expected<void> Dataset::ReadHyperslab(
 
     hdf5::dim_vector<uint64_t> dataset_dims(space_.dimensions.size());
 
-    std::ranges::transform(
-        space_.dimensions,
-       dataset_dims.begin(),
-       [](const auto& dim_info) { return dim_info.size; }
+    cstd::transform(
+        space_.dimensions.begin(),
+        space_.dimensions.end(),
+        dataset_dims.begin(),
+        [](const auto& dim_info) { return dim_info.size; }
     );
 
     auto iterator_result = HyperslabIterator::New(start, count, stride, block, dataset_dims);
@@ -295,9 +288,9 @@ hdf5::expected<void> Dataset::ReadHyperslab(
                 return hdf5::error(hdf5::HDF5ErrorCode::SelectionOutOfBounds, "Hyperslab selection exceeds compact storage bounds");
             }
 
-            std::copy_n(
-                compact->raw_data.begin() + static_cast<ptrdiff_t>(data_offset),
-                element_size,
+            cstd::_copy(
+                compact->raw_data.begin() + data_offset,
+                compact->raw_data.begin() + data_offset + element_size,
                 buffer.data() + buffer_offset
             );
 
@@ -330,7 +323,7 @@ hdf5::expected<void> Dataset::ReadHyperslab(
             [&](const cstd::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) -> hdf5::expected<void> {
                 if (!element_file_offset.has_value()) {
                     // chunk doesn't exist (sparse dataset)
-                    std::fill_n(buffer.data() + buffer_offset, element_size, byte_t{0});
+                    cstd::fill_n(buffer.data() + buffer_offset, element_size, byte_t{0});
                 } else {
                     object_.file->io.SetPosition(*element_file_offset);
                     object_.file->io.ReadBuffer(cstd::span(buffer.data() + buffer_offset, element_size));
@@ -360,10 +353,11 @@ hdf5::expected<void> Dataset::WriteHyperslab(
 
     hdf5::dim_vector<uint64_t> dataset_dims(space_.dimensions.size());
 
-    std::ranges::transform(
-        space_.dimensions,
-       dataset_dims.begin(),
-       [](const auto& dim_info) { return dim_info.size; }
+    cstd::transform(
+        space_.dimensions.begin(),
+        space_.dimensions.end(),
+        dataset_dims.begin(),
+        [](const auto& dim_info) { return dim_info.size; }
     );
 
     auto iterator_result = HyperslabIterator::New(start, count, stride, block, dataset_dims);
@@ -491,7 +485,7 @@ hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>>
             uint64_t end_chunk = (block_end / chunk_size) * chunk_size;
             
             for (uint64_t chunk_coord = start_chunk; chunk_coord <= end_chunk; chunk_coord += chunk_size) {
-                if (std::ranges::find(unique_chunks, chunk_coord) == unique_chunks.end()) {
+                if (cstd::find(unique_chunks.begin(), unique_chunks.end(), chunk_coord) == unique_chunks.end()) {
                     if (unique_chunks.size() >= kMaxChunksPerDim) {
                         return hdf5::error(
                             hdf5::HDF5ErrorCode::CapacityExceeded,
@@ -509,7 +503,7 @@ hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>>
         }
 
         // sort for consistent ordering
-        std::ranges::sort(unique_chunks);
+        cstd::sort(unique_chunks.begin(), unique_chunks.end());
 
         chunks_per_dim[dim] = unique_chunks;
     }

@@ -14,7 +14,11 @@ public:
             "BufferDeserializer: not enough data in buffer"
         );
 
-        std::copy_n(buf.begin() + static_cast<std::ptrdiff_t>(cursor), out.size(), out.begin());
+        cstd::_copy(
+            buf.begin() + static_cast<std::ptrdiff_t>(cursor),
+            buf.begin() + static_cast<std::ptrdiff_t>(cursor) + static_cast<std::ptrdiff_t>(out.size()),
+            out.begin()
+        );
 
         cursor += out.size();
     }
@@ -48,7 +52,7 @@ public:
             "BufferReaderWriter: not enough space in buffer for write"
         );
 
-        std::ranges::copy(data, buf.data() + cursor);
+        cstd::_copy(data.begin(), data.end(), buf.data() + cursor);
 
         cursor += data.size();
     }
@@ -59,7 +63,7 @@ public:
             "BufferReaderWriter: not enough data in buffer for read"
         );
 
-        std::copy_n(buf.begin() + static_cast<std::ptrdiff_t>(cursor), out.size(), out.begin());
+        cstd::_copy(buf.begin() + cursor, buf.begin() + cursor + out.size(), out.begin());
 
         cursor += out.size();
     }

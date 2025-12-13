@@ -972,7 +972,7 @@ struct DriverInfoMessage {
 
         // check that driver_id has len kDriverIdSize and is all ascii
         ASSERT(
-            driver_id.size() == kDriverIdSize && std::ranges::all_of(driver_id, [](char c) { return c >= 0 && c <= 127; }),
+            driver_id.size() == kDriverIdSize && cstd::all_of(driver_id.begin(), driver_id.end(), [](char c) { return c >= 0 && c <= 127; }),
             "DriverInfoMessage: driver_id must be exactly eight ASCII characters"
         );
 

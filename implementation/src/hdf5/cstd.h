@@ -20,6 +20,18 @@
     #include <cuda/std/cstdint>
     #include <cuda/std/cstddef>
     #include <cuda/std/type_traits>
+    #include <cuda/std/algorithm>
+
+    // Workaround for MSVC + cuda::std::copy compatibility issue
+    namespace cuda::std {
+        template<typename InputIt, typename OutputIt>
+        constexpr OutputIt _copy(InputIt first, InputIt last, OutputIt d_first) {
+            while (first != last) {
+                *d_first++ = *first++;
+            }
+            return d_first;
+        }
+    }
 
     namespace cstd = cuda::std;
 
@@ -32,6 +44,7 @@
 #else
     #include <optional>
     #include <array>
+    #include <algorithm>
     #include <variant>
     #include <span>
     #include <utility>
@@ -45,6 +58,14 @@
     #include <cstdint>
     #include <cstddef>
     #include <type_traits>
+
+    // Alias for non-CUDA builds
+    namespace std {
+        template<typename InputIt, typename OutputIt>
+        constexpr OutputIt _copy(InputIt first, InputIt last, OutputIt d_first) {
+            return copy(first, last, d_first);
+        }
+    }
 
     namespace cstd = std;
 

@@ -8,8 +8,9 @@ hdf5::expected<Group> Group::New(const Object& object) {
     if (!header_result) return cstd::unexpected(header_result.error());
     ObjectHeader header = *header_result;
 
-    auto symb_tbl_msg = std::ranges::find_if(
-        header.messages,
+    auto symb_tbl_msg = cstd::find_if(
+        header.messages.begin(),
+        header.messages.end(),
         [](const auto& msg) {
             return cstd::holds_alternative<SymbolTableMessage>(msg.message);
         }

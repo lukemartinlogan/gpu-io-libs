@@ -56,7 +56,7 @@ hdf5::expected<hdf5::string> ReadPaddedString(D& de) {
 
         de.ReadBuffer(buf);
 
-        auto nul_pos = std::ranges::find(buf, static_cast<byte_t>('\0'));
+        auto nul_pos = cstd::find(buf.begin(), buf.end(), static_cast<byte_t>('\0'));
 
         auto append_result = name.append(hdf5::string_view(
             reinterpret_cast<const char*>(buf.data()),
