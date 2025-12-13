@@ -204,8 +204,8 @@ struct VariableLength {
     enum class Charset : uint8_t { kASCII = 0, kUTF8 = 1 } charset{};
 
     uint32_t size{};
-    // nullable
-    std::unique_ptr<DatatypeMessage> parent_type{};
+    // TODO(recursive-datatypes): currently, there's no great way to have recursive types on the GPU; another method for resolving datatypes might need to be implemented
+    // std::unique_ptr<DatatypeMessage> parent_type{};
 
     __device__ __host__
     VariableLength() = default;
@@ -235,10 +235,11 @@ struct VariableLength {
         // Write size
         serde::Write(s, size);
 
+        // TODO(recursive-datatypes)
         // If not a string, write the parent_type
-        if (type != Type::kString) {
-            serde::Write(s, *parent_type);
-        }
+        // if (type != Type::kString) {
+        //     serde::Write(s, *parent_type);
+        // }
     }
 
     template<serde::Deserializer D>
@@ -280,10 +281,16 @@ struct VariableLength {
 
         vl.size = serde::Read<uint32_t>(de);
 
+        // TODO(recursive-datatypes)
         if (vl.type != Type::kString) {
-            auto datatype_result = serde::Read<DatatypeMessage>(de);
-            if (!datatype_result) return cstd::unexpected(datatype_result.error());
-            vl.parent_type = std::make_unique<DatatypeMessage>(*datatype_result);
+            // auto datatype_result = serde::Read<DatatypeMessage>(de);
+            // if (!datatype_result) return cstd::unexpected(datatype_result.error());
+            // vl.parent_type = std::make_unique<DatatypeMessage>(*datatype_result);
+
+            return hdf5::error(
+                hdf5::HDF5ErrorCode::FeatureNotSupported,
+                "Recursive VariableLength types not yet supported on GPU"
+            );
         }
 
         return vl;
@@ -297,8 +304,9 @@ struct CompoundMember {
     uint32_t byte_offset{};
     // according to spec, only up to four dimensions are allowed
     cstd::inplace_vector<uint32_t, 4> dimension_sizes{};
+    // TODO(recursive-datatypes): currently, there's no great way to have recursive types on the GPU; another method for resolving datatypes might need to be implemented
     // TODO: finding a better way to introduce indirection here would be nice
-    std::unique_ptr<DatatypeMessage> message;
+    // std::unique_ptr<DatatypeMessage> message;
 
     __device__ __host__
     CompoundMember() = default;
@@ -425,7 +433,8 @@ void CompoundMember::Serialize(S& s) const {
         }
     }
 
-    serde::Write(s, *message);
+    // TODO(recursive-datatypes)
+    // serde::Write(s, *message);
 }
 
 template<serde::Deserializer D>
@@ -460,9 +469,14 @@ hdf5::expected<CompoundMember> CompoundMember::Deserialize(D& de) {
     auto msg_result = serde::Read<DatatypeMessage>(de);
     if (!msg_result) return cstd::unexpected(msg_result.error());
 
-    mem.message = std::make_unique<DatatypeMessage>(*msg_result);
+    // TODO(CUDA): Re-enable when recursive types are supported
+    // mem.message = std::make_unique<DatatypeMessage>(*msg_result);
+    // return mem;
 
-    return mem;
+    return hdf5::error(
+        hdf5::HDF5ErrorCode::FeatureNotSupported,
+        "Compound datatypes with nested members not yet supported on GPU"
+    );
 }
 
 template<serde::Serializer S>

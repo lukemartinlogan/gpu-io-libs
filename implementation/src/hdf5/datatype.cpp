@@ -95,11 +95,12 @@ VariableLength::VariableLength(const VariableLength& other)
       charset(other.charset),
       size(other.size)
 {
-    if (other.parent_type) {
-        parent_type = std::make_unique<DatatypeMessage>(*other.parent_type);
-    } else {
-        parent_type = nullptr;
-    }
+    // TODO(recursive-datatypes)
+    // if (other.parent_type) {
+    //     parent_type = std::make_unique<DatatypeMessage>(*other.parent_type);
+    // } else {
+    //     parent_type = nullptr;
+    // }
 }
 
 __device__ __host__
@@ -113,11 +114,12 @@ VariableLength& VariableLength::operator=(const VariableLength& other) {
     charset = other.charset;
     size = other.size;
 
-    if (other.parent_type) {
-        parent_type = std::make_unique<DatatypeMessage>(*other.parent_type);
-    } else {
-        parent_type = nullptr;
-    }
+    // TODO(recursive-datatypes)
+    // if (other.parent_type) {
+    //     parent_type = std::make_unique<DatatypeMessage>(*other.parent_type);
+    // } else {
+    //     parent_type = nullptr;
+    // }
 
     return *this;
 }
@@ -127,7 +129,7 @@ CompoundMember::CompoundMember(const CompoundMember& other)
         : name(other.name),
           byte_offset(other.byte_offset),
           dimension_sizes(other.dimension_sizes),
-          message(std::make_unique<DatatypeMessage>(*other.message))
+          // message(std::make_unique<DatatypeMessage>(*other.message)) /* TODO(recursive-datatypes) */
 { }
 
 __device__ __host__
@@ -139,6 +141,7 @@ CompoundMember& CompoundMember::operator=(const CompoundMember& other) {
     name = other.name;
     byte_offset = other.byte_offset;
     dimension_sizes = other.dimension_sizes;
-    message = std::make_unique<DatatypeMessage>(*other.message);
+    // TODO(recursive-datatypes)
+    // message = std::make_unique<DatatypeMessage>(*other.message);
     return *this;
 }
