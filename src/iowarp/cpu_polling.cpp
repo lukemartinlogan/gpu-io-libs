@@ -66,7 +66,8 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
 
       case IoType::kWrite: {
         std::cout << "[CPU] Writing " << msg.size << " bytes at offset "
-                  << msg.offset << " to fd=" << msg.fd << std::endl;
+                  << msg.offset << " to fd=" << msg.fd
+                  << " (buffer=" << (void*)msg.buffer << ")" << std::endl;
 
         ssize_t written;
 #ifdef _WIN32
