@@ -1,17 +1,23 @@
 #pragma once
 
 #include "superblock.h"
-#include "../serialization/stdio.h"
-#include "../serialization/serialization.h"
+#include "../serialization/gpu_posix.h"
+#include "../iowarp/gpu_context.h"
 
 // FIXME: struct name
 struct FileLink {
-    StdioReaderWriter io;
+    int fd;
+    iowarp::GpuContext* ctx;
     SuperblockV0 superblock;
 
     __device__ __host__
-    FileLink(StdioReaderWriter file_io, const SuperblockV0& superblock)
-        : io(std::move(file_io)), superblock(superblock) {}
+    FileLink(int file_descriptor, iowarp::GpuContext* context, const SuperblockV0& sb)
+        : fd(file_descriptor), ctx(context), superblock(sb) {}
+
+    __device__ __host__
+    [[nodiscard]] GpuPosixReaderWriter MakeRW() const {
+        return {fd, ctx};
+    }
 
     template<serde::Serializer S>
     __device__ __host__
