@@ -22,7 +22,12 @@ public:
     __device__ __host__
     ~File() {
         if (file_link_) {
+#ifdef __CUDA_ARCH__
+            file_link_->~FileLink();
+            free(file_link_);
+#else
             cudaFreeHost(file_link_);
+#endif
         }
     }
 

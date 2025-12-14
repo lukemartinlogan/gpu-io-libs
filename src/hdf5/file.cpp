@@ -34,22 +34,35 @@ hdf5::expected<File> File::New(const char* filename, iowarp::GpuContext* ctx) {
     }
 
     FileLink* file_link;
+#ifdef __CUDA_ARCH__
+    file_link = static_cast<FileLink*>(malloc(sizeof(FileLink)));
+    new (file_link) FileLink(fd, ctx, superblock);
+#else
     cudaHostAlloc(reinterpret_cast<void**>(&file_link), sizeof(FileLink), cudaHostAllocMapped);
     new (file_link) FileLink(fd, ctx, superblock);
+#endif
 
     offset_t root_group_header_addr = file_link->superblock.base_addr + file_link->superblock.root_group_symbol_table_entry_addr.object_header_addr;
 
     auto object_result = Object::New(file_link, root_group_header_addr);
     if (!object_result) {
+#ifdef __CUDA_ARCH__
         file_link->~FileLink();
+        free(file_link);
+#else
         cudaFreeHost(file_link);
+#endif
         return cstd::unexpected(object_result.error());
     }
 
     auto root_group = Group::New(*object_result);
     if (!root_group) {
+#ifdef __CUDA_ARCH__
         file_link->~FileLink();
+        free(file_link);
+#else
         cudaFreeHost(file_link);
+#endif
         return cstd::unexpected(root_group.error());
     }
 
