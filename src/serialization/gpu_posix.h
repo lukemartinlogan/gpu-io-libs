@@ -28,7 +28,7 @@ public:
   GpuPosixReaderWriter(int fd, iowarp::GpuContext* ctx, offset_t position = 0)
     : fd_(fd), ctx_(ctx), position_(position) {}
 
-  __device__ __host__
+  __device__
   void WriteBuffer(cstd::span<const byte_t> data) {
     ssize_t written = iowarp::gpu_posix::pwrite(
       fd_,
@@ -42,7 +42,7 @@ public:
     position_ += data.size();
   }
 
-  __device__ __host__
+  __device__
   void ReadBuffer(cstd::span<byte_t> out) {
     ssize_t read_bytes = iowarp::gpu_posix::pread(
       fd_,
