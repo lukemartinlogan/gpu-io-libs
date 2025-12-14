@@ -35,8 +35,10 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
   std::cout << "[CPU] Polling thread started" << std::endl;
 
   while (!stop_token.stop_requested()) {
-    while (queue_->size() == 0 && !stop_token.stop_requested()) {
+    uint64_t qsize = queue_->size();
+    if (qsize == 0) {
       std::this_thread::yield();
+      continue;
     }
 
     if (stop_token.stop_requested()) break;
