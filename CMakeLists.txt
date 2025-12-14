@@ -33,7 +33,6 @@ if(CMAKE_CUDA_COMPILER)
         cccl
         GIT_REPOSITORY https://github.com/NVIDIA/cccl.git
         GIT_TAG        e5ed71c7dce1130e582db831fffc61f562203884 # 2025-12-13
-        GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(cccl)
     message(STATUS "CCCL fetched successfully")
@@ -43,7 +42,6 @@ if(CMAKE_CUDA_COMPILER)
         stdgpu
         GIT_REPOSITORY https://github.com/stotko/stdgpu.git
         GIT_TAG        42ea5eacc8b1665023a22632589f86594dd53b8c # 2025-12-13
-        GIT_SHALLOW    TRUE
     )
     set(STDGPU_BUILD_SHARED_LIBS OFF CACHE BOOL "Build stdgpu as static library")
     set(STDGPU_BUILD_EXAMPLES OFF CACHE BOOL "Don't build stdgpu examples")
