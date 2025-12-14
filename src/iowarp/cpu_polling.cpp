@@ -1,8 +1,14 @@
 #include "cpu_polling.h"
 #include <iostream>
-#include <fcntl.h>
-#include <unistd.h>
 #include <cerrno>
+
+#ifdef _WIN32
+  #include <io.h>
+  #include <fcntl.h>
+#else
+  #include <fcntl.h>
+  #include <unistd.h>
+#endif
 
 namespace iowarp {
 
@@ -44,7 +50,12 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
         std::cout << "[CPU] Opening file: " << msg.filename
                   << " (flags=" << msg.flags << ", mode=" << msg.mode << ")\n";
 
-        int fd = ::open(msg.filename, msg.flags, msg.mode);
+        int fd;
+#ifdef _WIN32
+        fd = _open(msg.filename, msg.flags, msg.mode);
+#else
+        fd = ::open(msg.filename, msg.flags, msg.mode);
+#endif
         msg.fd = fd;
         msg.result_ = fd >= 0 ? 0 : -1;
         msg.errno_ = fd >= 0 ? 0 : errno;
@@ -57,7 +68,13 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
         std::cout << "[CPU] Writing " << msg.size << " bytes at offset "
                   << msg.offset << " to fd=" << msg.fd << "\n";
 
-        ssize_t written = ::pwrite(msg.fd, msg.buffer, msg.size, msg.offset);
+        ssize_t written;
+#ifdef _WIN32
+        _lseeki64(msg.fd, msg.offset, SEEK_SET);
+        written = _write(msg.fd, msg.buffer, static_cast<unsigned int>(msg.size));
+#else
+        written = ::pwrite(msg.fd, msg.buffer, msg.size, msg.offset);
+#endif
         msg.result_ = written;
         msg.errno_ = written >= 0 ? 0 : errno;
 
@@ -69,7 +86,13 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
         std::cout << "[CPU] Reading " << msg.size << " bytes at offset "
                   << msg.offset << " from fd=" << msg.fd << "\n";
 
-        ssize_t read_bytes = ::pread(msg.fd, msg.buffer, msg.size, msg.offset);
+        ssize_t read_bytes;
+#ifdef _WIN32
+        _lseeki64(msg.fd, msg.offset, SEEK_SET);
+        read_bytes = _read(msg.fd, msg.buffer, static_cast<unsigned int>(msg.size));
+#else
+        read_bytes = ::pread(msg.fd, msg.buffer, msg.size, msg.offset);
+#endif
         msg.result_ = read_bytes;
         msg.errno_ = read_bytes >= 0 ? 0 : errno;
 
@@ -80,7 +103,12 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
       case IoType::kClose: {
         std::cout << "[CPU] Closing fd=" << msg.fd << "\n";
 
-        int result = ::close(msg.fd);
+        int result;
+#ifdef _WIN32
+        result = _close(msg.fd);
+#else
+        result = ::close(msg.fd);
+#endif
         msg.result_ = result;
         msg.errno_ = result >= 0 ? 0 : errno;
 
