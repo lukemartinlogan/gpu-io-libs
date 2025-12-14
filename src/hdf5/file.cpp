@@ -1,42 +1,57 @@
 #include "file.h"
+#include "../iowarp/gpu_posix.h"
+
+#ifdef _WIN32
+  #include <io.h>
+  #include <fcntl.h>
+  #define OPEN_FLAGS (_O_RDWR | _O_BINARY)
+  #define OPEN_MODE (_S_IREAD | _S_IWRITE)
+#else
+  #include <fcntl.h>
+  #include <unistd.h>
+  #define OPEN_FLAGS (O_RDWR)
+  #define OPEN_MODE (0644)
+#endif
 
 __device__ __host__
-hdf5::expected<File> File::New(const std::filesystem::path& path) {
-    std::shared_ptr<FileLink> file_link;
-
-    // scope since file_io and superblock are invalid after make_shared
-    {
-        auto file_io_result = StdioReaderWriter::Open(path);
-
-        if (!file_io_result)
-            return cstd::unexpected(file_io_result.error());
-
-        auto file_io = std::move(*file_io_result);
-
-        auto superblock_result = serde::Read<SuperblockV0>(file_io);
-
-        if (!superblock_result) return cstd::unexpected(superblock_result.error());
-        auto superblock = *superblock_result;
-
-        if (superblock.base_addr != 0) {
-            return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "non-zero base address not implemented");
-        }
-
-        file_link = std::make_shared<FileLink>(std::move(file_io), superblock);
+hdf5::expected<File> File::New(const char* filename, iowarp::GpuContext* ctx) {
+    int fd = iowarp::gpu_posix::open(filename, OPEN_FLAGS, OPEN_MODE, *ctx);
+    if (fd < 0) {
+        return hdf5::error(hdf5::HDF5ErrorCode::FileOpenFailed, "failed to open file");
     }
 
-    // read the root group
+    auto io = GpuPosixReaderWriter(fd, ctx);
+    auto superblock_result = serde::Read<SuperblockV0>(io);
+    if (!superblock_result) {
+        iowarp::gpu_posix::close(fd, *ctx);
+        return cstd::unexpected(superblock_result.error());
+    }
+    auto superblock = *superblock_result;
+
+    if (superblock.base_addr != 0) {
+        iowarp::gpu_posix::close(fd, *ctx);
+        return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "non-zero base address not implemented");
+    }
+
+    FileLink* file_link;
+    cudaHostAlloc(reinterpret_cast<void**>(&file_link), sizeof(FileLink), cudaHostAllocMapped);
+    new (file_link) FileLink(fd, ctx, superblock);
+
     offset_t root_group_header_addr = file_link->superblock.base_addr + file_link->superblock.root_group_symbol_table_entry_addr.object_header_addr;
 
     auto object_result = Object::New(file_link, root_group_header_addr);
     if (!object_result) {
+        file_link->~FileLink();
+        cudaFreeHost(file_link);
         return cstd::unexpected(object_result.error());
     }
 
     auto root_group = Group::New(*object_result);
     if (!root_group) {
+        file_link->~FileLink();
+        cudaFreeHost(file_link);
         return cstd::unexpected(root_group.error());
     }
 
-    return File(std::move(file_link), std::move(*root_group));
+    return File(file_link, std::move(*root_group));
 }
