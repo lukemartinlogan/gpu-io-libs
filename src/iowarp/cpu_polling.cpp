@@ -9,9 +9,9 @@ namespace iowarp {
 PollingThreadManager::PollingThreadManager(shm_queue* queue, GpuContext* ctx)
   : queue_(queue)
   , ctx_(ctx)
+  , thread_([this](std::stop_token st) { Poll(st); })
 {
   std::cout << "[CPU] Starting polling thread\n";
-  thread_ = std::jthread(&PollingThreadManager::Poll, this);
 }
 
 void PollingThreadManager::Stop() {
