@@ -788,7 +788,7 @@ hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>>
 }
 
 __device__ __host__
-offset_t ChunkedBTree::CreateNew(const std::shared_ptr<FileLink>& file, const hdf5::dim_vector<uint64_t>& max_size) {
+offset_t ChunkedBTree::CreateNew(FileLink* file, const hdf5::dim_vector<uint64_t>& max_size) {
     BTreeNode::KValues k{
         .leaf = BTreeNode::kChunkedRawDataK,
         .internal = BTreeNode::kChunkedRawDataK

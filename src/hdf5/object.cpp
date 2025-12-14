@@ -338,7 +338,7 @@ cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
 }
 
 __device__ __host__
-Object Object::AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file) {
+Object Object::AllocateEmptyAtEOF(len_t min_size, FileLink* file) {
     len_t alloc_size = EmptyHeaderMessagesSize(min_size) + 16;
 
     auto io = file->MakeRW();

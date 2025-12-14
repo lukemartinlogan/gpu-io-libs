@@ -12,7 +12,7 @@ public:
     Object() = default;
 
     __device__ __host__
-    static hdf5::expected<Object> New(const std::shared_ptr<FileLink>& file, offset_t pos_) {
+    static hdf5::expected<Object> New(FileLink* file, offset_t pos_) {
         auto io = file->MakeRW();
         io.SetPosition(pos_);
 
@@ -101,10 +101,10 @@ public:
     }
 
     __device__ __host__
-    static Object AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file);
+    static Object AllocateEmptyAtEOF(len_t min_size, FileLink* file);
 
 public:
-    std::shared_ptr<FileLink> file;
+    FileLink* file;
 
 private:
     struct Space {
@@ -266,7 +266,7 @@ private:
     }
 
     __device__ __host__
-    explicit Object(const std::shared_ptr<FileLink>& file, offset_t pos_)
+    explicit Object(FileLink* file, offset_t pos_)
         : file(file), file_pos_(pos_) {}
 
 private:

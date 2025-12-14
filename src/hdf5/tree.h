@@ -530,8 +530,8 @@ struct GroupBTree {
     static constexpr size_t kMaxGroupElements = 128;
 
     __device__ __host__
-    explicit GroupBTree(offset_t addr, std::shared_ptr<FileLink> file, const LocalHeap& heap)
-        : file_(std::move(file)), heap_(heap), addr_(addr) {}
+    explicit GroupBTree(offset_t addr, FileLink* file, const LocalHeap& heap)
+        : file_(file), heap_(heap), addr_(addr) {}
 
     __device__ __host__
     [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> Get(hdf5::string_view name) const;
@@ -554,15 +554,15 @@ private:
     [[nodiscard]] hdf5::expected<cstd::optional<BTreeNode>> ReadRoot() const;
 
 private:
-    std::shared_ptr<FileLink> file_{};
+    FileLink* file_{};
     LocalHeap heap_{};
     cstd::optional<offset_t> addr_{};
 };
 
 struct ChunkedBTree {
     __device__ __host__
-    explicit ChunkedBTree(offset_t addr, std::shared_ptr<FileLink> file, ChunkedKeyTerminatorInfo term_info)
-        : file_(std::move(file)), addr_(addr), terminator_info_(term_info) {}
+    explicit ChunkedBTree(offset_t addr, FileLink* file, ChunkedKeyTerminatorInfo term_info)
+        : file_(file), addr_(addr), terminator_info_(term_info) {}
 
     __device__ __host__
     hdf5::expected<void> InsertChunk(
@@ -580,7 +580,7 @@ struct ChunkedBTree {
     [[nodiscard]] hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Offsets() const;
 
     __device__ __host__
-    static offset_t CreateNew(const std::shared_ptr<FileLink>& file, const hdf5::dim_vector<uint64_t>& max_size);
+    static offset_t CreateNew(FileLink* file, const hdf5::dim_vector<uint64_t>& max_size);
 
 private:
     __device__ __host__
@@ -591,7 +591,7 @@ public:
     [[nodiscard]] hdf5::expected<cstd::optional<BTreeNode>> ReadRoot() const;
 
 private:
-    std::shared_ptr<FileLink> file_{};
+    FileLink* file_{};
     cstd::optional<offset_t> addr_{};
 
     ChunkedKeyTerminatorInfo terminator_info_{};

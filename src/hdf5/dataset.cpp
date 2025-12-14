@@ -173,12 +173,12 @@ hdf5::expected<void> ProcessChunkedHyperslab(
     const ChunkedStorageProperty* chunked,
     HyperslabIterator& iterator,
     size_t element_size,
-    std::shared_ptr<FileLink> file,
+    FileLink* file,
     Visitor&& visitor
 ) {
     ChunkedBTree chunked_tree(
         chunked->b_tree_addr,
-        std::move(file),
+        file,
         {
             .dimensionality = static_cast<uint8_t>(chunked->dimension_sizes.size()),
             .elem_byte_size = element_size,
