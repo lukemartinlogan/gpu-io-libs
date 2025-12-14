@@ -111,7 +111,8 @@ hdf5::expected<uint64_t> HyperslabIterator::GetTotalElements() const {
     uint64_t total_elements = 1;
 
     for (size_t dim = 0; dim < count_.size(); ++dim) {
-        if (total_elements > std::numeric_limits<uint64_t>::max() / (count_[dim] * block_[dim])) {
+        // TODO: windows defines max as a macro :(
+        if (total_elements > static_cast<uint64_t>(-1) / (count_[dim] * block_[dim])) {
             return hdf5::error(hdf5::HDF5ErrorCode::SelectionOverflow, "Hyperslab selection too large");
         }
 

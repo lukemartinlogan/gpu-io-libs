@@ -21,7 +21,8 @@ hdf5::expected<offset_t> LocalHeap::WriteString(hdf5::string_view string, FileLi
 
 __device__ __host__
 cstd::tuple<LocalHeap, offset_t> LocalHeap::AllocateNew(FileLink& file, len_t min_size) {
-    len_t aligned_size = std::max(EightBytesAlignedSize(min_size), sizeof(FreeListBlock));
+    // TODO: windows defines max as a macro :(
+    len_t aligned_size = EightBytesAlignedSize(min_size) > sizeof(FreeListBlock) ? EightBytesAlignedSize(min_size) : sizeof(FreeListBlock);
 
     offset_t heap_offset = file.AllocateAtEOF(kHeaderSize + aligned_size);
 
@@ -128,10 +129,8 @@ hdf5::expected<offset_t> LocalHeap::WriteBytes(cstd::span<const byte_t> data, Fi
 __device__ __host__
 hdf5::expected<void> LocalHeap::ReserveAdditional(FileLink& file, size_t additional_bytes) {
     // 1. determine new size + alloc
-    size_t new_size = std::max(
-        data_segment_size * 2,
-        data_segment_size + additional_bytes
-    );
+    // TODO: windows defines max as a macro :(
+    size_t new_size = data_segment_size * 2 > data_segment_size + additional_bytes ? data_segment_size * 2 : data_segment_size + additional_bytes;
 
     new_size = EightBytesAlignedSize(new_size);
 

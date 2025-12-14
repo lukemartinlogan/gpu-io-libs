@@ -750,7 +750,8 @@ struct AttributeMessage {
         auto datatype_size = serde::Read<uint16_t>(de);
         auto dataspace_size = serde::Read<uint16_t>(de);
 
-        auto max_buf_size = std::max(std::max(name_size, datatype_size), dataspace_size);
+        // TODO: windows defines max as a macro :(
+        auto max_buf_size = (name_size > datatype_size ? name_size : datatype_size) > dataspace_size ? (name_size > datatype_size ? name_size : datatype_size) : dataspace_size;
 
         // all are generally small; this should be enough
         constexpr size_t kMaxAttributeBufferSize = kMaxAttributeDataSize * 2;
@@ -1605,10 +1606,8 @@ static void WriteHeader(S& s, uint16_t type, uint16_t size, uint8_t flags) {
 
 __device__ __host__
 static len_t EmptyHeaderMessagesSize(len_t min_size) {
-    return EightBytesAlignedSize(std::max(
-        min_size,
-        sizeof(ObjectHeaderContinuationMessage) + kPrefixSize
-    ));
+    // TODO: windows defines max as a macro :(
+    return EightBytesAlignedSize(min_size > sizeof(ObjectHeaderContinuationMessage) + kPrefixSize ? min_size : sizeof(ObjectHeaderContinuationMessage) + kPrefixSize);
 }
 
 template<serde::Deserializer D>

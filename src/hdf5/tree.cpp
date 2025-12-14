@@ -680,7 +680,8 @@ hdf5::expected<void> GroupBTree::InsertGroup(offset_t name_offset, offset_t obje
         entries.child_pointers.push_back(split->new_node_offset);
         entries.keys.push_back(*max_result);
 
-        if ((*root_result)->level == std::numeric_limits<uint8_t>::max()) {
+        // TODO: windows defines max as a macro :(
+        if ((*root_result)->level == static_cast<uint8_t>(-1)) {
             return hdf5::error(hdf5::HDF5ErrorCode::BTreeOverflow, "BTree level overflow");
         }
 
@@ -732,7 +733,8 @@ hdf5::expected<void> ChunkedBTree::InsertChunk(const ChunkCoordinates& chunk_coo
         entries.child_pointers.push_back(split->new_node_offset);
         entries.keys.push_back(*max_result);
 
-        if ((*root_result)->level == std::numeric_limits<uint8_t>::max()) {
+        // TODO: windows defines max as a macro :(
+        if ((*root_result)->level == static_cast<uint8_t>(-1)) {
             return hdf5::error(hdf5::HDF5ErrorCode::BTreeOverflow, "BTree level overflow");
         }
 
