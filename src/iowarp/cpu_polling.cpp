@@ -41,11 +41,10 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
       continue;
     }
 
-    if (stop_token.stop_requested()) break;
+    std::cout << "[CPU] Got message, size=" << qsize << std::endl;
 
-    std::cout << "[CPU] Got message, size=" << queue_->size() << "\n";
-
-    auto& msg = queue_->get().value();
+    auto& msg = queue_->get();
+    std::cout << "[CPU] Got message, type=" << static_cast<int>(msg.type_) << std::endl;
 
     switch (msg.type_) {
       case IoType::kOpen: {
