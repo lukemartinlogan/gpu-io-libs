@@ -17,12 +17,12 @@ PollingThreadManager::PollingThreadManager(shm_queue* queue, GpuContext* ctx)
   , ctx_(ctx)
   , thread_([this](std::stop_token st) { Poll(st); })
 {
-  std::cout << "[CPU] Starting polling thread\n";
+  std::cout << "[CPU] Starting polling thread" << std::endl;
 }
 
 void PollingThreadManager::Stop() {
   if (thread_.joinable()) {
-    std::cout << "[CPU] Requesting stop\n";
+    std::cout << "[CPU] Requesting stop" << std::endl;
     thread_.request_stop();
 
     if (queue_->size() == 0) {
@@ -32,7 +32,7 @@ void PollingThreadManager::Stop() {
 }
 
 void PollingThreadManager::Poll(std::stop_token stop_token) {
-  std::cout << "[CPU] Polling thread started\n";
+  std::cout << "[CPU] Polling thread started" << std::endl;
 
   while (!stop_token.stop_requested()) {
     while (queue_->size() == 0 && !stop_token.stop_requested()) {
@@ -48,7 +48,7 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
     switch (msg.type_) {
       case IoType::kOpen: {
         std::cout << "[CPU] Opening file: " << msg.filename
-                  << " (flags=" << msg.flags << ", mode=" << msg.mode << ")\n";
+                  << " (flags=" << msg.flags << ", mode=" << msg.mode << ")" << std::endl;
 
         int fd;
 #ifdef _WIN32
@@ -60,13 +60,13 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
         msg.result_ = fd >= 0 ? 0 : -1;
         msg.errno_ = fd >= 0 ? 0 : errno;
 
-        std::cout << "[CPU] Open result: fd=" << fd << "\n";
+        std::cout << "[CPU] Open result: fd=" << fd << std::endl;
         break;
       }
 
       case IoType::kWrite: {
         std::cout << "[CPU] Writing " << msg.size << " bytes at offset "
-                  << msg.offset << " to fd=" << msg.fd << "\n";
+                  << msg.offset << " to fd=" << msg.fd << std::endl;
 
         ssize_t written;
 #ifdef _WIN32
@@ -78,13 +78,13 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
         msg.result_ = written;
         msg.errno_ = written >= 0 ? 0 : errno;
 
-        std::cout << "[CPU] Write result: " << written << " bytes\n";
+        std::cout << "[CPU] Write result: " << written << " bytes" << std::endl;
         break;
       }
 
       case IoType::kRead: {
         std::cout << "[CPU] Reading " << msg.size << " bytes at offset "
-                  << msg.offset << " from fd=" << msg.fd << "\n";
+                  << msg.offset << " from fd=" << msg.fd << std::endl;
 
         ssize_t read_bytes;
 #ifdef _WIN32
@@ -96,12 +96,12 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
         msg.result_ = read_bytes;
         msg.errno_ = read_bytes >= 0 ? 0 : errno;
 
-        std::cout << "[CPU] Read result: " << read_bytes << " bytes\n";
+        std::cout << "[CPU] Read result: " << read_bytes << " bytes" << std::endl;
         break;
       }
 
       case IoType::kClose: {
-        std::cout << "[CPU] Closing fd=" << msg.fd << "\n";
+        std::cout << "[CPU] Closing fd=" << msg.fd << std::endl;
 
         int result;
 #ifdef _WIN32
@@ -112,25 +112,25 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
         msg.result_ = result;
         msg.errno_ = result >= 0 ? 0 : errno;
 
-        std::cout << "[CPU] Close result: " << result << "\n";
+        std::cout << "[CPU] Close result: " << result << std::endl;
         break;
       }
 
       case IoType::kShutdown: {
-        std::cout << "[CPU] Shutdown requested\n";
+        std::cout << "[CPU] Shutdown requested" << std::endl;
         queue_->clear();
         return;
       }
 
       default:
-        std::cout << "[CPU] Unknown message type: " << static_cast<int>(msg.type_) << "\n";
+        std::cout << "[CPU] Unknown message type: " << static_cast<int>(msg.type_) << std::endl;
         break;
     }
 
     queue_->clear();
   }
 
-  std::cout << "[CPU] Polling thread exiting\n";
+  std::cout << "[CPU] Polling thread exiting" << std::endl;
 }
 
 } // namespace iowarp
