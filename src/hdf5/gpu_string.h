@@ -324,7 +324,7 @@ struct gpu_string {
      * Get a substring as a view
      */
     __device__ __host__
-    [[nodiscard]] constexpr gpu_string_view substr(size_t pos, size_t count = std::numeric_limits<size_t>::max()) const {
+    [[nodiscard]] constexpr gpu_string_view substr(size_t pos, size_t count = static_cast<size_t>(-1)) const {
         return gpu_string_view(*this).substr(pos, count);
     }
 };

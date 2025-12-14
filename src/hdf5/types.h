@@ -7,7 +7,8 @@ using offset_t = uint64_t;
 using len_t = uint64_t;
 using ssize_t = ptrdiff_t;
 
-constexpr offset_t kUndefinedOffset = cstd::numeric_limits<offset_t>::max();
+// TODO: windows defines a macro called max :(
+constexpr offset_t kUndefinedOffset = static_cast<offset_t>(-1);
 
 #define ASSERT(cond, msg) assert((cond) && (msg))
 #define UNREACHABLE(msg) assert(false && (msg))
