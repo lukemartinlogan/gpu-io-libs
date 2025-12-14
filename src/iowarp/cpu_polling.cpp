@@ -78,7 +78,9 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
         msg.result_ = written;
         msg.errno_ = written >= 0 ? 0 : errno;
 
-        std::cout << "[CPU] Write result: " << written << " bytes" << std::endl;
+        std::cout << "[CPU] Write result: " << written << " bytes";
+        if (written < 0) std::cout << " (errno=" << errno << ")";
+        std::cout << std::endl;
         break;
       }
 
@@ -96,7 +98,9 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
         msg.result_ = read_bytes;
         msg.errno_ = read_bytes >= 0 ? 0 : errno;
 
-        std::cout << "[CPU] Read result: " << read_bytes << " bytes" << std::endl;
+        std::cout << "[CPU] Read result: " << read_bytes << " bytes";
+        if (read_bytes < 0) std::cout << " (errno=" << errno << ")";
+        std::cout << std::endl;
         break;
       }
 
