@@ -11,7 +11,7 @@ __device__ int open(const char* filename, int flags, int mode, GpuContext& ctx) 
     __nanosleep(500);
   }
 
-  auto& msg = ctx.queue_->get().value();
+  auto& msg = ctx.queue_->get();
   int fd = msg.fd;
 
   ctx.file_entry_.fd = fd;
@@ -28,7 +28,7 @@ __device__ ssize_t pwrite(int fd, const void* buffer, size_t size, size_t offset
     __nanosleep(500);
   }
 
-  auto& msg = ctx.queue_->get().value();
+  auto& msg = ctx.queue_->get();
   ssize_t result = msg.result_;
 
   if (result > 0) {
@@ -46,7 +46,7 @@ __device__ ssize_t pread(int fd, void* buffer, size_t size, size_t offset, GpuCo
     __nanosleep(500);
   }
 
-  auto& msg = ctx.queue_->get().value();
+  auto& msg = ctx.queue_->get();
   return msg.result_;
 }
 
@@ -61,7 +61,7 @@ __device__ int close(int fd, GpuContext& ctx) {
   ctx.file_entry_.is_open = false;
   ctx.file_entry_.eof_offset.store(0, cstd::memory_order_release);
 
-  auto& msg = ctx.queue_->get().value();
+  auto& msg = ctx.queue_->get();
   return msg.result_;
 }
 
