@@ -413,6 +413,8 @@ private:
         cstd::inplace_vector<StackFrame, kMaxDepth> stack;
         stack.push_back({*this, 0});
 
+        auto io = file.MakeRW();
+
         while (!stack.empty()) {
             auto& frame = stack.back();
             auto g_entries = cstd::get<BTreeEntries<BTreeGroupNodeKey>>(frame.node.entries);
@@ -439,8 +441,8 @@ private:
                     return cstd::unexpected(visitor_result.error());
                 }
             } else {
-                file.io.SetPosition(file.superblock.base_addr + ptr);
-                auto child_result = frame.node.ReadChild(file.io);
+                io.SetPosition(file.superblock.base_addr + ptr);
+                auto child_result = frame.node.ReadChild(io);
                 if (!child_result) return cstd::unexpected(child_result.error());
 
                 stack.push_back({*child_result, 0});
@@ -468,6 +470,8 @@ private:
         cstd::inplace_vector<StackFrame, kMaxDepth> stack;
         stack.push_back({*this, 0});
 
+        auto io = file.MakeRW();
+
         while (!stack.empty()) {
             auto& frame = stack.back();
             auto c_entries = cstd::get<BTreeEntries<BTreeChunkedRawDataNodeKey>>(frame.node.entries);
@@ -492,8 +496,8 @@ private:
                     }
                 }
             } else {
-                file.io.SetPosition(file.superblock.base_addr + ptr);
-                auto child_result = frame.node.ReadChild(file.io);
+                io.SetPosition(file.superblock.base_addr + ptr);
+                auto child_result = frame.node.ReadChild(io);
                 if (!child_result) return cstd::unexpected(child_result.error());
 
                 stack.push_back({*child_result, 0});

@@ -13,10 +13,11 @@ public:
 
     __device__ __host__
     static hdf5::expected<Object> New(const std::shared_ptr<FileLink>& file, offset_t pos_) {
-        file->io.SetPosition(pos_);
+        auto io = file->MakeRW();
+        io.SetPosition(pos_);
 
         // FIXME: hardcoded constant
-        if (serde::Read<uint8_t>(file->io) != 0x01) {
+        if (serde::Read<uint8_t>(io) != 0x01) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Object version number was invalid");
         }
 
@@ -27,7 +28,8 @@ public:
     [[nodiscard]] hdf5::expected<ObjectHeader> GetHeader() const {
         JumpToRelativeOffset(0);
 
-        return serde::Read<ObjectHeader>(file->io);
+        auto io = file->MakeRW();
+        return serde::Read<ObjectHeader>(io);
     }
 
     __device__ __host__
@@ -256,9 +258,11 @@ private:
         return smallest_found;
     }
 
+    // TODO: not a huge fan of this method
     __device__ __host__
     void JumpToRelativeOffset(offset_t offset) const {
-        file->io.SetPosition(file_pos_ + offset);
+        auto io = file->MakeRW();
+        io.SetPosition(file_pos_ + offset);
     }
 
     __device__ __host__

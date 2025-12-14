@@ -6,7 +6,7 @@ __device__ __host__
 cstd::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) const {
     JumpToRelativeOffset(0);
 
-    auto& io = file->io;
+    auto io = file->MakeRW();
 
     serde::Skip(io, 2);
 
@@ -78,14 +78,15 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     cstd::optional<Space> nil_space = FindSpace(msg_bytes.size(), true);
 
     JumpToRelativeOffset(2);
-    auto written_ct = serde::Read<uint16_t>(file->io);
+    auto io = file->MakeRW();
+    auto written_ct = serde::Read<uint16_t>(io);
 
     if (nil_space.has_value()) {
         // overwriting existing nil message
         written_ct -= 1;
 
-        file->io.SetPosition(nil_space->offset);
-        file->io.WriteBuffer(msg_bytes);
+        io.SetPosition(nil_space->offset);
+        io.WriteBuffer(msg_bytes);
 
         // writing this message
         written_ct += 1;
@@ -99,14 +100,14 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
             uint16_t nil_size = total_nil_size - kPrefixSize;
 
-            WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-            serde::Write(file->io, NilMessage { .size = nil_size, });
+            WriteHeader(io, NilMessage::kType, nil_size, 0);
+            serde::Write(io, NilMessage { .size = nil_size, });
 
             // wrote a nil header
             written_ct += 1;
         }
 
-        ASSERT(file->io.GetPosition() <= nil_space->offset + nil_space->size, "wrote more bytes than the nil space allowed");
+        ASSERT(io.GetPosition() <= nil_space->offset + nil_space->size, "wrote more bytes than the nil space allowed");
     } else {
         size_t cont_size = sizeof(ObjectHeaderContinuationMessage) + kPrefixSize;
         cstd::optional<Space> space_cont;
@@ -121,7 +122,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
             // put continuation here, allocate new block
             size_t alloc_space = msg_bytes.size() + cont_size;
-            offset_t offset = file->AllocateAtEOF(alloc_space, file->io);
+            offset_t offset = file->AllocateAtEOF(alloc_space, io);
 
             ObjectHeaderContinuationMessage cont {
                 .offset = offset,
@@ -129,9 +130,9 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             };
 
             // write object header
-            file->io.SetPosition(space_cont->offset);
-            WriteHeader(file->io, ObjectHeaderContinuationMessage::kType, sizeof(ObjectHeaderContinuationMessage), /* FIXME(flags) */0);
-            serde::Write(file->io, cont);
+            io.SetPosition(space_cont->offset);
+            WriteHeader(io, ObjectHeaderContinuationMessage::kType, sizeof(ObjectHeaderContinuationMessage), /* FIXME(flags) */0);
+            serde::Write(io, cont);
 
             // write cont msg
             written_ct += 1;
@@ -145,16 +146,16 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
-                WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-                serde::Write(file->io, NilMessage { .size = nil_size, });
+                WriteHeader(io, NilMessage::kType, nil_size, 0);
+                serde::Write(io, NilMessage { .size = nil_size, });
 
                 // writing nil message
                 written_ct += 1;
             }
 
             // write actual data
-            file->io.SetPosition(cont.offset);
-            file->io.WriteBuffer(msg_bytes);
+            io.SetPosition(cont.offset);
+            io.WriteBuffer(msg_bytes);
 
             // writing data message
             written_ct += 1;
@@ -168,8 +169,8 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
-                WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-                serde::Write(file->io, NilMessage { .size = nil_size, });
+                WriteHeader(io, NilMessage::kType, nil_size, 0);
+                serde::Write(io, NilMessage { .size = nil_size, });
 
                 // writing nil message
                 written_ct += 1;
@@ -189,14 +190,14 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             );
 
             cstd::inplace_vector<byte_t, kExtraMovingBufferSize> moving(space->size);
-            file->io.SetPosition(space->offset);
-            file->io.ReadBuffer(moving);
+            io.SetPosition(space->offset);
+            io.ReadBuffer(moving);
 
             msg_bytes.insert(msg_bytes.end(), moving.begin(), moving.end());
 
             // new allocation
             size_t alloc_space = msg_bytes.size() + cont_size;
-            offset_t offset = file->AllocateAtEOF(alloc_space, file->io);
+            offset_t offset = file->AllocateAtEOF(alloc_space, io);
 
             ObjectHeaderContinuationMessage cont {
                 .offset = offset,
@@ -204,9 +205,9 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
             };
 
             // write object header
-            file->io.SetPosition(space->offset);
-            WriteHeader(file->io, ObjectHeaderContinuationMessage::kType, sizeof(ObjectHeaderContinuationMessage), /* FIXME(flags) */0);
-            serde::Write(file->io, cont);
+            io.SetPosition(space->offset);
+            WriteHeader(io, ObjectHeaderContinuationMessage::kType, sizeof(ObjectHeaderContinuationMessage), /* FIXME(flags) */0);
+            serde::Write(io, cont);
 
             // writing cont
             written_ct += 1;
@@ -220,16 +221,16 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
-                WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-                serde::Write(file->io, NilMessage { .size = nil_size, });
+                WriteHeader(io, NilMessage::kType, nil_size, 0);
+                serde::Write(io, NilMessage { .size = nil_size, });
 
                 // writing nil
                 written_ct += 1;
             }
 
             // write actual data
-            file->io.SetPosition(cont.offset);
-            file->io.WriteBuffer(msg_bytes);
+            io.SetPosition(cont.offset);
+            io.WriteBuffer(msg_bytes);
 
             // writing data + moved message
             written_ct += 2;
@@ -243,8 +244,8 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
                 uint16_t nil_size = total_nil_size - kPrefixSize;
 
-                WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-                serde::Write(file->io, NilMessage { .size = nil_size, });
+                WriteHeader(io, NilMessage::kType, nil_size, 0);
+                serde::Write(io, NilMessage { .size = nil_size, });
 
                 // writing nil
                 written_ct += 1;
@@ -253,7 +254,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     }
 
     JumpToRelativeOffset(2);
-    serde::Write(file->io, written_ct);
+    serde::Write(io, written_ct);
 }
 
 // semantically, this isn't const, so it's not being made const
@@ -262,25 +263,26 @@ __device__ __host__
 cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     JumpToRelativeOffset(0);
 
-    serde::Skip(file->io, 2);
+    auto io = file->MakeRW();
+    serde::Skip(io, 2);
 
-    auto total_message_ct = serde::Read<uint16_t>(file->io);
+    auto total_message_ct = serde::Read<uint16_t>(io);
 
-    serde::Skip(file->io, 4);
+    serde::Skip(io, 4);
 
-    auto header_size = serde::Read<uint32_t>(file->io);
+    auto header_size = serde::Read<uint32_t>(io);
 
     // reserved
-    serde::Skip(file->io, 4);
+    serde::Skip(io, 4);
 
-    cstd::optional<Space> found = FindMessage(file->io, file->superblock.base_addr, total_message_ct, header_size, msg_type);
+    cstd::optional<Space> found = FindMessage(io, file->superblock.base_addr, total_message_ct, header_size, msg_type);
 
     if (!found.has_value()) {
         return cstd::nullopt;
     }
 
-    file->io.SetPosition(found->offset);
-    auto msg_result = serde::Read<ObjectHeaderMessage>(file->io);
+    io.SetPosition(found->offset);
+    auto msg_result = serde::Read<ObjectHeaderMessage>(io);
 
 
     // TODO(refactor-exceptions): this method should return an expected
@@ -288,13 +290,13 @@ cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
         return cstd::nullopt;
     }
 
-    ASSERT(file->io.GetPosition() <= found->offset + found->size, "Read too many bytes for message");
+    ASSERT(io.GetPosition() <= found->offset + found->size, "Read too many bytes for message");
 
-    file->io.SetPosition(found->offset);
+    io.SetPosition(found->offset);
     uint16_t nil_size = found->size - kPrefixSize;
 
-    WriteHeader(file->io, NilMessage::kType, nil_size, 0);
-    serde::Write(file->io, NilMessage { .size = nil_size, });
+    WriteHeader(io, NilMessage::kType, nil_size, 0);
+    serde::Write(io, NilMessage { .size = nil_size, });
 
     return *msg_result;
 }
@@ -304,32 +306,33 @@ __device__ __host__
 cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
     JumpToRelativeOffset(0);
 
-    serde::Skip(file->io, 2);
+    auto io = file->MakeRW();
+    serde::Skip(io, 2);
 
-    auto total_message_ct = serde::Read<uint16_t>(file->io);
+    auto total_message_ct = serde::Read<uint16_t>(io);
 
 
-    serde::Skip(file->io, 4);
+    serde::Skip(io, 4);
 
-    auto header_size = serde::Read<uint32_t>(file->io);
+    auto header_size = serde::Read<uint32_t>(io);
 
     // reserved
-    serde::Skip(file->io, 4);
+    serde::Skip(io, 4);
 
-    cstd::optional<Space> found = FindMessage(file->io, file->superblock.base_addr, total_message_ct, header_size, msg_type);
+    cstd::optional<Space> found = FindMessage(io, file->superblock.base_addr, total_message_ct, header_size, msg_type);
 
     if (!found.has_value()) {
         return cstd::nullopt;
     }
 
-    file->io.SetPosition(found->offset);
-    auto msg_result = serde::Read<ObjectHeaderMessage>(file->io);
+    io.SetPosition(found->offset);
+    auto msg_result = serde::Read<ObjectHeaderMessage>(io);
 
     if (!msg_result) {
         return cstd::nullopt;
     }
 
-    ASSERT(file->io.GetPosition() <= found->offset + found->size, "Read too many bytes for message");
+    ASSERT(io.GetPosition() <= found->offset + found->size, "Read too many bytes for message");
 
     return *msg_result;
 }
@@ -338,11 +341,12 @@ __device__ __host__
 Object Object::AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file) {
     len_t alloc_size = EmptyHeaderMessagesSize(min_size) + 16;
 
-    offset_t alloc_start = file->AllocateAtEOF(alloc_size, file->io);
-    file->io.SetPosition(alloc_start);
-    WriteEmpty(min_size, file->io);
+    auto io = file->MakeRW();
+    offset_t alloc_start = file->AllocateAtEOF(alloc_size, io);
+    io.SetPosition(alloc_start);
+    WriteEmpty(min_size, io);
 
-    len_t bytes_written = file->io.GetPosition() - alloc_start;
+    len_t bytes_written = io.GetPosition() - alloc_start;
 
     ASSERT(bytes_written == alloc_size, "AllocateEmptyAtEOF: size mismatch");
 

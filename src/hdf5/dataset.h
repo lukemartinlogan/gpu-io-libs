@@ -33,9 +33,10 @@ public:
 
         size_t size = type_.Size();
 
-        object_.file->io.SetPosition(object_.file->superblock.base_addr + props->address + index * size);
+        auto io = object_.file->MakeRW();
+        io.SetPosition(object_.file->superblock.base_addr + props->address + index * size);
 
-        return serde::Read<T>(object_.file->io);
+        return serde::Read<T>(io);
     }
 
     // FIXME: implement datatype

@@ -71,8 +71,9 @@ hdf5::expected<void> Dataset::Read(cstd::span<byte_t> buffer, size_t start_index
             return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "Index range out of bounds for contiguous storage dataset");
         }
 
-        object_.file->io.SetPosition(contiguous->address + start_index * element_size);
-        object_.file->io.ReadBuffer(cstd::span(buffer.data(), total_bytes));
+        auto io = object_.file->MakeRW();
+        io.SetPosition(contiguous->address + start_index * element_size);
+        io.ReadBuffer(cstd::span(buffer.data(), total_bytes));
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
         return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "chunked read not implemented yet");
@@ -117,8 +118,9 @@ hdf5::expected<void> Dataset::Write(cstd::span<const byte_t> data, size_t start_
             return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "Index range out of bounds for contiguous storage dataset");
         }
 
-        object_.file->io.SetPosition(contiguous->address + start_index * element_size);
-        object_.file->io.WriteBuffer(data);
+        auto io = object_.file->MakeRW();
+        io.SetPosition(contiguous->address + start_index * element_size);
+        io.WriteBuffer(data);
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
         return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "chunked write not implemented yet");
@@ -306,6 +308,7 @@ hdf5::expected<void> Dataset::ReadHyperslab(
 
     } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
         size_t buffer_offset = 0;
+        auto io = object_.file->MakeRW();
 
         while (!iterator.IsAtEnd()) {
             auto linear_index = iterator.GetLinearIndex();
@@ -316,14 +319,15 @@ hdf5::expected<void> Dataset::ReadHyperslab(
 
             offset_t file_offset = contiguous->address + *linear_index * element_size;
 
-            object_.file->io.SetPosition(file_offset);
-            object_.file->io.ReadBuffer(cstd::span(buffer.data() + buffer_offset, element_size));
+            io.SetPosition(file_offset);
+            io.ReadBuffer(cstd::span(buffer.data() + buffer_offset, element_size));
 
             buffer_offset += element_size;
             iterator.Advance();
         }
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
+        auto io = object_.file->MakeRW();
         auto process_result = ProcessChunkedHyperslab(
             chunked, iterator, element_size, object_.file,
             [&](const cstd::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) -> hdf5::expected<void> {
@@ -331,8 +335,8 @@ hdf5::expected<void> Dataset::ReadHyperslab(
                     // chunk doesn't exist (sparse dataset)
                     cstd::fill_n(buffer.data() + buffer_offset, element_size, byte_t{0});
                 } else {
-                    object_.file->io.SetPosition(*element_file_offset);
-                    object_.file->io.ReadBuffer(cstd::span(buffer.data() + buffer_offset, element_size));
+                    io.SetPosition(*element_file_offset);
+                    io.ReadBuffer(cstd::span(buffer.data() + buffer_offset, element_size));
                 }
                 return {};
             });
@@ -397,6 +401,7 @@ hdf5::expected<void> Dataset::WriteHyperslab(
 
     } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
         size_t data_offset = 0;
+        auto io = object_.file->MakeRW();
 
         while (!iterator.IsAtEnd()) {
             auto linear_index = iterator.GetLinearIndex();
@@ -407,14 +412,15 @@ hdf5::expected<void> Dataset::WriteHyperslab(
 
             offset_t file_offset = contiguous->address + *linear_index * element_size;
 
-            object_.file->io.SetPosition(file_offset);
-            object_.file->io.WriteBuffer(cstd::span(data.data() + data_offset, element_size));
+            io.SetPosition(file_offset);
+            io.WriteBuffer(cstd::span(data.data() + data_offset, element_size));
 
             data_offset += element_size;
             iterator.Advance();
         }
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
+        auto io = object_.file->MakeRW();
         auto process_result = ProcessChunkedHyperslab(
             chunked, iterator, element_size, object_.file,
             [&](const cstd::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) -> hdf5::expected<void> {
@@ -425,8 +431,8 @@ hdf5::expected<void> Dataset::WriteHyperslab(
                     return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "Cannot write to non-existent chunk (chunk creation not implemented)");
                 }
 
-                object_.file->io.SetPosition(*element_file_offset);
-                object_.file->io.WriteBuffer(cstd::span(data.data() + buffer_offset, element_size));
+                io.SetPosition(*element_file_offset);
+                io.WriteBuffer(cstd::span(data.data() + buffer_offset, element_size));
                 return {};
             });
         if (!process_result) {
