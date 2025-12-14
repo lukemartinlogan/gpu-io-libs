@@ -93,12 +93,12 @@ struct gpu_string_view {
 
     // Substring
     __device__ __host__
-    constexpr gpu_string_view substr(size_t pos, size_t count = std::numeric_limits<size_t>::max()) const {
+    constexpr gpu_string_view substr(size_t pos, size_t count = static_cast<size_t>(-1)) const {
         if (pos > length_) {
             return gpu_string_view(data_, 0);
         }
         size_t actual_count = count;
-        if (pos + count > length_ || count == std::numeric_limits<size_t>::max()) {
+        if (pos + count > length_ || count == static_cast<size_t>(-1)) {
             actual_count = length_ - pos;
         }
         return gpu_string_view(data_ + pos, actual_count);
