@@ -58,6 +58,13 @@ file(GLOB_RECURSE SOURCES
     "third_party/*.h"
 )
 
+if(CMAKE_CUDA_COMPILER)
+    file(GLOB_RECURSE CUDA_SOURCES
+        "src/*.cu"
+    )
+    list(APPEND SOURCES ${CUDA_SOURCES})
+endif()
+
 add_executable(hdf5_implementation ${SOURCES})
 
 if(CMAKE_CUDA_COMPILER)
