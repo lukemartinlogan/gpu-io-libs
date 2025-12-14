@@ -103,7 +103,7 @@ hdf5::expected<Dataset> Group::CreateDataset(
     } else {
         len_t dataset_bytes = dataspace.MaxElements() * type.Size();
 
-        offset_t data_alloc = object_.file->AllocateAtEOF(dataset_bytes);
+        offset_t data_alloc = object_.file->AllocateAtEOF(dataset_bytes, object_.file->io);
 
         object_.file->io.SetPosition(data_alloc);
 
@@ -263,7 +263,7 @@ hdf5::expected<void> Group::WriteEntryToNewNode(SymbolTableEntry entry) {
 
     serde::Skip(node_buf_rw, padding_size);
 
-    offset_t node_alloc = object_.file->AllocateAtEOF(node_buf_rw.GetPosition());
+    offset_t node_alloc = object_.file->AllocateAtEOF(node_buf_rw.GetPosition(), object_.file->io);
     object_.file->io.SetPosition(node_alloc);
     object_.file->io.WriteBuffer(node_buf_rw.GetWritten());
 

@@ -307,7 +307,7 @@ len_t BTreeNode::WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues 
 __device__ __host__
 offset_t BTreeNode::AllocateAndWrite(FileLink& file, KValues k) const {
     len_t alloc_size = AllocationSize(k);
-    offset_t alloc_start = file.AllocateAtEOF(alloc_size);
+    offset_t alloc_start = file.AllocateAtEOF(alloc_size, file.io);
 
     len_t intended_alloc_size = WriteNodeGetAllocSize(alloc_start, file, k);
 

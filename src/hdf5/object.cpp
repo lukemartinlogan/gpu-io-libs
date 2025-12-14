@@ -121,7 +121,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
             // put continuation here, allocate new block
             size_t alloc_space = msg_bytes.size() + cont_size;
-            offset_t offset = file->AllocateAtEOF(alloc_space);
+            offset_t offset = file->AllocateAtEOF(alloc_space, file->io);
 
             ObjectHeaderContinuationMessage cont {
                 .offset = offset,
@@ -196,7 +196,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
             // new allocation
             size_t alloc_space = msg_bytes.size() + cont_size;
-            offset_t offset = file->AllocateAtEOF(alloc_space);
+            offset_t offset = file->AllocateAtEOF(alloc_space, file->io);
 
             ObjectHeaderContinuationMessage cont {
                 .offset = offset,
@@ -338,7 +338,7 @@ __device__ __host__
 Object Object::AllocateEmptyAtEOF(len_t min_size, const std::shared_ptr<FileLink>& file) {
     len_t alloc_size = EmptyHeaderMessagesSize(min_size) + 16;
 
-    offset_t alloc_start = file->AllocateAtEOF(alloc_size);
+    offset_t alloc_start = file->AllocateAtEOF(alloc_size, file->io);
     file->io.SetPosition(alloc_start);
     WriteEmpty(min_size, file->io);
 

@@ -24,7 +24,7 @@ cstd::tuple<LocalHeap, offset_t> LocalHeap::AllocateNew(FileLink& file, len_t mi
     // TODO: windows defines max as a macro :(
     len_t aligned_size = EightBytesAlignedSize(min_size) > sizeof(FreeListBlock) ? EightBytesAlignedSize(min_size) : sizeof(FreeListBlock);
 
-    offset_t heap_offset = file.AllocateAtEOF(kHeaderSize + aligned_size);
+    offset_t heap_offset = file.AllocateAtEOF(kHeaderSize + aligned_size, file.io);
 
     LocalHeap heap;
     heap.this_offset = heap_offset;
@@ -134,7 +134,7 @@ hdf5::expected<void> LocalHeap::ReserveAdditional(FileLink& file, size_t additio
 
     new_size = EightBytesAlignedSize(new_size);
 
-    offset_t alloc = file.AllocateAtEOF(new_size);
+    offset_t alloc = file.AllocateAtEOF(new_size, file.io);
 
     // 2. move data
 
