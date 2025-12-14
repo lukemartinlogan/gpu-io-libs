@@ -82,3 +82,5 @@ if(CMAKE_CUDA_COMPILER)
 else()
     message(STATUS "Building CPU-only version")
 endif()
+
+add_subdirectory(test/unit)
