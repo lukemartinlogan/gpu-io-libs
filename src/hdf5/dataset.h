@@ -6,7 +6,6 @@
 #include "object_header.h"
 #include "tree.h"
 #include "../serialization/serialization.h"
-#include "../util/gpu_vector.h"
 
 class Dataset {
 public:
@@ -148,17 +147,6 @@ public:
             block
         );
     }
-
-    __device__ __host__
-    [[nodiscard]] hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> RawOffsets() const;
-
-    __device__ __host__
-    [[nodiscard]] hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> GetHyperslabChunkRawOffsets(
-        const hdf5::dim_vector<uint64_t>& start,
-        const hdf5::dim_vector<uint64_t>& count,
-        const hdf5::dim_vector<uint64_t>& stride = {},
-        const hdf5::dim_vector<uint64_t>& block = {}
-    ) const;
 
 private:
     __device__ __host__

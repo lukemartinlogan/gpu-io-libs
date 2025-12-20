@@ -7,7 +7,6 @@
 #include "types.h"
 #include "../serialization/serialization.h"
 #include "gpu_string.h"
-#include "../util/gpu_vector.h"
 
 struct BTreeGroupNodeKey {
     // byte offset into local heap
@@ -575,9 +574,6 @@ struct ChunkedBTree {
     __device__ __host__
     [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> GetChunk(const ChunkCoordinates& chunk_coords) const;
 
-    // can be very large, so use dynamic vector
-    __device__ __host__
-    [[nodiscard]] hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Offsets() const;
 
     __device__ __host__
     static offset_t CreateNew(FileLink* file, const hdf5::dim_vector<uint64_t>& max_size);

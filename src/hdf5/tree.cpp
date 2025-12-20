@@ -768,26 +768,6 @@ hdf5::expected<cstd::optional<offset_t>> ChunkedBTree::GetChunk(const ChunkCoord
 }
 
 __device__ __host__
-hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> ChunkedBTree::Offsets() const {
-    hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> result{};
-
-    auto root_result = ReadRoot();
-    if (!root_result) return cstd::unexpected(root_result.error());
-
-    if (!root_result->has_value()) {
-        return result;
-    }
-
-    auto recurse_result = (*root_result)->RecurseChunked([&result](const BTreeChunkedRawDataNodeKey& key, offset_t data_offset) -> hdf5::expected<void> {
-        result.emplace_back(key.chunk_offset_in_dataset, data_offset, key.chunk_size);
-        return {};
-    }, *file_);
-    if (!recurse_result) return cstd::unexpected(recurse_result.error());
-
-    return result;
-}
-
-__device__ __host__
 offset_t ChunkedBTree::CreateNew(FileLink* file, const hdf5::dim_vector<uint64_t>& max_size) {
     BTreeNode::KValues k{
         .leaf = BTreeNode::kChunkedRawDataK,
