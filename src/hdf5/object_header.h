@@ -1442,7 +1442,7 @@ struct ObjectHeaderMessage {
                     for (uint16_t i = 0; i < msg.size; ++i) {
                         serde::Skip<uint8_t>(de);
                     }
-                    return HeaderMessageVariant(NilMessage { .size = msg.size });
+                    return HeaderMessageVariant(NilMessage { msg.size });
                 }
                 case DataspaceMessage::kType:
                     return DeserializeMessageType<DataspaceMessage>(de);
