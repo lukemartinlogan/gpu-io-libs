@@ -63,7 +63,7 @@ hdf5::expected<hdf5::string> ReadPaddedString(D& de) {
 
         auto append_result = name.append(hdf5::string_view(
             reinterpret_cast<const char*>(buf.data()),
-            std::distance(buf.begin(), nul_pos)
+            nul_pos - buf.begin()
         ));
 
         if (!append_result) {
