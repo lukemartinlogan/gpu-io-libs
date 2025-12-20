@@ -45,8 +45,8 @@ struct LocalHeap {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kSignature);
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, cstd::array<uint8_t, 4>{ 'H', 'E', 'A', 'P' });
+        serde::Write(s, static_cast<uint8_t>(0x00));
 
         // reserved (zero)
         serde::Write(s, cstd::array<byte_t, 3>{});
@@ -61,11 +61,11 @@ struct LocalHeap {
     static hdf5::expected<LocalHeap> Deserialize(D& de) {
         offset_t this_offset = de.GetPosition();
 
-        if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
+        if (serde::Read<cstd::array<uint8_t, 4>>(de) != cstd::array<uint8_t, 4>{ 'H', 'E', 'A', 'P' }) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "LocalHeap signature was invalid");
         }
 
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "LocalHeap version number was invalid");
         }
         // reserved (zero)

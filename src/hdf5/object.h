@@ -78,7 +78,7 @@ __device__
         len_t aligned_size = EmptyHeaderMessagesSize(min_size);
 __device__
 
-        serde::Write(s, ObjectHeader::kVersionNumber);
+    serde::Write(s, static_cast<uint8_t>(0x01));
 
         // reserved
         serde::Write<uint8_t>(s, 0);

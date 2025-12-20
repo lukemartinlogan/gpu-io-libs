@@ -59,7 +59,7 @@ struct SuperblockV0 {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kSuperblockSignature);
+        serde::Write(s, cstd::array<uint8_t, 8>{ 0x89, 'H', 'D', 'F', '\r', '\n', 0x1a, '\n' });
         serde::Write(s, kVersionNumber);
         // file free space version num
         serde::Write(s, static_cast<uint8_t>(0));
@@ -88,7 +88,7 @@ struct SuperblockV0 {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<SuperblockV0> Deserialize(D& de) {
-        if (serde::Read<cstd::array<uint8_t, 8>>(de) != kSuperblockSignature) {
+        if (serde::Read<cstd::array<uint8_t, 8>>(de) != cstd::array<uint8_t, 8>{ 0x89, 'H', 'D', 'F', '\r', '\n', 0x1a, '\n' }) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "Superblock signature was invalid");
         }
 
@@ -160,7 +160,7 @@ struct SuperblockV2 {
     void Serialize(S& s) const {
         const uint32_t checksum = Checksum();
 
-        serde::Write(s, kSuperblockSignature);
+        serde::Write(s, cstd::array<uint8_t, 8>{ 0x89, 'H', 'D', 'F', '\r', '\n', 0x1a, '\n' });
         serde::Write(s, kVersionNumber);
         serde::Write(s, size_of_offsets);
         serde::Write(s, size_of_lengths);
@@ -175,7 +175,7 @@ struct SuperblockV2 {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<SuperblockV2> Deserialize(D& de) {
-        if (serde::Read<cstd::array<uint8_t, 8>>(de) != kSuperblockSignature) {
+        if (serde::Read<cstd::array<uint8_t, 8>>(de) != cstd::array<uint8_t, 8>{ 0x89, 'H', 'D', 'F', '\r', '\n', 0x1a, '\n' }) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "Superblock signature was invalid");
         }
 

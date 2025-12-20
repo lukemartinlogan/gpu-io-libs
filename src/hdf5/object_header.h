@@ -54,7 +54,7 @@ struct DataspaceMessage {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x01));
 
         auto dimensionality = static_cast<uint8_t>(dimensions.size());
         serde::Write(s, dimensionality);
@@ -83,7 +83,7 @@ struct DataspaceMessage {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<DataspaceMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
@@ -134,7 +134,7 @@ struct LinkInfoMessage {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x00));
 
         cstd::bitset<2> flags;
         flags.set(0, max_creation_index.has_value());
@@ -157,7 +157,7 @@ struct LinkInfoMessage {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<LinkInfoMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
@@ -246,7 +246,7 @@ struct FillValueMessage {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x02));
 
         serde::Write(s, static_cast<uint8_t>(space_alloc_time));
         serde::Write(s, static_cast<uint8_t>(write_time));
@@ -263,7 +263,7 @@ struct FillValueMessage {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<FillValueMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x02)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
@@ -361,7 +361,7 @@ struct ExternalDataFilesMessage {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x01));
 
         // reserved (zero)
         serde::Write(s, static_cast<uint8_t>(0));
@@ -423,13 +423,13 @@ struct BogusMessage {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const { // NOLINT
-        serde::Write(s, kBogusValue);
+        serde::Write(s, static_cast<uint32_t>(0xdeadbeef));
     }
 
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<BogusMessage> Deserialize(D& de) {
-        if (serde::Read<uint32_t>(de) != kBogusValue) {
+        if (serde::Read<uint32_t>(de) != static_cast<uint32_t>(0xdeadbeef)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "BogusMessage: value is not 0xdeadbeef");
         }
 
@@ -462,7 +462,7 @@ struct GroupInfoMessage {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x00));
 
         cstd::bitset<2> flags;
         flags.set(0, max_compact.has_value());
@@ -629,7 +629,7 @@ struct DataLayoutMessage {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x03));
 
         if (cstd::holds_alternative<CompactStorageProperty>(properties)) {
             serde::Write(s, static_cast<uint8_t>(kCompact));
@@ -648,7 +648,7 @@ struct DataLayoutMessage {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<DataLayoutMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x03)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
@@ -708,7 +708,7 @@ struct AttributeMessage {
     template<serde::Serializer S> requires serde::Seekable<S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x01));
         // reserved (zero)
         serde::Write(s, static_cast<uint8_t>(0));
 
@@ -740,7 +740,7 @@ struct AttributeMessage {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<AttributeMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
         // reserved (zero)
@@ -888,7 +888,7 @@ struct SharedMessageTableMessage {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x00));
         serde::Write(s, table_address);
         serde::Write(s, num_indices);
     }
@@ -896,7 +896,7 @@ struct SharedMessageTableMessage {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<SharedMessageTableMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "SharedMessageTableMessage: unsupported version");
         }
 
@@ -941,7 +941,7 @@ struct ObjectModificationTimeMessage {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x01));
 
         serde::Write(s, static_cast<uint8_t>(0));
         serde::Write(s, static_cast<uint8_t>(0));
@@ -957,7 +957,7 @@ struct ObjectModificationTimeMessage {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<ObjectModificationTimeMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
@@ -987,7 +987,7 @@ struct BTreeKValuesMessage {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x00));
         serde::Write(s, indexed_storage_internal_k);
         serde::Write(s, group_internal_k);
         serde::Write(s, group_leaf_k);
@@ -996,7 +996,7 @@ struct BTreeKValuesMessage {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<BTreeKValuesMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "BTreeKValuesMessage: unsupported version");
         }
 
@@ -1023,7 +1023,7 @@ struct DriverInfoMessage {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x00));
 
         // check that driver_id has len kDriverIdSize and is all ascii
         ASSERT(
@@ -1044,7 +1044,7 @@ struct DriverInfoMessage {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<DriverInfoMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "DriverInfoMessage: unsupported version");
         }
 
@@ -1087,7 +1087,7 @@ struct AttributeInfoMessage {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x00));
 
         cstd::bitset<2> flags;
         flags.set(0, max_creation_index.has_value());
@@ -1110,7 +1110,7 @@ struct AttributeInfoMessage {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<AttributeInfoMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "AttributeInfoMessage: unsupported version");
         }
 
@@ -1149,14 +1149,14 @@ struct ObjectReferenceCountMessage {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x00));
         serde::Write(s, reference_count);
     }
 
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<ObjectReferenceCountMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "ObjectReferenceCountMessage: invalid version");
         }
 
@@ -1211,7 +1211,7 @@ struct FileSpaceInfoMessage {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x01));
         serde::Write(s, static_cast<uint8_t>(strategy));
 
         auto persisting_free_space = PersistingFreeSpace();
@@ -1231,7 +1231,7 @@ struct FileSpaceInfoMessage {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<FileSpaceInfoMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "FileSpaceInfoMessage: invalid version");
         }
 
@@ -1540,7 +1540,7 @@ struct ObjectHeader {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x01));
         serde::Write(s, static_cast<uint8_t>(0));
         serde::Write(s, static_cast<uint16_t>(messages.size()));
         serde::Write(s, object_ref_count);
@@ -1562,7 +1562,7 @@ struct ObjectHeader {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<ObjectHeader> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
         // reserved (zero)

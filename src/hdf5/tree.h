@@ -621,7 +621,7 @@ void BTreeNode::Serialize(S& s) const {
         UNREACHABLE("Variant has invalid state");
     }
 
-    serde::Write(s, kSignature);
+    serde::Write(s, cstd::array<uint8_t, 4>{ 'T', 'R', 'E', 'E' });
 
     serde::Write(s, type);
     serde::Write(s, level);
@@ -642,7 +642,7 @@ void BTreeNode::Serialize(S& s) const {
 template<serde::Deserializer D>
 __device__
 hdf5::expected<BTreeNode> BTreeNode::DeserializeGroup(D& de) {
-    if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
+    if (serde::Read<cstd::array<uint8_t, 4>>(de) != cstd::array<uint8_t, 4>{ 'T', 'R', 'E', 'E' }) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "BTree signature was invalid");
     }
 
@@ -681,7 +681,7 @@ hdf5::expected<BTreeNode> BTreeNode::DeserializeGroup(D& de) {
 template<serde::Deserializer D>
 __device__
 hdf5::expected<BTreeNode> BTreeNode::DeserializeChunked(D& de, ChunkedKeyTerminatorInfo term_info) {
-    if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
+    if (serde::Read<cstd::array<uint8_t, 4>>(de) != cstd::array<uint8_t, 4>{ 'T', 'R', 'E', 'E' }) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "BTree signature was invalid");
     }
 

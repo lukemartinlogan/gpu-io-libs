@@ -98,8 +98,8 @@ struct SymbolTableNode {
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
-        serde::Write(s, kSignature);
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, cstd::array<uint8_t, 4>{ 'S', 'N', 'O', 'D' });
+        serde::Write(s, static_cast<uint8_t>(0x01));
         serde::Write(s, uint8_t{0});
         serde::Write(s, static_cast<uint16_t>(entries.size()));
 
@@ -112,11 +112,11 @@ struct SymbolTableNode {
     template<serde::Deserializer D>
     __device__
     static hdf5::expected<SymbolTableNode> Deserialize(D& de) {
-        if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
+        if (serde::Read<cstd::array<uint8_t, 4>>(de) != cstd::array<uint8_t, 4>{ 'S', 'N', 'O', 'D' }) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "symbol table node signature was invalid");
         }
 
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "symbol table node version was invalid");
         }
 
