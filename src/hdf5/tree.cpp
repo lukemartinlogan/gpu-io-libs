@@ -767,7 +767,7 @@ hdf5::expected<cstd::optional<offset_t>> ChunkedBTree::GetChunk(const ChunkCoord
     return (*root_result)->GetChunk(chunk_coords, *file_);
 }
 
-__device__ __host__
+__device__
 offset_t ChunkedBTree::CreateNew(FileLink* file, const hdf5::dim_vector<uint64_t>& max_size) {
     BTreeNode::KValues k{
         .leaf = BTreeNode::kChunkedRawDataK,
