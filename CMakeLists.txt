@@ -63,6 +63,9 @@ if(CMAKE_CUDA_COMPILER)
         "src/*.cu"
     )
     list(APPEND SOURCES ${CUDA_SOURCES})
+
+    file(GLOB_RECURSE HDF5_CPP_SOURCES "src/hdf5/*.cpp")
+    set_source_files_properties(${HDF5_CPP_SOURCES} PROPERTIES LANGUAGE CUDA)
 endif()
 
 add_executable(hdf5_implementation ${SOURCES})
