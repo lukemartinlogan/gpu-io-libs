@@ -6,7 +6,7 @@
 #include "file_link.h"
 #include "../util/string.h"
 
-__device__ __host__
+__device__
 hdf5::expected<offset_t> LocalHeap::WriteString(hdf5::string_view string, FileLink& file) {
     hdf5::string null_terminated_str(string);
 
@@ -19,7 +19,7 @@ hdf5::expected<offset_t> LocalHeap::WriteString(hdf5::string_view string, FileLi
     );
 }
 
-__device__ __host__
+__device__
 cstd::tuple<LocalHeap, offset_t> LocalHeap::AllocateNew(FileLink& file, len_t min_size) {
     // TODO: windows defines max as a macro :(
     len_t aligned_size = EightBytesAlignedSize(min_size) > sizeof(FreeListBlock) ? EightBytesAlignedSize(min_size) : sizeof(FreeListBlock);
@@ -46,7 +46,7 @@ cstd::tuple<LocalHeap, offset_t> LocalHeap::AllocateNew(FileLink& file, len_t mi
     return { heap, heap_offset };
 }
 
-__device__ __host__
+__device__
 hdf5::expected<offset_t> LocalHeap::WriteBytes(cstd::span<const byte_t> data, FileLink& file) {
     len_t aligned_size = EightBytesAlignedSize(data.size());
 
@@ -128,7 +128,7 @@ hdf5::expected<offset_t> LocalHeap::WriteBytes(cstd::span<const byte_t> data, Fi
 }
 
 // note: this method does not rewrite to file
-__device__ __host__
+__device__
 hdf5::expected<void> LocalHeap::ReserveAdditional(FileLink& file, size_t additional_bytes) {
     // 1. determine new size + alloc
     // TODO: windows defines max as a macro :(

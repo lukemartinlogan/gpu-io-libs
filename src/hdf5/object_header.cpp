@@ -6,7 +6,7 @@
 #include "../serialization/buffer.h"
 #include "../util/string.h"
 
-__device__ __host__
+__device__
 size_t DataspaceMessage::TotalElements() const {
     return std::accumulate(
         dimensions.begin(), dimensions.end(),
@@ -17,7 +17,7 @@ size_t DataspaceMessage::TotalElements() const {
     );
 }
 
-__device__ __host__
+__device__
 size_t DataspaceMessage::MaxElements() const {
     return std::accumulate(
         dimensions.begin(), dimensions.end(),
@@ -28,7 +28,7 @@ size_t DataspaceMessage::MaxElements() const {
     );
 }
 
-__device__ __host__
+__device__
 DataspaceMessage::DataspaceMessage(const hdf5::dim_vector<DimensionInfo>& dimensions, bool max_dim_present, bool perm_indices_present) {
     ASSERT(dimensions.size() <= 255, "DataspaceMessage cannot have more than 255 dimensions");
 
@@ -38,7 +38,7 @@ DataspaceMessage::DataspaceMessage(const hdf5::dim_vector<DimensionInfo>& dimens
     bitset_.set(1, perm_indices_present);
 }
 
-__device__ __host__
+__device__
 uint16_t ObjectHeaderMessage::MessageType() const {
     auto index = cstd::visit([]<typename T>(const T&) { return T::kType; }, message);
 

@@ -10,19 +10,19 @@ struct FileLink {
     iowarp::GpuContext* ctx;
     SuperblockV0 superblock;
 
-    __device__ __host__
+    __device__
     FileLink(int file_descriptor, iowarp::GpuContext* context, const SuperblockV0& sb)
         : fd(file_descriptor), ctx(context), superblock(sb) {}
 
     ~FileLink() = default;
 
-    __device__ __host__
+    __device__
     [[nodiscard]] GpuPosixReaderWriter MakeRW() const {
         return {fd, ctx};
     }
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     offset_t AllocateAtEOF(len_t size_bytes, S& serializer) {
         offset_t addr = superblock.eof_addr;
         superblock.eof_addr += size_bytes;

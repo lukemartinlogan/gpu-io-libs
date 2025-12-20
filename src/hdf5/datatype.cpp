@@ -4,7 +4,7 @@
 
 
 // TODO: have this method presented in a different way?
-__device__ __host__
+__device__
 FloatingPoint::FloatingPoint(
     uint32_t size,
     uint8_t sign_location,
@@ -88,7 +88,7 @@ const DatatypeMessage DatatypeMessage::f32_t = {
     .data = FloatingPoint::f32_t,
 };
 
-__device__ __host__
+__device__
 VariableLength::VariableLength(const VariableLength& other)
     : type(other.type),
       padding(other.padding),
@@ -103,7 +103,7 @@ VariableLength::VariableLength(const VariableLength& other)
     // }
 }
 
-__device__ __host__
+__device__
 VariableLength& VariableLength::operator=(const VariableLength& other) {
     if (this == &other) {
         return *this;
@@ -124,7 +124,7 @@ VariableLength& VariableLength::operator=(const VariableLength& other) {
     return *this;
 }
 
-__device__ __host__
+__device__
 CompoundMember::CompoundMember(const CompoundMember& other)
         : name(other.name),
           byte_offset(other.byte_offset),
@@ -132,7 +132,7 @@ CompoundMember::CompoundMember(const CompoundMember& other)
           // message(std::make_unique<DatatypeMessage>(*other.message)) /* TODO(recursive-datatypes) */
 { }
 
-__device__ __host__
+__device__
 CompoundMember& CompoundMember::operator=(const CompoundMember& other) {
     if (this == &other) {
         return *this;

@@ -13,7 +13,7 @@
   #define OPEN_MODE (0644)
 #endif
 
-__device__ __host__
+__device__
 hdf5::expected<File> File::New(const char* filename, iowarp::GpuContext* ctx) {
     int fd = iowarp::gpu_posix::open(filename, OPEN_FLAGS, OPEN_MODE, *ctx);
     if (fd < 0) {

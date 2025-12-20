@@ -9,11 +9,11 @@
 
 class Dataset {
 public:
-    __device__ __host__
+    __device__
     static hdf5::expected<Dataset> New(const Object& object);
 
     // TODO: multidimensional coords
-    __device__ __host__
+    __device__
     template <typename T>
     hdf5::expected<T> Get(size_t index) const {
         if (index >= space_.TotalElements()) {
@@ -39,7 +39,7 @@ public:
     }
 
     // FIXME: implement datatype
-    __device__ __host__
+    __device__
     hdf5::expected<void> Read(cstd::span<byte_t> buffer, size_t start_index, size_t count) const;
 
     // FIXME: impl datatype instead
@@ -64,7 +64,7 @@ public:
         return out;
     }
 
-    __device__ __host__
+    __device__
     hdf5::expected<void> ReadHyperslab(
         cstd::span<byte_t> buffer,
         const hdf5::dim_vector<uint64_t>& start,
@@ -103,10 +103,10 @@ public:
         return result;
     }
 
-    __device__ __host__
+    __device__
     hdf5::expected<void> Write(cstd::span<const byte_t> data, size_t start_index) const;
 
-    __device__ __host__
+    __device__
     template<typename T>
     hdf5::expected<void> Write(cstd::span<const T> data, size_t start_index) const {
         return Write(
@@ -118,7 +118,7 @@ public:
         );
     }
 
-    __device__ __host__
+    __device__
     hdf5::expected<void> WriteHyperslab(
         cstd::span<const byte_t> data,
         const hdf5::dim_vector<uint64_t>& start,
@@ -127,7 +127,7 @@ public:
         const hdf5::dim_vector<uint64_t>& block = {}
     ) const;
 
-    __device__ __host__
+    __device__
     template<typename T>
     hdf5::expected<void> WriteHyperslab(
         cstd::span<const T> data,
@@ -149,11 +149,11 @@ public:
     }
 
 private:
-    __device__ __host__
+    __device__
     Dataset(Object object, DataLayoutMessage layout, DatatypeMessage type, const DataspaceMessage& space)
         : object_(std::move(object)), layout_(std::move(layout)), type_(std::move(type)), space_(space) {}
 
-    __device__ __host__
+    __device__
     static size_t TotalElements(const hdf5::dim_vector<uint64_t>& count, const hdf5::dim_vector<uint64_t>& block) {
         size_t total_elements = 1;
         for (size_t i = 0; i < count.size(); ++i) {

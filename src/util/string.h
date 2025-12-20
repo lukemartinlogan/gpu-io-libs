@@ -4,6 +4,7 @@
 #include "../hdf5/types.h"
 
 template<serde::Deserializer D>
+__device__
 hdf5::expected<hdf5::string> ReadNullTerminatedString(D& de, size_t max_size = hdf5::gpu_string<>::max_size()) {
     hdf5::string str;
     bool found = false;
@@ -30,6 +31,7 @@ hdf5::expected<hdf5::string> ReadNullTerminatedString(D& de, size_t max_size = h
 
 // TODO: does this forget about the null byte sometimes?
 template<serde::Serializer S>
+__device__
 void WritePaddedString(hdf5::string_view name, S& s) {
     size_t name_size = name.size();
 
@@ -47,6 +49,7 @@ void WritePaddedString(hdf5::string_view name, S& s) {
 }
 
 template<serde::Deserializer D>
+__device__
 hdf5::expected<hdf5::string> ReadPaddedString(D& de) {
     hdf5::string name;
 

@@ -8,10 +8,10 @@
 class Object {
 public:
     // FIXME: get rid of this ctor
-    __device__ __host__
+    __device__
     Object() = default;
 
-    __device__ __host__
+    __device__
     static hdf5::expected<Object> New(FileLink* file, offset_t pos_) {
         auto io = file->MakeRW();
         io.SetPosition(pos_);
@@ -24,7 +24,7 @@ public:
         return Object(file, pos_);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<ObjectHeader> GetHeader() const {
         JumpToRelativeOffset(0);
 
@@ -32,20 +32,20 @@ public:
         return serde::Read<ObjectHeader>(io);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] offset_t GetAddress() const {
         return file_pos_;
     }
 
     // TODO: should this mutate an internally held object as well?
     // TODO: add a 'dirty' field to header messages
-    __device__ __host__
+    __device__
     void WriteMessage(const HeaderMessageVariant& msg) const;
 
-    __device__ __host__
+    __device__
     cstd::optional<ObjectHeaderMessage> DeleteMessage(uint16_t msg_type);
 
-    __device__ __host__
+    __device__
     template<typename T>
     cstd::optional<T> DeleteMessage() {
         cstd::optional<ObjectHeaderMessage> msg = DeleteMessage(T::kType);
@@ -57,7 +57,6 @@ public:
         }
     }
 
-    __device__ __host__
     cstd::optional<ObjectHeaderMessage> GetMessage(uint16_t msg_type);
 
     __device__ __host__
@@ -71,12 +70,13 @@ public:
             return cstd::nullopt;
         }
     }
+__device__
 
-    __device__ __host__
     template<serde::Serializer S>
     static void WriteEmpty(len_t min_size, S& s) {
         // TODO: this probably shouldn't be unused!
         len_t aligned_size = EmptyHeaderMessagesSize(min_size);
+__device__
 
         serde::Write(s, ObjectHeader::kVersionNumber);
 
@@ -183,7 +183,6 @@ private:
         return cstd::nullopt;
     }
 
-    __device__ __host__
     template<serde::Deserializer D>
     [[nodiscard]] static cstd::optional<Object::Space> FindSpace(
         D& de,
@@ -198,6 +197,7 @@ private:
             uint32_t size_limit;
             uint32_t bytes_read;
         };
+__device__
 
         cstd::inplace_vector<StackFrame, ObjectHeader::kMaxContinuationDepth> stack;
         stack.push_back({de.GetPosition(), size_limit, 0});

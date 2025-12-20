@@ -86,7 +86,7 @@ namespace serde {
     // -- DESERIALIZE FUNCTIONS --
 
     template<TriviallySerializable T, Deserializer D>
-    __device__ __host__
+    __device__
     T Read(D&& d) {
         T out;
         d.ReadBuffer(cstd::as_writable_bytes(cstd::span(&out, 1)));
@@ -94,7 +94,7 @@ namespace serde {
     }
 
     template<NonTriviallySerializable T, Deserializer D>
-    __device__ __host__
+    __device__
     auto Read(D&& d) {
         return T::Deserialize(d);
     }

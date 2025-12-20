@@ -6,7 +6,7 @@
 
 
 template <typename K>
-__device__ __host__
+__device__
 uint16_t BTreeEntries<K>::EntriesUsed() const {
     uint16_t entries_ct = child_pointers.size();
 
@@ -16,7 +16,7 @@ uint16_t BTreeEntries<K>::EntriesUsed() const {
 }
 
 template <typename K>
-__device__ __host__
+__device__
 uint16_t BTreeEntries<K>::KeySize() const {
     if constexpr (std::is_same_v<K, BTreeGroupNodeKey>) {
         return BTreeGroupNodeKey::kAllocationSize;
@@ -31,14 +31,14 @@ uint16_t BTreeEntries<K>::KeySize() const {
     }
 }
 
-__device__ __host__
+__device__
 uint16_t BTreeNode::EntriesUsed() const {
     return cstd::visit([](const auto& entries) {
         return entries.EntriesUsed();
     }, entries);
 }
 
-__device__ __host__
+__device__
 hdf5::expected<cstd::optional<offset_t>> BTreeNode::Get(hdf5::string_view name, FileLink& file, const LocalHeap& heap) const {
     // this does copy the whole node, but it's necessary since future
     // iterations need a place to preserve the lifetime
@@ -76,7 +76,7 @@ hdf5::expected<cstd::optional<offset_t>> BTreeNode::Get(hdf5::string_view name, 
     }
 }
 
-__device__ __host__
+__device__
 cstd::optional<offset_t> BTreeNode::GetChunk(const ChunkCoordinates& chunk_coords, FileLink& file) const {
     BTreeNode current_node = *this;
 
@@ -111,7 +111,7 @@ cstd::optional<offset_t> BTreeNode::GetChunk(const ChunkCoordinates& chunk_coord
     }
 }
 
-__device__ __host__
+__device__
 cstd::optional<uint16_t> BTreeNode::FindChunkedIndex(const ChunkCoordinates& chunk_coords) const {
     if (!cstd::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries)) {
         return cstd::nullopt;
@@ -159,7 +159,7 @@ cstd::optional<uint16_t> BTreeNode::FindChunkedIndex(const ChunkCoordinates& chu
     return child_index;
 }
 
-__device__ __host__
+__device__
 uint16_t BTreeNode::ChunkedInsertionPosition(const ChunkCoordinates& chunk_coords) const {
     ASSERT(cstd::holds_alternative<BTreeEntries<BTreeChunkedRawDataNodeKey>>(entries), "ChunkedInsertionPosition only supported for chunked nodes");
 
@@ -187,7 +187,7 @@ uint16_t BTreeNode::ChunkedInsertionPosition(const ChunkCoordinates& chunk_coord
 }
 
 template<typename K>
-__device__ __host__
+__device__
 hdf5::expected<K> BTreeNode::GetMaxKey(FileLink& file) const {
     static_assert(
         std::is_same_v<K, BTreeGroupNodeKey> || std::is_same_v<K, BTreeChunkedRawDataNodeKey>,
@@ -219,7 +219,7 @@ hdf5::expected<K> BTreeNode::GetMaxKey(FileLink& file) const {
 }
 
 template<typename K>
-__device__ __host__
+__device__
 K BTreeNode::GetMinKey() const {
     static_assert(
         std::is_same_v<K, BTreeGroupNodeKey> || std::is_same_v<K, BTreeChunkedRawDataNodeKey>,
@@ -235,7 +235,7 @@ K BTreeNode::GetMinKey() const {
     return node_entries.keys.front();
 }
 
-__device__ __host__
+__device__
 len_t BTreeNode::AllocationSize(KValues k_val) const {
     const uint16_t k = k_val.Get(IsLeaf());
 
@@ -257,13 +257,13 @@ len_t BTreeNode::AllocationSize(KValues k_val) const {
 }
 
 
-__device__ __host__
+__device__
 bool BTreeNode::AtCapacity(KValues k) const {
     return EntriesUsed() == k.Get(IsLeaf()) * 2;
 }
 
 
-__device__ __host__
+__device__
 BTreeNode BTreeNode::Split(KValues k) {
     return cstd::visit([this, k]<typename Entries>(Entries& l_entries) -> BTreeNode {
         Entries r_entries{};
@@ -285,7 +285,7 @@ BTreeNode BTreeNode::Split(KValues k) {
     }, entries);
 }
 
-__device__ __host__
+__device__
 len_t BTreeNode::WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues k) const {
     auto io = file.MakeRW();
     io.SetPosition(offset);
@@ -308,7 +308,7 @@ len_t BTreeNode::WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues 
     return written_bytes + unused_entries * key_ptr_size;
 };
 
-__device__ __host__
+__device__
 offset_t BTreeNode::AllocateAndWrite(FileLink& file, KValues k) const {
     len_t alloc_size = AllocationSize(k);
     auto io = file.MakeRW();
@@ -321,7 +321,7 @@ offset_t BTreeNode::AllocateAndWrite(FileLink& file, KValues k) const {
     return alloc_start;
 }
 
-__device__ __host__
+__device__
 hdf5::expected<cstd::optional<SplitResult>> BTreeNode::InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap) {
     auto io = file.MakeRW();
     auto name_str_result = heap.ReadString(name_offset, io);
@@ -492,7 +492,7 @@ hdf5::expected<cstd::optional<SplitResult>> BTreeNode::InsertGroup(offset_t this
 
 // TODO(expected): maybe just return expected?
 // TODO: refactor this and InsertGroup to use the same internals; currently lot of duplicated logic
-__device__ __host__
+__device__
 hdf5::expected<cstd::optional<SplitResultChunked>> BTreeNode::InsertChunked(
     offset_t this_offset,
     const BTreeChunkedRawDataNodeKey& key,
@@ -620,7 +620,7 @@ hdf5::expected<cstd::optional<SplitResultChunked>> BTreeNode::InsertChunked(
     return split_to_propagate;
 }
 
-__device__ __host__
+__device__
 hdf5::expected<cstd::optional<offset_t>> GroupBTree::Get(hdf5::string_view name) const {
     auto root_result = ReadRoot();
     if (!root_result) return cstd::unexpected(root_result.error());
@@ -632,7 +632,7 @@ hdf5::expected<cstd::optional<offset_t>> GroupBTree::Get(hdf5::string_view name)
     return (*root_result)->Get(name, *file_, heap_);
 }
 
-__device__ __host__
+__device__
 hdf5::expected<void> GroupBTree::InsertGroup(offset_t name_offset, offset_t object_header_ptr) {
     const BTreeNode::KValues k {
         .leaf = file_->superblock.group_leaf_node_k,
@@ -702,7 +702,7 @@ hdf5::expected<void> GroupBTree::InsertGroup(offset_t name_offset, offset_t obje
     return {};
 }
 
-__device__ __host__
+__device__
 hdf5::expected<void> ChunkedBTree::InsertChunk(const ChunkCoordinates& chunk_coords, uint32_t chunk_size, uint32_t filter_mask, offset_t data_ptr) {
     const BTreeNode::KValues k {
         .leaf = BTreeNode::kChunkedRawDataK,
@@ -755,7 +755,7 @@ hdf5::expected<void> ChunkedBTree::InsertChunk(const ChunkCoordinates& chunk_coo
     return {};
 }
 
-__device__ __host__
+__device__
 hdf5::expected<cstd::optional<offset_t>> ChunkedBTree::GetChunk(const ChunkCoordinates& chunk_coords) const {
     auto root_result = ReadRoot();
     if (!root_result) return cstd::unexpected(root_result.error());
@@ -785,7 +785,7 @@ offset_t ChunkedBTree::CreateNew(FileLink* file, const hdf5::dim_vector<uint64_t
     return BTreeNode { .level = 0, .entries = entries }.AllocateAndWrite(*file, k);
 }
 
-__device__ __host__
+__device__
 hdf5::expected<cstd::optional<BTreeNode>> ChunkedBTree::ReadRoot() const {
     if (!addr_.has_value()) {
         return cstd::nullopt;
@@ -797,7 +797,7 @@ hdf5::expected<cstd::optional<BTreeNode>> ChunkedBTree::ReadRoot() const {
     return BTreeNode::DeserializeChunked(io, terminator_info_);
 }
 
-__device__ __host__
+__device__
 hdf5::expected<size_t> GroupBTree::Size() const {
     auto root_result = ReadRoot();
     if (!root_result) return cstd::unexpected(root_result.error());
@@ -817,7 +817,7 @@ hdf5::expected<size_t> GroupBTree::Size() const {
     return size;
 }
 
-__device__ __host__
+__device__
 hdf5::expected<cstd::inplace_vector<offset_t, GroupBTree::kMaxGroupElements>> GroupBTree::Elements() const {
     auto root_result = ReadRoot();
     if (!root_result) return cstd::unexpected(root_result.error());
@@ -840,7 +840,7 @@ hdf5::expected<cstd::inplace_vector<offset_t, GroupBTree::kMaxGroupElements>> Gr
     return elems;
 }
 
-__device__ __host__
+__device__
 hdf5::expected<cstd::optional<BTreeNode>> GroupBTree::ReadRoot() const {
     if (!addr_.has_value()) {
         return cstd::nullopt;

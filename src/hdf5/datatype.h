@@ -21,29 +21,29 @@ struct FixedPoint {
     // size in bytes
     uint32_t size{};
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool BigEndian() const {
         return bitset_.test(0);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool LowPadding() const {
         return bitset_.test(1);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool HighPadding() const {
         return bitset_.test(2);
     }
 
     // is signed in two's complement?
-    __device__ __host__
+    __device__
     [[nodiscard]] bool Signed() const {
         return bitset_.test(3);
     }
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         // first four bits are used
         serde::Write(s, static_cast<uint8_t>(bitset_.to_ulong() & 0x0f));
@@ -56,7 +56,7 @@ struct FixedPoint {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<FixedPoint> Deserialize(D& de) {
         FixedPoint fp{};
 
@@ -91,7 +91,7 @@ struct FloatingPoint {
 
     enum class ByteOrder : uint8_t { kLittleEndian, kBigEndian, kVAXEndian };
 
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<ByteOrder> GetByteOrder() const {
         const bool _0 = bitset_.test(0);
         const bool _6 = bitset_.test(6);
@@ -109,24 +109,24 @@ struct FloatingPoint {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Invalid byte order");
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool LowPadding() const {
         return bitset_.test(1);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool HighPadding() const {
         return bitset_.test(2);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool InternalPadding() const {
         return bitset_.test(3);
     }
 
     enum class MantissaNormalization : uint8_t { kNone, kMSBSet, kMSBImpliedSet };
 
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<MantissaNormalization> GetMantissaNormalization() const {
         // get bits 4 & 5
         switch ((bitset_.to_ulong() >> 4) & 0b11) {
@@ -138,7 +138,7 @@ struct FloatingPoint {
     }
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         serde::Write(s, static_cast<uint8_t>(bitset_.to_ulong() & 0x7f));
         serde::Write(s, sign_location);
@@ -157,7 +157,7 @@ struct FloatingPoint {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<FloatingPoint> Deserialize(D& de) {
         FloatingPoint fp{};
 
@@ -207,21 +207,21 @@ struct VariableLength {
     // TODO(recursive-datatypes): currently, there's no great way to have recursive types on the GPU; another method for resolving datatypes might need to be implemented
     // std::unique_ptr<DatatypeMessage> parent_type{};
 
-    __device__ __host__
+    __device__
     VariableLength() = default;
 
-    __device__ __host__
+    __device__
     VariableLength(const VariableLength& other);
-    __device__ __host__
+    __device__
     VariableLength& operator=(const VariableLength& other);
 
-    __device__ __host__
+    __device__
     VariableLength(VariableLength&& other) noexcept = default;
-    __device__ __host__
+    __device__
     VariableLength& operator=(VariableLength&& other) noexcept = default;
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         uint8_t bitset_1 = (static_cast<uint8_t>(padding) << 4) | static_cast<uint8_t>(type);
         serde::Write(s, bitset_1);
@@ -243,7 +243,7 @@ struct VariableLength {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<VariableLength> Deserialize(D& de) {
         auto bitset_1 = serde::Read<uint8_t>(de);
 
@@ -308,27 +308,27 @@ struct CompoundMember {
     // TODO: finding a better way to introduce indirection here would be nice
     // std::unique_ptr<DatatypeMessage> message;
 
-    __device__ __host__
+    __device__
     CompoundMember() = default;
 
-    __device__ __host__
+    __device__
     CompoundMember(const CompoundMember& other);
 
-    __device__ __host__
+    __device__
     CompoundMember& operator=(const CompoundMember& other);
 
-    __device__ __host__
+    __device__
     CompoundMember(CompoundMember&& other) noexcept = default;
 
-    __device__ __host__
+    __device__
     CompoundMember& operator=(CompoundMember&& other) noexcept = default;
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const;
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<CompoundMember> Deserialize(D& de);
 };
 
@@ -339,11 +339,11 @@ struct CompoundDatatype {
     uint32_t size{};
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const;
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<CompoundDatatype> Deserialize(D& de);
 };
 
@@ -385,17 +385,17 @@ struct DatatypeMessage {
         VariableLength
     > data{};
 
-    __device__ __host__
+    __device__
     [[nodiscard]] uint16_t Size() const {
         return cstd::visit([](const auto& elem) { return elem.size; }, data);
     }
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const;
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<DatatypeMessage> Deserialize(D& de);
 
 public:
@@ -406,7 +406,7 @@ public:
 };
 
 template<serde::Serializer S>
-__device__ __host__
+__device__
 void CompoundMember::Serialize(S& s) const {
     // includes null terminator
     WritePaddedString(name, s);
@@ -438,7 +438,7 @@ void CompoundMember::Serialize(S& s) const {
 }
 
 template<serde::Deserializer D>
-__device__ __host__
+__device__
 hdf5::expected<CompoundMember> CompoundMember::Deserialize(D& de) {
     CompoundMember mem{};
 
@@ -480,7 +480,7 @@ hdf5::expected<CompoundMember> CompoundMember::Deserialize(D& de) {
 }
 
 template<serde::Serializer S>
-__device__ __host__
+__device__
 void CompoundDatatype::Serialize(S& s) const {
     auto num_members = static_cast<uint16_t>(members.size());
 
@@ -496,7 +496,7 @@ void CompoundDatatype::Serialize(S& s) const {
 }
 
 template<serde::Deserializer D>
-__device__ __host__
+__device__
 hdf5::expected<CompoundDatatype> CompoundDatatype::Deserialize(D& de) {
     auto num_members = serde::Read<uint16_t>(de);
     // reserved (zero)
@@ -523,7 +523,7 @@ hdf5::expected<CompoundDatatype> CompoundDatatype::Deserialize(D& de) {
 }
 
 template<serde::Serializer S>
-__device__ __host__
+__device__
 void DatatypeMessage::Serialize(S& s) const {
     auto high = static_cast<uint8_t>(version);
     auto low = static_cast<uint8_t>(class_v);
@@ -536,7 +536,7 @@ void DatatypeMessage::Serialize(S& s) const {
 }
 
 template<serde::Deserializer D>
-__device__ __host__
+__device__
 hdf5::expected<DatatypeMessage> DatatypeMessage::Deserialize(D& de) {
     auto class_and_version = serde::Read<uint8_t>(de);
 

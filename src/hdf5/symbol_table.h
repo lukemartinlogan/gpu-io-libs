@@ -33,7 +33,7 @@ struct SymbolTableEntry {
     cstd::array<byte_t, 16> scratch_pad_space{};
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         serde::Write(s, link_name_offset);
         serde::Write(s, object_header_addr);
@@ -44,7 +44,7 @@ struct SymbolTableEntry {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<SymbolTableEntry> Deserialize(D& de) {
         SymbolTableEntry ent{};
 
@@ -78,7 +78,7 @@ struct SymbolTableNode {
     cstd::inplace_vector<SymbolTableEntry, kMaxSymbolTableEntries> entries;
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> FindEntry(hdf5::string_view name, const LocalHeap& heap, D& de) const {
         for (const auto& entry : entries) {
             // TODO(cuda_vector): this likely doesn't need to allocate if only used to check; might be a lifetime nightmare if made generally though
@@ -96,7 +96,7 @@ struct SymbolTableNode {
     }
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         serde::Write(s, kSignature);
         serde::Write(s, kVersionNumber);
@@ -110,7 +110,7 @@ struct SymbolTableNode {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<SymbolTableNode> Deserialize(D& de) {
         if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "symbol table node signature was invalid");

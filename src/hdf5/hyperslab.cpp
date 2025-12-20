@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+__device__
 hdf5::expected<HyperslabIterator> HyperslabIterator::New(
     const coord_t& start,
     const coord_t& count,
@@ -21,6 +22,7 @@ hdf5::expected<HyperslabIterator> HyperslabIterator::New(
     return HyperslabIterator(start, count, std::move(norm_stride), std::move(norm_block), dataset_dims);
 }
 
+__device__
 HyperslabIterator::HyperslabIterator(
     const coord_t& start,
     const coord_t& count,
@@ -41,6 +43,7 @@ HyperslabIterator::HyperslabIterator(
     count_index_.resize(n_dims, 0);
 }
 
+__device__
 bool HyperslabIterator::Advance() {
     if (at_end_) {
         return false;
@@ -79,6 +82,7 @@ bool HyperslabIterator::Advance() {
     return false;
 }
 
+__device__
 hdf5::expected<uint64_t> HyperslabIterator::GetLinearIndex() const {
     if (at_end_) {
         return hdf5::error(hdf5::HDF5ErrorCode::IteratorAtEnd, "Iterator is at end");
@@ -103,6 +107,7 @@ hdf5::expected<uint64_t> HyperslabIterator::GetLinearIndex() const {
     return linear_index;
 }
 
+__device__
 hdf5::expected<uint64_t> HyperslabIterator::GetTotalElements() const {
     if (count_.empty()) {
         return hdf5::error(hdf5::HDF5ErrorCode::EmptyParameter, "Count is empty");
@@ -122,6 +127,7 @@ hdf5::expected<uint64_t> HyperslabIterator::GetTotalElements() const {
     return total_elements;
 }
 
+__device__
 void HyperslabIterator::Reset() {
     at_end_ = false;
 
@@ -131,6 +137,7 @@ void HyperslabIterator::Reset() {
     current_coord_ = start_;
 }
 
+__device__
 cstd::optional<hdf5::HDF5Error> HyperslabIterator::ValidateParams(
     const coord_t& start,
     const coord_t& count,

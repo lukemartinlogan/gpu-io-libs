@@ -2,7 +2,7 @@
 
 #include "../util/align.h"
 
-__device__ __host__
+__device__
 cstd::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) const {
     JumpToRelativeOffset(0);
 
@@ -22,7 +22,7 @@ cstd::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) c
     return FindSpace(io, file->superblock.base_addr, total_message_ct, header_size, size, must_be_nil);
 }
 
-__device__ __host__
+__device__
 template<serde::Serializer S> requires serde::Seekable<S>
 void WriteMessageToBuffer(S& s, const HeaderMessageVariant& msg) {
     offset_t start_pos = s.GetPosition();
@@ -51,7 +51,7 @@ void WriteMessageToBuffer(S& s, const HeaderMessageVariant& msg) {
     s.WriteBuffer(header_s.GetWritten());
 }
 
-__device__ __host__
+__device__
 void Object::WriteMessage(const HeaderMessageVariant& msg) const {
     // this is how many bytes should be allocated if something needs to be moved
     // TODO: not sure how large this should be in practice
@@ -259,7 +259,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
 // semantically, this isn't const, so it's not being made const
 // ReSharper disable once CppMemberFunctionMayBeConst
-__device__ __host__
+__device__
 cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
     JumpToRelativeOffset(0);
 
@@ -302,7 +302,7 @@ cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
 }
 
 // TODO: fix code duplication
-__device__ __host__
+__device__
 cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
     JumpToRelativeOffset(0);
 
@@ -337,7 +337,7 @@ cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
     return *msg_result;
 }
 
-__device__ __host__
+__device__
 Object Object::AllocateEmptyAtEOF(len_t min_size, FileLink* file) {
     len_t alloc_size = EmptyHeaderMessagesSize(min_size) + 16;
 
