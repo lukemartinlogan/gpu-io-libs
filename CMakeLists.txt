@@ -68,27 +68,34 @@ if(CMAKE_CUDA_COMPILER)
     set_source_files_properties(${HDF5_CPP_SOURCES} PROPERTIES LANGUAGE CUDA)
 endif()
 
-add_executable(hdf5_implementation ${SOURCES})
+add_library(hdf5_lib STATIC ${SOURCES})
 
 if(CMAKE_CUDA_COMPILER)
-    target_link_libraries(hdf5_implementation PRIVATE
+    target_link_libraries(hdf5_lib PUBLIC
         CUDA::cudart
         CCCL::CCCL
         stdgpu::stdgpu
     )
-    target_compile_definitions(hdf5_implementation PRIVATE
+    target_compile_definitions(hdf5_lib PUBLIC
         CUDA_ENABLED=1
         LIBCUDACXX_AVAILABLE=1
         _CCCL_HAS_SORTING_ALGORITHMS=1
     )
-    target_include_directories(hdf5_implementation PRIVATE
+    target_include_directories(hdf5_lib PUBLIC
+        ${CMAKE_SOURCE_DIR}/src
         ${cccl_SOURCE_DIR}/libcudacxx/include
         ${cccl_SOURCE_DIR}/thrust
         ${cccl_SOURCE_DIR}/cub
     )
     message(STATUS "Building with CUDA, libcu++, and stdgpu support")
 else()
+    target_include_directories(hdf5_lib PUBLIC
+        ${CMAKE_SOURCE_DIR}/src
+    )
     message(STATUS "Building CPU-only version")
 endif()
+
+add_executable(hdf5_implementation src/main.cpp)
+target_link_libraries(hdf5_implementation PRIVATE hdf5_lib)
 
 add_subdirectory(test/unit)
