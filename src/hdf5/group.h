@@ -69,7 +69,6 @@ private:
         : object_(std::move(object)), table_(std::move(table)) {}
 
 private:
-public:
     Object object_;
 
     GroupBTree table_{};
