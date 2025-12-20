@@ -8,24 +8,20 @@
 
 __device__
 size_t DataspaceMessage::TotalElements() const {
-    return std::accumulate(
-        dimensions.begin(), dimensions.end(),
-        1,
-        [](size_t acc, const DimensionInfo& info) {
-            return acc * info.size;
-        }
-    );
+    size_t total = 1;
+    for (const auto& dim : dimensions) {
+        total *= dim.size;
+    }
+    return total;
 }
 
 __device__
 size_t DataspaceMessage::MaxElements() const {
-    return std::accumulate(
-        dimensions.begin(), dimensions.end(),
-        1,
-        [](size_t acc, const DimensionInfo& info) {
-            return acc * info.max_size;
-        }
-    );
+    size_t total = 1;
+    for (const auto& dim : dimensions) {
+        total *= dim.max_size;
+    }
+    return total;
 }
 
 __device__
