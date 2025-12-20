@@ -125,24 +125,3 @@ inline hdf5::expected<void> Dataset::Write(cstd::span<const T> data, size_t star
         start_index
     );
 }
-
-template<typename T>
-__device__
-inline hdf5::expected<void> Dataset::WriteHyperslab(
-    cstd::span<const T> data,
-    const hdf5::dim_vector<uint64_t>& start,
-    const hdf5::dim_vector<uint64_t>& count,
-    const hdf5::dim_vector<uint64_t>& stride,
-    const hdf5::dim_vector<uint64_t>& block
-) const {
-    return WriteHyperslab(
-        cstd::span(
-            reinterpret_cast<const byte_t*>(data.data()),
-            data.size_bytes()
-        ),
-        start,
-        count,
-        stride,
-        block
-    );
-}
