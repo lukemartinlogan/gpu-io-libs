@@ -22,9 +22,8 @@ cstd::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) c
     return FindSpace(io, file->superblock.base_addr, total_message_ct, header_size, size, must_be_nil);
 }
 
-__device__
 template<serde::Serializer S> requires serde::Seekable<S>
-void WriteMessageToBuffer(S& s, const HeaderMessageVariant& msg) {
+__device__ void WriteMessageToBuffer(S& s, const HeaderMessageVariant& msg) {
     offset_t start_pos = s.GetPosition();
 
     // reserve eight bytes for prefix

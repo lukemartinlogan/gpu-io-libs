@@ -132,9 +132,8 @@ hdf5::expected<void> Dataset::Write(cstd::span<const byte_t> data, size_t start_
 }
 
 
-__device__
 template<typename Visitor>
-hdf5::expected<void> ProcessChunkedHyperslab(
+__device__ hdf5::expected<void> ProcessChunkedHyperslab(
     const ChunkedStorageProperty* chunked,
     HyperslabIterator& iterator,
     size_t element_size,

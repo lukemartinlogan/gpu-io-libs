@@ -45,16 +45,14 @@ public:
     __device__
     cstd::optional<ObjectHeaderMessage> DeleteMessage(uint16_t msg_type);
 
-    __device__
     template<typename T>
-    cstd::optional<T> DeleteMessage();
+    __device__ cstd::optional<T> DeleteMessage();
 
     __device__
     cstd::optional<ObjectHeaderMessage> GetMessage(uint16_t msg_type);
 
-    __device__
     template<typename T>
-    cstd::optional<T> GetMessage();
+    __device__ cstd::optional<T> GetMessage();
 
     template<serde::Serializer S>
     __device__
@@ -112,8 +110,7 @@ private:
 };
 
 template<typename T>
-__device__
-inline cstd::optional<T> Object::DeleteMessage() {
+__device__ inline cstd::optional<T> Object::DeleteMessage() {
     cstd::optional<ObjectHeaderMessage> msg = DeleteMessage(T::kType);
     if (msg.has_value()) {
         return cstd::get<T>(msg->message);
@@ -122,9 +119,8 @@ inline cstd::optional<T> Object::DeleteMessage() {
     }
 }
 
-__device__
 template<typename T>
-inline cstd::optional<T> Object::GetMessage() {
+__device__ inline cstd::optional<T> Object::GetMessage() {
     cstd::optional<ObjectHeaderMessage> msg = GetMessage(T::kType);
     if (msg.has_value()) {
         return cstd::get<T>(msg->message);
@@ -133,9 +129,8 @@ inline cstd::optional<T> Object::GetMessage() {
     }
 }
 
-__device__
 template<serde::Serializer S>
-inline void Object::WriteEmpty(len_t min_size, S& s) {
+__device__ inline void Object::WriteEmpty(len_t min_size, S& s) {
     // TODO: this probably shouldn't be unused!
     len_t aligned_size = EmptyHeaderMessagesSize(min_size);
 
@@ -161,9 +156,8 @@ inline void Object::WriteEmpty(len_t min_size, S& s) {
     serde::Write(s, NilMessage { nil_size });
 }
 
-__device__
 template<serde::Deserializer D>
-inline cstd::optional<Object::Space> Object::FindMessage(
+__device__ inline cstd::optional<Object::Space> Object::FindMessage(
     D& de,
     offset_t sb_base_addr,
     uint16_t total_message_ct,
@@ -225,9 +219,8 @@ inline cstd::optional<Object::Space> Object::FindMessage(
     return cstd::nullopt;
 }
 
-__device__
 template<serde::Deserializer D>
-inline cstd::optional<Object::Space> Object::FindSpace(
+__device__ inline cstd::optional<Object::Space> Object::FindSpace(
     D& de,
     offset_t sb_base_addr,
     uint16_t total_message_ct,

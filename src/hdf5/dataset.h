@@ -13,9 +13,8 @@ public:
     static hdf5::expected<Dataset> New(const Object& object);
 
     // TODO: multidimensional coords
-    __device__
     template <typename T>
-    hdf5::expected<T> Get(size_t index) const;
+    __device__ hdf5::expected<T> Get(size_t index) const;
 
     // FIXME: implement datatype
     __device__
@@ -33,9 +32,8 @@ public:
     __device__
     hdf5::expected<void> Write(cstd::span<const byte_t> data, size_t start_index) const;
 
-    __device__
     template<typename T>
-    hdf5::expected<void> Write(cstd::span<const T> data, size_t start_index) const;
+    __device__ hdf5::expected<void> Write(cstd::span<const T> data, size_t start_index) const;
 
     __device__
     hdf5::expected<void> WriteHyperslab(
@@ -46,9 +44,8 @@ public:
         const hdf5::dim_vector<uint64_t>& block = {}
     ) const;
 
-    __device__
     template<typename T>
-    hdf5::expected<void> WriteHyperslab(
+    __device__ hdf5::expected<void> WriteHyperslab(
         cstd::span<const T> data,
         const hdf5::dim_vector<uint64_t>& start,
         const hdf5::dim_vector<uint64_t>& count,
