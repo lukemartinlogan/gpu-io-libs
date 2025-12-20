@@ -26,6 +26,7 @@
     // Workaround for MSVC + cuda::std::copy compatibility issue
     namespace cuda::std {
         template<typename InputIt, typename OutputIt>
+        __device__
         constexpr OutputIt _copy(InputIt first, InputIt last, OutputIt d_first) {
             while (first != last) {
                 *d_first++ = *first++;
