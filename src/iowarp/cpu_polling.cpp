@@ -30,6 +30,7 @@ void PollingThreadManager::Stop() {
 }
 
 void PollingThreadManager::Poll(std::stop_token stop_token) {
+  std::cout << "[CPU POLL] Polling thread started" << std::endl;
   while (!stop_token.stop_requested()) {
     uint64_t qsize = queue_->size();
     if (qsize == 0) {
@@ -37,10 +38,12 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
       continue;
     }
 
+    std::cout << "[CPU POLL] Message received, queue size: " << qsize << std::endl;
     auto& msg = queue_->get();
 
     switch (msg.type_) {
       case IoType::kOpen: {
+        std::cout << "[CPU POLL] Processing Open: " << msg.filename << std::endl;
         int fd;
 #ifdef _WIN32
         fd = _open(msg.filename, msg.flags, msg.mode);
@@ -50,6 +53,7 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
         msg.fd = fd;
         msg.result_ = fd >= 0 ? 0 : -1;
         msg.errno_ = fd >= 0 ? 0 : errno;
+        std::cout << "[CPU POLL] Open completed: fd=" << fd << ", result=" << msg.result_ << std::endl;
         break;
       }
 
@@ -67,6 +71,7 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
       }
 
       case IoType::kRead: {
+        std::cout << "[CPU POLL] Processing Read: fd=" << msg.fd << ", size=" << msg.size << ", offset=" << msg.offset << std::endl;
         ssize_t read_bytes;
 #ifdef _WIN32
         _lseeki64(msg.fd, msg.offset, SEEK_SET);
@@ -76,6 +81,7 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
 #endif
         msg.result_ = read_bytes;
         msg.errno_ = read_bytes >= 0 ? 0 : errno;
+        std::cout << "[CPU POLL] Read completed: " << read_bytes << " bytes, result=" << msg.result_ << std::endl;
         break;
       }
 
@@ -97,11 +103,15 @@ void PollingThreadManager::Poll(std::stop_token stop_token) {
       }
 
       default:
+        std::cout << "[CPU POLL] Unknown message type: " << static_cast<int>(msg.type_) << std::endl;
         break;
     }
 
+    std::cout << "[CPU POLL] Clearing queue" << std::endl;
     queue_->clear();
+    std::cout << "[CPU POLL] Queue cleared, size now: " << queue_->size() << std::endl;
   }
+  std::cout << "[CPU POLL] Polling thread exiting" << std::endl;
 }
 
 } // namespace iowarp
