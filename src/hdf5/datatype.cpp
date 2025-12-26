@@ -3,6 +3,26 @@
 #include <stdexcept>
 
 
+__device__
+FixedPoint::FixedPoint(
+    uint32_t size,
+    uint16_t bit_offset,
+    uint16_t bit_precision,
+    bool big_endian,
+    bool low_padding,
+    bool high_padding,
+    bool is_signed
+) {
+    this->size = size;
+    this->bit_offset = bit_offset;
+    this->bit_precision = bit_precision;
+
+    this->bitset_.set(0, big_endian);
+    this->bitset_.set(1, low_padding);
+    this->bitset_.set(2, high_padding);
+    this->bitset_.set(3, is_signed);
+}
+
 // TODO: have this method presented in a different way?
 __device__
 FloatingPoint::FloatingPoint(

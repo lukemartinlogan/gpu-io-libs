@@ -72,6 +72,19 @@ struct FixedPoint {
         return fp;
     }
 
+    FixedPoint() = default;
+
+private:
+    FixedPoint(
+        uint32_t size,
+        uint16_t bit_offset,
+        uint16_t bit_precision,
+        bool big_endian,
+        bool low_padding,
+        bool high_padding,
+        bool is_signed
+    );
+
 private:
     cstd::bitset<4> bitset_{};
 };
