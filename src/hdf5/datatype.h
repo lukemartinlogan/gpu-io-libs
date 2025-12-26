@@ -179,7 +179,7 @@ struct FloatingPoint {
         return fp;
     }
 
-    static const FloatingPoint f32_t;
+    __device__ static FloatingPoint f32_t();
 
     FloatingPoint() = default;
 
@@ -399,7 +399,7 @@ struct DatatypeMessage {
     static hdf5::expected<DatatypeMessage> Deserialize(D& de);
 
 public:
-    static const DatatypeMessage f32_t;
+    __device__ static DatatypeMessage f32_t();
 
 public:
     static constexpr uint16_t kType = 0x03;

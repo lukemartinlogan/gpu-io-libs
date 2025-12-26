@@ -73,20 +73,24 @@ FloatingPoint::FloatingPoint(
     }
 }
 
-const FloatingPoint FloatingPoint::f32_t = FloatingPoint(
-    4, 31, 0,
-    32,23, 8,
-    0, 23, 127,
-    ByteOrder::kLittleEndian,
-    MantissaNormalization::kMSBImpliedSet,
-    false, false, false
-);
+__device__ FloatingPoint FloatingPoint::f32_t() {
+    return FloatingPoint(
+        4, 31, 0,
+        32,23, 8,
+        0, 23, 127,
+        ByteOrder::kLittleEndian,
+        MantissaNormalization::kMSBImpliedSet,
+        false, false, false
+    );
+}
 
-const DatatypeMessage DatatypeMessage::f32_t = {
-    .version = Version::kEarlyCompound,
-    .class_v = Class::kFloatingPoint,
-    .data = FloatingPoint::f32_t,
-};
+__device__ DatatypeMessage DatatypeMessage::f32_t() {
+    DatatypeMessage msg;
+    msg.version = Version::kEarlyCompound;
+    msg.class_v = Class::kFloatingPoint;
+    msg.data = FloatingPoint::f32_t();
+    return msg;
+}
 
 __device__
 VariableLength::VariableLength(const VariableLength& other)
