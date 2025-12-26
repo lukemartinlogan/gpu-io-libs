@@ -72,6 +72,8 @@ struct FixedPoint {
         return fp;
     }
 
+    __device__ static FixedPoint i32_t();
+
     FixedPoint() = default;
 
 private:
@@ -412,6 +414,7 @@ struct DatatypeMessage {
     static hdf5::expected<DatatypeMessage> Deserialize(D& de);
 
 public:
+    __device__ static DatatypeMessage i32_t();
     __device__ static DatatypeMessage f32_t();
 
 public:

@@ -23,6 +23,18 @@ FixedPoint::FixedPoint(
     this->bitset_.set(3, is_signed);
 }
 
+__device__ FixedPoint FixedPoint::i32_t() {
+    return FixedPoint(
+        4,
+        0,
+        32,
+        false,
+        false,
+        false,
+        true
+    );
+}
+
 // TODO: have this method presented in a different way?
 __device__
 FloatingPoint::FloatingPoint(
@@ -109,6 +121,14 @@ __device__ DatatypeMessage DatatypeMessage::f32_t() {
     msg.version = Version::kEarlyCompound;
     msg.class_v = Class::kFloatingPoint;
     msg.data = FloatingPoint::f32_t();
+    return msg;
+}
+
+__device__ DatatypeMessage DatatypeMessage::i32_t() {
+    DatatypeMessage msg;
+    msg.version = Version::kEarlyCompound;
+    msg.class_v = Class::kFixedPoint;
+    msg.data = FixedPoint::i32_t();
     return msg;
 }
 
