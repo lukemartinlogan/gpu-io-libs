@@ -67,7 +67,7 @@ public:
 private:
     __device__
     Dataset(Object object, DataLayoutMessage layout, DatatypeMessage type, const DataspaceMessage& space)
-        : object_(std::move(object)), layout_(std::move(layout)), type_(std::move(type)), space_(space) {}
+        : object_(cstd::move(object)), layout_(cstd::move(layout)), type_(cstd::move(type)), space_(space) {}
 
     __device__
     static size_t TotalElements(const hdf5::dim_vector<uint64_t>& count, const hdf5::dim_vector<uint64_t>& block) {

@@ -224,7 +224,7 @@ hdf5::expected<void> Dataset::ReadHyperslab(
     if (!iterator_result) {
         return cstd::unexpected(iterator_result.error());
     }
-    HyperslabIterator iterator = std::move(*iterator_result);
+    HyperslabIterator iterator = cstd::move(*iterator_result);
 
     size_t element_size = type_.Size();
     auto total_elements_result = iterator.GetTotalElements();
@@ -339,7 +339,7 @@ hdf5::expected<void> Dataset::WriteHyperslab(
     if (!iterator_result) {
         return cstd::unexpected(iterator_result.error());
     }
-    HyperslabIterator iterator = std::move(*iterator_result);
+    HyperslabIterator iterator = cstd::move(*iterator_result);
 
     size_t element_size = type_.Size();
     auto total_elements_result = iterator.GetTotalElements();
