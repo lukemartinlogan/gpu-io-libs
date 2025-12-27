@@ -113,6 +113,16 @@ int main() {
     printf("Testing with: gpu_test.h5\\n\\n");
     fflush(stdout);
 
+    // Set large stack size for deep HDF5 call chains with cuda::std templates
+    cudaError_t stack_err = cudaDeviceSetLimit(cudaLimitStackSize, 64 * 1024);  // 64KB stack
+    if (stack_err != cudaSuccess) {
+        printf("[MAIN] Failed to set stack size: %s\\n", cudaGetErrorString(stack_err));
+    }
+    stack_err = cudaDeviceSetLimit(cudaLimitMallocHeapSize, 256 * 1024 * 1024);  // 256MB heap
+    if (stack_err != cudaSuccess) {
+        printf("[MAIN] Failed to set heap size: %s\\n", cudaGetErrorString(stack_err));
+    }
+
     const char* test_filename = "gpu_test.h5";
 
     // Allocate shared queue
