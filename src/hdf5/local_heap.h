@@ -1,8 +1,5 @@
 #pragma once
 
-#include <string>
-#include <cstdint>
-
 #include "types.h"
 #include "../serialization/serialization.h"
 #include "gpu_string.h"

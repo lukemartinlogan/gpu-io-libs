@@ -1,5 +1,4 @@
 #pragma once
-#include <functional>
 
 #include "file_link.h"
 #include "local_heap.h"

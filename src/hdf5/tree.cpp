@@ -1,5 +1,3 @@
-#include <stdexcept>
-
 #include "types.h"
 #include "tree.h"
 #include "local_heap.h"

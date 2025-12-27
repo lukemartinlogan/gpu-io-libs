@@ -1,11 +1,5 @@
 #pragma once
 
-#include <bitset>
-#include <memory>
-#include <stdexcept>
-#include <variant>
-#include <vector>
-
 #include "types.h"
 #include "../serialization/serialization.h"
 #include "../util/string.h"

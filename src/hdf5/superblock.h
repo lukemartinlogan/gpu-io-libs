@@ -1,6 +1,4 @@
 #pragma once
-#include <cstdint>
-#include <array>
 
 #include "symbol_table.h"
 #include "types.h"

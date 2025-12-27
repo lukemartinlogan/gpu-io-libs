@@ -1,7 +1,5 @@
 #include "datatype.h"
 
-#include <stdexcept>
-
 
 __device__
 FixedPoint::FixedPoint(

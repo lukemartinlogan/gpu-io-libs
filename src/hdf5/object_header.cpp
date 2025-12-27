@@ -1,6 +1,3 @@
-#include <numeric>
-#include <stdexcept>
-
 #include "object_header.h"
 #include "datatype.h"
 #include "../serialization/buffer.h"

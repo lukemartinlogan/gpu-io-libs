@@ -1,6 +1,3 @@
-#include <vector>
-#include <stdexcept>
-
 #include "local_heap.h"
 
 #include "file_link.h"

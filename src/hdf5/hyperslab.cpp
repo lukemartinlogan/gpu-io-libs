@@ -1,7 +1,5 @@
 #include "hyperslab.h"
 
-#include <algorithm>
-
 __device__
 hdf5::expected<HyperslabIterator> HyperslabIterator::New(
     const coord_t& start,
