@@ -1,7 +1,5 @@
 #include "dataset.h"
 #include "hyperslab.h"
-#include <unordered_set>
-#include <numeric>
 
 __device__
 hdf5::expected<Dataset> Dataset::New(const Object& object) {
