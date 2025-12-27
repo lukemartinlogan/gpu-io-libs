@@ -66,7 +66,7 @@ private:
 
     __device__
     Group(Object object, GroupBTree table)
-        : object_(std::move(object)), table_(std::move(table)) {}
+        : object_(cstd::move(object)), table_(cstd::move(table)) {}
 
 private:
     Object object_;

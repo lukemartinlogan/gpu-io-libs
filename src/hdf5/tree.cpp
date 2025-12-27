@@ -148,7 +148,7 @@ cstd::optional<uint16_t> BTreeNode::FindChunkedIndex(const ChunkCoordinates& chu
             break;
         }
 
-        prev = std::move(next);
+        prev = cstd::move(next);
     }
 
     if (child_index == entries_ct + 1) {

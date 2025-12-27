@@ -19,7 +19,7 @@ hdf5::expected<HyperslabIterator> HyperslabIterator::New(
         return cstd::unexpected(*error);
     }
 
-    return HyperslabIterator(start, count, std::move(norm_stride), std::move(norm_block), dataset_dims);
+    return HyperslabIterator(start, count, cstd::move(norm_stride), cstd::move(norm_block), dataset_dims);
 }
 
 __device__

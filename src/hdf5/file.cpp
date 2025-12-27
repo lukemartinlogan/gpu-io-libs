@@ -88,5 +88,5 @@ hdf5::expected<File> File::New(const char* filename, iowarp::GpuContext* ctx) {
     printf("[HDF5 File] Root Group created successfully\n");
 
     printf("[HDF5 File] File::New() completed successfully\n");
-    return File(file_link, std::move(*root_group));
+    return File(file_link, cstd::move(*root_group));
 }

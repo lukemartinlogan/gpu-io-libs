@@ -33,7 +33,7 @@ public:
 
     __device__
     File(File&& other) noexcept
-        : file_link_(other.file_link_), root_group_(std::move(other.root_group_))
+        : file_link_(other.file_link_), root_group_(cstd::move(other.root_group_))
     {
         other.file_link_ = nullptr;
     }
@@ -45,7 +45,7 @@ public:
 private:
     __device__
     File(FileLink* file_link, Group root_group)
-        : file_link_(file_link), root_group_(std::move(root_group)) {}
+        : file_link_(file_link), root_group_(cstd::move(root_group)) {}
 
     FileLink* file_link_{};
     cstd::optional<Group> root_group_;

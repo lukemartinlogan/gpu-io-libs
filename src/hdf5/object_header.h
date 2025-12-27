@@ -858,7 +858,7 @@ struct ObjectCommentMessage {
             return cstd::unexpected(comment.error());
 
         return ObjectCommentMessage{
-            .comment = std::move(*comment)
+            .comment = cstd::move(*comment)
         };
     }
 

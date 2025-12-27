@@ -30,7 +30,7 @@ hdf5::expected<Group> Group::New(const Object& object) {
 
     GroupBTree table(symb_tbl.b_tree_addr, object.file, *local_heap_result);
 
-    return Group(object, std::move(table));
+    return Group(object, cstd::move(table));
 }
 
 __device__
@@ -90,7 +90,7 @@ hdf5::expected<Dataset> Group::CreateDataset(
     new_ds.WriteMessage(FillValueMessage {
         .space_alloc_time = FillValueMessage::SpaceAllocTime::kEarly,
         .write_time = FillValueMessage::ValWriteTime::kIfExplicit,
-        .fill_value = std::move(fill_value),
+        .fill_value = cstd::move(fill_value),
     });
 
     if (chunk_dims.has_value()) {
@@ -247,7 +247,7 @@ __device__
 hdf5::expected<void> Group::WriteEntryToNewNode(SymbolTableEntry entry) {
     offset_t name_offset = entry.link_name_offset;
 
-    SymbolTableNode node { .entries = { std::move(entry) }, };
+    SymbolTableNode node { .entries = { cstd::move(entry) }, };
 
     // this should zero out the rest of the padding bytes for later
     cstd::array<byte_t, SymbolTableNode::kMaxSerializedSize> node_buf{};

@@ -32,7 +32,7 @@ struct ChunkCoordinates {
     __device__
     explicit ChunkCoordinates(const hdf5::dim_vector<uint64_t>& coordinates) : coords(coordinates) {}
     __device__
-    explicit ChunkCoordinates(hdf5::dim_vector<uint64_t>&& coordinates) : coords(std::move(coordinates)) {}
+    explicit ChunkCoordinates(hdf5::dim_vector<uint64_t>&& coordinates) : coords(cstd::move(coordinates)) {}
 
    __device__
    bool operator==(const ChunkCoordinates& other) const {
@@ -305,7 +305,7 @@ private:
             return cstd::unexpected(prev_result.error());
         }
 
-        hdf5::string prev = std::move(*prev_result);
+        hdf5::string prev = cstd::move(*prev_result);
 
         for (size_t i = 1; i < group_entries.keys.size(); ++i) {
             auto next = heap.ReadString(group_entries.keys[i].first_object_name, de);
@@ -319,7 +319,7 @@ private:
                 break;
             }
 
-            prev = std::move(*next);
+            prev = cstd::move(*next);
         }
 
         if (child_index == entries_ct + 1) {
@@ -435,7 +435,7 @@ private:
                     return cstd::unexpected(name_result.error());
                 }
 
-                auto visitor_result = visitor(std::move(*name_result), ptr);
+                auto visitor_result = visitor(cstd::move(*name_result), ptr);
                 if (!visitor_result) {
                     return cstd::unexpected(visitor_result.error());
                 }
