@@ -529,8 +529,8 @@ struct FilterPipelineMessage {
 };
 
 struct CompactStorageProperty {
-    // TODO: this may need to be increased
-    static constexpr size_t kMaxCompactStorageSizeBytes = 4096;
+    // TODO(kernel-hang): shrunk to avoid GPU stack overflow (prev: 1024)
+    static constexpr size_t kMaxCompactStorageSizeBytes = 16;
 
     cstd::inplace_vector<byte_t, kMaxCompactStorageSizeBytes> raw_data;
 
@@ -679,7 +679,8 @@ public:
 };
 
 struct AttributeMessage {
-    static constexpr size_t kMaxAttributeDataSize = 1024;
+    // TODO(kernel-hang): shrunk to avoid GPU stack overflow (prev: 1024)
+    static constexpr size_t kMaxAttributeDataSize = 32;
 
     hdf5::string name;
     DatatypeMessage datatype;
@@ -1524,7 +1525,8 @@ private:
 };
 
 struct ObjectHeader {
-    static constexpr size_t kMaxObjectHeaderMessages = 48;
+    // TODO(kernel-hang): shrunk to avoid GPU stack overflow (prev: 48)
+    static constexpr size_t kMaxObjectHeaderMessages = 8;
 
     // number of hard links to this object in the current file
     uint32_t object_ref_count{};
@@ -1584,8 +1586,8 @@ private:
 
     static constexpr uint8_t kVersionNumber = 0x01;
     static constexpr size_t kMaxContinuationDepth = 16;
-    // TODO: honestly, no idea what to guess this size should be
-    static constexpr size_t kMaxHeaderMessageSerializedSizeBytes = 1024 * 8;
+    // TODO(kernel-hang): shrunk to avoid GPU stack overflow (prev: 1024 * 8)
+    static constexpr size_t kMaxHeaderMessageSerializedSizeBytes = 512;
 };
 
 // methods for use in object.h/object.cpp
