@@ -73,6 +73,10 @@ endif()
 add_library(hdf5_lib STATIC ${SOURCES})
 
 if(CMAKE_CUDA_COMPILER)
+    set_target_properties(hdf5_lib PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_RESOLVE_DEVICE_SYMBOLS OFF
+    )
     target_link_libraries(hdf5_lib PUBLIC
         CUDA::cudart
         CCCL::CCCL
