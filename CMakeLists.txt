@@ -58,6 +58,8 @@ file(GLOB_RECURSE SOURCES
     "third_party/*.h"
 )
 
+list(REMOVE_ITEM SOURCES "${CMAKE_SOURCE_DIR}/src/main.cpp")
+
 if(CMAKE_CUDA_COMPILER)
     file(GLOB_RECURSE CUDA_SOURCES
         "src/*.cu"
