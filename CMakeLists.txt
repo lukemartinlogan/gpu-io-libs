@@ -28,6 +28,13 @@ if(CMAKE_CUDA_COMPILER)
     find_package(CUDAToolkit REQUIRED)
     message(STATUS "CUDA Toolkit ${CUDAToolkit_VERSION} found")
 
+    # required by IOWarp HermesShm
+    find_package(yaml-cpp CONFIG REQUIRED)
+    find_package(cereal CONFIG REQUIRED)
+
+    find_package(HermesShmCore CONFIG REQUIRED)
+    message(STATUS "IOWarp HermesShm found")
+
     message(STATUS "Fetching CCCL from GitHub...")
     FetchContent_Declare(
         cccl
@@ -81,6 +88,7 @@ if(CMAKE_CUDA_COMPILER)
         CUDA::cudart
         CCCL::CCCL
         stdgpu::stdgpu
+        hshm::cudacxx
     )
     target_compile_definitions(hdf5_lib PUBLIC
         CUDA_ENABLED=1
