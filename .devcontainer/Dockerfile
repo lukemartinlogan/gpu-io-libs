@@ -1,80 +1,96 @@
-FROM nvidia/cuda:12.6.3-devel-ubuntu24.04
+FROM nvidia/cuda:12.6.0-devel-ubuntu24.04
 
-# Avoid prompts from apt
+# Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install base dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
+    gcc-13 \
     g++-13 \
+    cmake \
+    ninja-build \
+    git \
     wget \
     curl \
-    git \
-    ninja-build \
-    ccache \
+    pkg-config \
     gdb \
-    clang-format \
-    vim \
     sudo \
-    zsh \
-    locales \
-    && rm -rf /var/lib/apt/lists/*
+    libelf-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 \
+    && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
 
-# Set GCC 13 as default (C++20 support)
-RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 && \
-    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
+# Set CUDA environment variables
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH=${CUDA_HOME}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
-# Install CMake 3.31.2
-ARG CMAKE_VERSION=3.31.2
-RUN wget -q https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.sh && \
-    mkdir -p /opt/cmake && \
-    sh cmake-${CMAKE_VERSION}-linux-x86_64.sh --prefix=/opt/cmake --skip-license && \
-    ln -sf /opt/cmake/bin/cmake /usr/local/bin/cmake && \
-    ln -sf /opt/cmake/bin/ctest /usr/local/bin/ctest && \
-    ln -sf /opt/cmake/bin/cpack /usr/local/bin/cpack && \
-    rm cmake-${CMAKE_VERSION}-linux-x86_64.sh
+# Rename existing ubuntu user to iowarp (base image has ubuntu with UID 1000)
+RUN usermod -l iowarp -d /home/iowarp -m ubuntu \
+    && groupmod -n iowarp ubuntu \
+    && echo "iowarp ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Set up locale
-RUN locale-gen en_US.UTF-8
-ENV LANG=en_US.UTF-8 \
-    LANGUAGE=en_US:en \
-    LC_ALL=en_US.UTF-8
+# Switch to iowarp user
+USER iowarp
+WORKDIR /home/iowarp
 
-# Create non-root user matching the remoteUser in devcontainer.json
-ARG USERNAME=iowarp
-ARG USER_UID=1000
-ARG USER_GID=$USER_UID
+# Install Miniconda
+RUN wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh \
+    && bash miniconda.sh -b -p /home/iowarp/miniconda3 \
+    && rm miniconda.sh \
+    && /home/iowarp/miniconda3/bin/conda init bash \
+    && /home/iowarp/miniconda3/bin/conda config --add channels conda-forge \
+    && /home/iowarp/miniconda3/bin/conda config --set channel_priority strict
 
-RUN groupadd --gid $USER_GID $USERNAME && \
-    useradd --uid $USER_UID --gid $USER_GID -m $USERNAME -s /bin/zsh && \
-    echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME && \
-    chmod 0440 /etc/sudoers.d/$USERNAME
+# Accept conda ToS and install dependencies
+RUN /home/iowarp/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main \
+    && /home/iowarp/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r \
+    && /home/iowarp/miniconda3/bin/conda install -y \
+    boost \
+    hdf5 \
+    yaml-cpp \
+    zeromq \
+    cppzmq \
+    cereal \
+    catch2 \
+    && /home/iowarp/miniconda3/bin/conda clean -ya
 
-# Install Oh My Zsh for the user
-USER $USERNAME
-RUN sh -c "$(wget -O- https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-
-# Switch back to root for any final setup
+# Add conda to PATH for build steps
 USER root
+ENV PATH="/home/iowarp/miniconda3/bin:${PATH}"
 
-# Display versions on container start
-RUN echo '#!/bin/bash\n\
-echo "IOWarp Development Environment"\n\
-echo "=============================="\n\
-gcc --version | head -n1\n\
-g++ --version | head -n1\n\
-cmake --version | head -n1\n\
-if command -v nvcc &> /dev/null; then\n\
-    nvcc --version | grep release\n\
-else\n\
-    echo "NVCC not available (CPU-only mode)"\n\
-fi\n\
-echo ""\n\
-' > /usr/local/bin/show-versions && chmod +x /usr/local/bin/show-versions
+# Clone and build iowarp core (context-transport-primitives)
+RUN cd /tmp \
+    && git clone https://github.com/iowarp/core.git -b 74-fix-context-transport-primitives-for-the-gpu \
+    && cd core \
+    && mkdir -p build && cd build \
+    && cmake ../ --preset cuda-debug \
+        -DCMAKE_CUDA_ARCHITECTURES=89 \
+        -DHSHM_ENABLE_TESTS=OFF \
+        -DHSHM_ENABLE_BENCHMARKS=OFF \
+        -DCHIMAERA_ENABLE_TESTS=OFF \
+        -DCHIMAERA_ENABLE_BENCHMARKS=OFF \
+        -DCMAKE_PREFIX_PATH="/home/iowarp/miniconda3" \
+    && make -j$(nproc) \
+    && make install \
+    && ldconfig \
+    && cd /tmp && rm -rf core
 
-# Set the default user
-USER $USERNAME
-WORKDIR /workspaces/gpu-io-libs
+# Switch back to iowarp user
+USER iowarp
 
-# Set default shell to zsh
-ENV SHELL=/bin/zsh
+# Add conda and CUDA to bashrc
+RUN echo '' >> /home/iowarp/.bashrc \
+    && echo '# Conda initialization' >> /home/iowarp/.bashrc \
+    && echo 'eval "$(/home/iowarp/miniconda3/bin/conda shell.bash hook)"' >> /home/iowarp/.bashrc \
+    && echo '' >> /home/iowarp/.bashrc \
+    && echo '# CUDA environment' >> /home/iowarp/.bashrc \
+    && echo 'export CUDA_HOME=/usr/local/cuda' >> /home/iowarp/.bashrc \
+    && echo 'export PATH=/usr/local/cuda/bin:$PATH' >> /home/iowarp/.bashrc
+
+WORKDIR /workspace
+
+CMD ["/bin/bash"]

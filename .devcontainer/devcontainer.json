@@ -1,43 +1,32 @@
 {
-  "name": "IOWarp GPU I/O Libraries",
+  "name": "GPU I/O Libraries",
   "build": {
     "dockerfile": "Dockerfile",
-    "context": ".",
-    "args": {
-      "USERNAME": "iowarp",
-      "USER_UID": "1000",
-      "USER_GID": "1000"
-    }
+    "context": "."
   },
-
+  "containerEnv": {
+    "CUDA_HOME": "/usr/local/cuda",
+    "NVIDIA_VISIBLE_DEVICES": "all",
+    "NVIDIA_DRIVER_CAPABILITIES": "compute,utility"
+  },
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-vscode.cpptools",
-        "ms-vscode.cpptools-extension-pack",
         "ms-vscode.cmake-tools",
         "twxs.cmake",
         "nvidia.nsight-vscode-edition"
       ],
       "settings": {
         "cmake.configureOnOpen": false,
-        "C_Cpp.default.cppStandard": "c++20",
-        "C_Cpp.default.compilerPath": "/usr/bin/g++",
-        "files.associations": {
-          "*.h": "cpp",
-          "*.cuh": "cuda-cpp"
-        }
+        "C_Cpp.default.cppStandard": "c++20"
       }
     }
   },
-
   "runArgs": [
     "--gpus=all",
-    "--cap-add=SYS_PTRACE",
-    "--security-opt=seccomp=unconfined"
+    "--shm-size=2gb"
   ],
-
-  "postCreateCommand": "show-versions",
-
+  "postCreateCommand": "git config --global --add safe.directory /IdeaProjects/gpu-io-libs && git config --global --add safe.directory /workspace",
   "remoteUser": "iowarp"
 }
