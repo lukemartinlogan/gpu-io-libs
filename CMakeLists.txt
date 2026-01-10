@@ -84,6 +84,10 @@ if(CMAKE_CUDA_COMPILER)
         CUDA_SEPARABLE_COMPILATION ON
         CUDA_RESOLVE_DEVICE_SYMBOLS OFF
     )
+    # Suppress NVCC warnings like iowarp does
+    target_compile_options(hdf5_lib PUBLIC
+        $<$<COMPILE_LANGUAGE:CUDA>:-diag-suppress=177,20014,20011,20012>
+    )
     target_link_libraries(hdf5_lib PUBLIC
         CUDA::cudart
         CCCL::CCCL
