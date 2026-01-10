@@ -20,4 +20,11 @@ namespace hdf5 {
     // Type aliases for string types
     using string_view = gpu_string_view;
     using string = gpu_string<>;  // Default 255 char max
+
+    // Explicit padding type to work around NVCC ICE with implicit struct padding
+    // when using cuda::std::expected with types containing hshm::priv::vector
+    template<size_t N>
+    struct padding {
+        uint8_t _[N];
+    };
 }
