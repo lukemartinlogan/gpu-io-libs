@@ -93,6 +93,8 @@ if(CMAKE_CUDA_COMPILER)
         CCCL::CCCL
         stdgpu::stdgpu
         hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
     )
     target_compile_definitions(hdf5_lib PUBLIC
         CUDA_ENABLED=1
