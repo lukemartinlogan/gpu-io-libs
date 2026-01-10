@@ -100,6 +100,10 @@ if(CMAKE_CUDA_COMPILER)
         CUDA_ENABLED=1
         LIBCUDACXX_AVAILABLE=1
         _CCCL_HAS_SORTING_ALGORITHMS=1
+        # Required by hermes_shm (missing from installed cmake config)
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
     )
     # Hermes_shm include path MUST come BEFORE CCCL to avoid conflicts
     target_include_directories(hdf5_lib SYSTEM PUBLIC /usr/local/include)
