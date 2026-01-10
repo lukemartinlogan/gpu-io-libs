@@ -101,6 +101,8 @@ if(CMAKE_CUDA_COMPILER)
         LIBCUDACXX_AVAILABLE=1
         _CCCL_HAS_SORTING_ALGORITHMS=1
     )
+    # Hermes_shm include path MUST come BEFORE CCCL to avoid conflicts
+    target_include_directories(hdf5_lib SYSTEM PUBLIC /usr/local/include)
     target_include_directories(hdf5_lib PUBLIC
         ${CMAKE_SOURCE_DIR}/src
         ${cccl_SOURCE_DIR}/libcudacxx/include
