@@ -35,6 +35,31 @@ if(CMAKE_CUDA_COMPILER)
     find_package(HermesShmCore CONFIG REQUIRED)
     message(STATUS "IOWarp HermesShm found")
 
+    # patch hshm::priv::vector with CUDA device annotations
+    set(HSHM_VECTOR_HEADER "/usr/local/include/hermes_shm/data_structures/priv/vector.h")
+    set(HSHM_PATCH_FILE "${CMAKE_SOURCE_DIR}/third_party/iowarp-patch/hshm_vector_cuda.patch")
+    set(HSHM_PATCH_MARKER "${CMAKE_BINARY_DIR}/.hshm_vector_patched")
+
+    if(EXISTS "${HSHM_VECTOR_HEADER}" AND EXISTS "${HSHM_PATCH_FILE}" AND NOT EXISTS "${HSHM_PATCH_MARKER}")
+        message(STATUS "Patching hshm::priv::vector for CUDA support...")
+        execute_process(
+            COMMAND sudo patch -N -p0 -i "${HSHM_PATCH_FILE}"
+            WORKING_DIRECTORY /
+            RESULT_VARIABLE PATCH_RESULT
+            OUTPUT_VARIABLE PATCH_OUTPUT
+            ERROR_VARIABLE PATCH_ERROR
+        )
+        if(PATCH_RESULT EQUAL 0)
+            message(STATUS "hshm::priv::vector patched successfully")
+            file(TOUCH "${HSHM_PATCH_MARKER}")
+        else()
+            message(WARNING "Failed to patch hshm::priv::vector: ${PATCH_ERROR}")
+            message(WARNING "Patch output: ${PATCH_OUTPUT}")
+        endif()
+    elseif(EXISTS "${HSHM_PATCH_MARKER}")
+        message(STATUS "hshm::priv::vector already patched (marker found)")
+    endif()
+
     message(STATUS "Fetching CCCL from GitHub...")
     FetchContent_Declare(
         cccl
