@@ -1,40 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-# IOWarp GPU Emulation Test
 if(CMAKE_CUDA_COMPILER)
-    add_executable(iowarp_gpu_emu_test
-        iowarp_gpu_emu_test.cu
-        ../../src/iowarp/cpu_polling.cpp
-        ../../src/iowarp/gpu_posix.cu
-    )
-
-    target_include_directories(iowarp_gpu_emu_test PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${cccl_SOURCE_DIR}/libcudacxx/include
-        ${cccl_SOURCE_DIR}/thrust
-        ${cccl_SOURCE_DIR}/cub
-    )
-
-    target_link_libraries(iowarp_gpu_emu_test PRIVATE
-        CUDA::cudart
-        CCCL::CCCL
-        stdgpu::stdgpu
-    )
-
-    target_compile_definitions(iowarp_gpu_emu_test PRIVATE
-        LIBCUDACXX_AVAILABLE=1
-        _CCCL_HAS_SORTING_ALGORITHMS=1
-    )
-
-    set_target_properties(iowarp_gpu_emu_test PROPERTIES
-        CUDA_SEPARABLE_COMPILATION ON
-        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
-        CXX_STANDARD 20
-        CUDA_STANDARD 20
-    )
-
-    message(STATUS "IOWarp GPU emulation test configured")
-
     # GPU HDF5 File Read Test
     # Compile HDF5 sources directly to avoid device linking conflicts
     file(GLOB_RECURSE HDF5_SOURCES
@@ -62,12 +28,22 @@ if(CMAKE_CUDA_COMPILER)
         CUDA::cudart
         CCCL::CCCL
         stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
     )
 
     target_compile_definitions(gpu_file_read_test PRIVATE
         CUDA_ENABLED=1
         LIBCUDACXX_AVAILABLE=1
         _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    target_compile_options(gpu_file_read_test PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:-diag-suppress=177,20014,20011,20012>
     )
 
     set_target_properties(gpu_file_read_test PROPERTIES
@@ -97,11 +73,22 @@ if(CMAKE_CUDA_COMPILER)
         CUDA::cudart
         CCCL::CCCL
         stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
     )
 
     target_compile_definitions(minimal_gpu_test PRIVATE
+        CUDA_ENABLED=1
         LIBCUDACXX_AVAILABLE=1
         _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    target_compile_options(minimal_gpu_test PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:-diag-suppress=177,20014,20011,20012>
     )
 
     set_target_properties(minimal_gpu_test PROPERTIES
@@ -131,11 +118,22 @@ if(CMAKE_CUDA_COMPILER)
         CUDA::cudart
         CCCL::CCCL
         stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
     )
 
     target_compile_definitions(minimal_io_test PRIVATE
+        CUDA_ENABLED=1
         LIBCUDACXX_AVAILABLE=1
         _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    target_compile_options(minimal_io_test PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:-diag-suppress=177,20014,20011,20012>
     )
 
     set_target_properties(minimal_io_test PROPERTIES
@@ -372,11 +370,17 @@ if(CMAKE_CUDA_COMPILER)
         CUDA::cudart
         CCCL::CCCL
         stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
     )
 
     target_compile_definitions(hdf5_single_source_test PRIVATE
         LIBCUDACXX_AVAILABLE=1
         _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
     )
 
     set_target_properties(hdf5_single_source_test PROPERTIES
@@ -387,6 +391,514 @@ if(CMAKE_CUDA_COMPILER)
     )
 
     message(STATUS "HDF5 single source test configured")
+
+    # Minimal ICE Test (for debugging)
+    add_executable(minimal_ice_test
+        minimal_ice_test.cu
+    )
+
+    target_include_directories(minimal_ice_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${cccl_SOURCE_DIR}/libcudacxx/include
+        ${cccl_SOURCE_DIR}/thrust
+        ${cccl_SOURCE_DIR}/cub
+    )
+
+    target_link_libraries(minimal_ice_test PRIVATE
+        CUDA::cudart
+        CCCL::CCCL
+        stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
+    )
+
+    target_compile_definitions(minimal_ice_test PRIVATE
+        LIBCUDACXX_AVAILABLE=1
+        _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    set_target_properties(minimal_ice_test PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        CXX_STANDARD 20
+        CUDA_STANDARD 20
+    )
+
+    message(STATUS "Minimal ICE test configured")
+
+    # ICE Bisect Test (systematic ICE debugging)
+    add_executable(ice_bisect_test
+        ice_bisect_test.cu
+    )
+
+    target_include_directories(ice_bisect_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${cccl_SOURCE_DIR}/libcudacxx/include
+        ${cccl_SOURCE_DIR}/thrust
+        ${cccl_SOURCE_DIR}/cub
+    )
+
+    target_link_libraries(ice_bisect_test PRIVATE
+        CUDA::cudart
+        CCCL::CCCL
+        stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
+    )
+
+    target_compile_definitions(ice_bisect_test PRIVATE
+        LIBCUDACXX_AVAILABLE=1
+        _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    set_target_properties(ice_bisect_test PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        CXX_STANDARD 20
+        CUDA_STANDARD 20
+    )
+
+    message(STATUS "ICE bisect test configured")
+
+    # ICE Full Variant Test (test with HeaderMessageVariant)
+    add_executable(ice_full_variant_test
+        ice_full_variant_test.cu
+    )
+
+    target_include_directories(ice_full_variant_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${cccl_SOURCE_DIR}/libcudacxx/include
+        ${cccl_SOURCE_DIR}/thrust
+        ${cccl_SOURCE_DIR}/cub
+    )
+
+    target_link_libraries(ice_full_variant_test PRIVATE
+        CUDA::cudart
+        CCCL::CCCL
+        stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
+    )
+
+    target_compile_definitions(ice_full_variant_test PRIVATE
+        LIBCUDACXX_AVAILABLE=1
+        _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    set_target_properties(ice_full_variant_test PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        CXX_STANDARD 20
+        CUDA_STANDARD 20
+    )
+
+    message(STATUS "ICE full variant test configured")
+
+    # ICE ObjectHeaderMessage Test
+    add_executable(ice_object_header_msg_test
+        ice_object_header_msg_test.cu
+    )
+
+    target_include_directories(ice_object_header_msg_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${cccl_SOURCE_DIR}/libcudacxx/include
+        ${cccl_SOURCE_DIR}/thrust
+        ${cccl_SOURCE_DIR}/cub
+    )
+
+    target_link_libraries(ice_object_header_msg_test PRIVATE
+        CUDA::cudart
+        CCCL::CCCL
+        stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
+    )
+
+    target_compile_definitions(ice_object_header_msg_test PRIVATE
+        LIBCUDACXX_AVAILABLE=1
+        _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    set_target_properties(ice_object_header_msg_test PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        CXX_STANDARD 20
+        CUDA_STANDARD 20
+    )
+
+    message(STATUS "ICE object header message test configured")
+
+    # ICE Variant Plus Field Test
+    add_executable(ice_variant_plus_field_test
+        ice_variant_plus_field_test.cu
+    )
+
+    target_include_directories(ice_variant_plus_field_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${cccl_SOURCE_DIR}/libcudacxx/include
+        ${cccl_SOURCE_DIR}/thrust
+        ${cccl_SOURCE_DIR}/cub
+    )
+
+    target_link_libraries(ice_variant_plus_field_test PRIVATE
+        CUDA::cudart
+        CCCL::CCCL
+        stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
+    )
+
+    target_compile_definitions(ice_variant_plus_field_test PRIVATE
+        LIBCUDACXX_AVAILABLE=1
+        _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    set_target_properties(ice_variant_plus_field_test PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        CXX_STANDARD 20
+        CUDA_STANDARD 20
+    )
+
+    message(STATUS "ICE variant plus field test configured")
+
+    # ICE Small Variant Plus Field Test
+    add_executable(ice_small_variant_plus_field_test
+        ice_small_variant_plus_field_test.cu
+    )
+
+    target_include_directories(ice_small_variant_plus_field_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${cccl_SOURCE_DIR}/libcudacxx/include
+        ${cccl_SOURCE_DIR}/thrust
+        ${cccl_SOURCE_DIR}/cub
+    )
+
+    target_link_libraries(ice_small_variant_plus_field_test PRIVATE
+        CUDA::cudart
+        CCCL::CCCL
+        stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
+    )
+
+    target_compile_definitions(ice_small_variant_plus_field_test PRIVATE
+        LIBCUDACXX_AVAILABLE=1
+        _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    set_target_properties(ice_small_variant_plus_field_test PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        CXX_STANDARD 20
+        CUDA_STANDARD 20
+    )
+
+    message(STATUS "ICE small variant plus field test configured")
+
+    # ICE Size Threshold Test
+    add_executable(ice_size_threshold_test
+        ice_size_threshold_test.cu
+    )
+
+    target_include_directories(ice_size_threshold_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${cccl_SOURCE_DIR}/libcudacxx/include
+        ${cccl_SOURCE_DIR}/thrust
+        ${cccl_SOURCE_DIR}/cub
+    )
+
+    target_link_libraries(ice_size_threshold_test PRIVATE
+        CUDA::cudart
+        CCCL::CCCL
+        stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
+    )
+
+    target_compile_definitions(ice_size_threshold_test PRIVATE
+        LIBCUDACXX_AVAILABLE=1
+        _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    set_target_properties(ice_size_threshold_test PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        CXX_STANDARD 20
+        CUDA_STANDARD 20
+    )
+
+    message(STATUS "ICE size threshold test configured")
+
+    # ICE Vector Test
+    add_executable(ice_vector_test
+        ice_vector_test.cu
+    )
+
+    target_include_directories(ice_vector_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${cccl_SOURCE_DIR}/libcudacxx/include
+        ${cccl_SOURCE_DIR}/thrust
+        ${cccl_SOURCE_DIR}/cub
+    )
+
+    target_link_libraries(ice_vector_test PRIVATE
+        CUDA::cudart
+        CCCL::CCCL
+        stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
+    )
+
+    target_compile_definitions(ice_vector_test PRIVATE
+        LIBCUDACXX_AVAILABLE=1
+        _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    set_target_properties(ice_vector_test PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        CXX_STANDARD 20
+        CUDA_STANDARD 20
+    )
+
+    message(STATUS "ICE vector test configured")
+
+    # ICE Alignment Test (host-only, no device code)
+    add_executable(ice_alignment_test
+        ice_alignment_test.cu
+    )
+
+    target_include_directories(ice_alignment_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${cccl_SOURCE_DIR}/libcudacxx/include
+        ${cccl_SOURCE_DIR}/thrust
+        ${cccl_SOURCE_DIR}/cub
+    )
+
+    target_link_libraries(ice_alignment_test PRIVATE
+        CUDA::cudart
+        CCCL::CCCL
+        stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
+    )
+
+    target_compile_definitions(ice_alignment_test PRIVATE
+        LIBCUDACXX_AVAILABLE=1
+        _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    set_target_properties(ice_alignment_test PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        CXX_STANDARD 20
+        CUDA_STANDARD 20
+    )
+
+    message(STATUS "ICE alignment test configured")
+
+    # ICE Field Alignment Test
+    add_executable(ice_field_alignment_test
+        ice_field_alignment_test.cu
+    )
+
+    target_include_directories(ice_field_alignment_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${cccl_SOURCE_DIR}/libcudacxx/include
+        ${cccl_SOURCE_DIR}/thrust
+        ${cccl_SOURCE_DIR}/cub
+    )
+
+    target_link_libraries(ice_field_alignment_test PRIVATE
+        CUDA::cudart
+        CCCL::CCCL
+        stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
+    )
+
+    target_compile_definitions(ice_field_alignment_test PRIVATE
+        LIBCUDACXX_AVAILABLE=1
+        _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    set_target_properties(ice_field_alignment_test PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        CXX_STANDARD 20
+        CUDA_STANDARD 20
+    )
+
+    message(STATUS "ICE field alignment test configured")
+
+    # ICE Padding Test
+    add_executable(ice_padding_test
+        ice_padding_test.cu
+    )
+
+    target_include_directories(ice_padding_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${cccl_SOURCE_DIR}/libcudacxx/include
+        ${cccl_SOURCE_DIR}/thrust
+        ${cccl_SOURCE_DIR}/cub
+    )
+
+    target_link_libraries(ice_padding_test PRIVATE
+        CUDA::cudart
+        CCCL::CCCL
+        stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
+    )
+
+    target_compile_definitions(ice_padding_test PRIVATE
+        LIBCUDACXX_AVAILABLE=1
+        _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    set_target_properties(ice_padding_test PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        CXX_STANDARD 20
+        CUDA_STANDARD 20
+    )
+
+    message(STATUS "ICE padding test configured")
+
+    # ICE Group Test
+    add_executable(ice_group_test
+        ice_group_test.cu
+    )
+
+    target_include_directories(ice_group_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${cccl_SOURCE_DIR}/libcudacxx/include
+        ${cccl_SOURCE_DIR}/thrust
+        ${cccl_SOURCE_DIR}/cub
+    )
+
+    target_link_libraries(ice_group_test PRIVATE
+        CUDA::cudart
+        CCCL::CCCL
+        stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
+    )
+
+    target_compile_definitions(ice_group_test PRIVATE
+        LIBCUDACXX_AVAILABLE=1
+        _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    set_target_properties(ice_group_test PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        CXX_STANDARD 20
+        CUDA_STANDARD 20
+    )
+
+    message(STATUS "ICE group test configured")
+
+    # HDF5 Comprehensive Test (full read/write/create test)
+    file(GLOB_RECURSE HDF5_TEST_SOURCES
+        ${CMAKE_SOURCE_DIR}/src/hdf5/*.cpp
+    )
+
+    add_executable(hdf5_comprehensive_test
+        hdf5_comprehensive_test.cu
+        ${HDF5_TEST_SOURCES}
+        ${CMAKE_SOURCE_DIR}/src/iowarp/gpu_posix.cu
+        ${CMAKE_SOURCE_DIR}/src/iowarp/cpu_polling.cpp
+    )
+
+    set_source_files_properties(${HDF5_TEST_SOURCES} PROPERTIES LANGUAGE CUDA)
+
+    target_include_directories(hdf5_comprehensive_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${cccl_SOURCE_DIR}/libcudacxx/include
+        ${cccl_SOURCE_DIR}/thrust
+        ${cccl_SOURCE_DIR}/cub
+    )
+
+    target_link_libraries(hdf5_comprehensive_test PRIVATE
+        CUDA::cudart
+        CCCL::CCCL
+        stdgpu::stdgpu
+        hshm::cudacxx
+        hshm::serialize
+        hshm::lightbeam
+    )
+
+    target_compile_definitions(hdf5_comprehensive_test PRIVATE
+        CUDA_ENABLED=1
+        LIBCUDACXX_AVAILABLE=1
+        _CCCL_HAS_SORTING_ALGORITHMS=1
+        HSHM_ENABLE_PTHREADS=1
+        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
+        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
+    )
+
+    target_compile_options(hdf5_comprehensive_test PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:-diag-suppress=177,20014,20011,20012>
+    )
+
+    set_target_properties(hdf5_comprehensive_test PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        CXX_STANDARD 20
+        CUDA_STANDARD 20
+    )
+
+    message(STATUS "HDF5 comprehensive test configured")
 else()
     message(STATUS "Skipping IOWarp GPU emulation test (CUDA not available)")
 endif()

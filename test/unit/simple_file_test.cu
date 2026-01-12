@@ -40,7 +40,7 @@ int main() {
     cudaDeviceGetLimit(&heapSize, cudaLimitMallocHeapSize);
     printf("[MAIN] New heap size: %zu bytes\n\n", heapSize);
 
-    const char* test_filename = "gpu_test.h5";
+    const char* test_filename = "data/gpu_test.h5";
 
     shm_queue* h_queue;
     shm_queue* d_queue;

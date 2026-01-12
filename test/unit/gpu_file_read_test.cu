@@ -110,7 +110,7 @@ __global__ void read_write_hdf5_kernel(const char* filename, GpuContext* ctx, in
 
 int main() {
     printf("=== GPU HDF5 File Read/Write Test ===\\n");
-    printf("Testing with: gpu_test.h5\\n\\n");
+    printf("Testing with: data/gpu_test.h5\\n\\n");
     fflush(stdout);
 
     // Set large stack size for deep HDF5 call chains with cuda::std templates
@@ -123,7 +123,7 @@ int main() {
         printf("[MAIN] Failed to set heap size: %s\\n", cudaGetErrorString(stack_err));
     }
 
-    const char* test_filename = "gpu_test.h5";
+    const char* test_filename = "data/gpu_test.h5";
 
     // Allocate shared queue
     shm_queue* h_queue;
