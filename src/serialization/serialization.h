@@ -42,6 +42,14 @@ namespace serde {
         void SetPosition(offset_t) {
             ASSERT(false, "NullDeserializer shouldn't be called");
         }
+
+        // ReSharper disable once CppMemberFunctionMayBeStatic
+        // NOLINTNEXTLINE(*-convert-member-functions-to-static)
+        __device__ __host__
+        hdf5::HdfAllocator* GetAllocator() {
+            ASSERT(false, "NullDeserializer shouldn't be called");
+            return nullptr;
+        }
     };
 
     // -- CONCEPTS
