@@ -69,18 +69,6 @@ if(CMAKE_CUDA_COMPILER)
     FetchContent_MakeAvailable(cccl)
     message(STATUS "CCCL fetched successfully")
 
-    message(STATUS "Fetching stdgpu from GitHub...")
-    FetchContent_Declare(
-        stdgpu
-        GIT_REPOSITORY https://github.com/stotko/stdgpu.git
-        GIT_TAG        42ea5eacc8b1665023a22632589f86594dd53b8c # 2025-12-13
-    )
-    set(STDGPU_BUILD_SHARED_LIBS OFF CACHE BOOL "Build stdgpu as static library")
-    set(STDGPU_BUILD_EXAMPLES OFF CACHE BOOL "Don't build stdgpu examples")
-    set(STDGPU_BUILD_TESTS OFF CACHE BOOL "Don't build stdgpu tests")
-    set(STDGPU_BUILD_BENCHMARKS OFF CACHE BOOL "Don't build stdgpu benchmarks")
-    FetchContent_MakeAvailable(stdgpu)
-    message(STATUS "stdgpu fetched successfully")
 endif()
 
 file(GLOB_RECURSE SOURCES
@@ -116,7 +104,6 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(hdf5_lib PUBLIC
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
         hshm::cudacxx
         hshm::serialize
         hshm::lightbeam
@@ -138,7 +125,7 @@ if(CMAKE_CUDA_COMPILER)
         ${cccl_SOURCE_DIR}/thrust
         ${cccl_SOURCE_DIR}/cub
     )
-    message(STATUS "Building with CUDA, libcu++, and stdgpu support")
+    message(STATUS "Building with CUDA and libcu++ support")
 else()
     target_include_directories(hdf5_lib PUBLIC
         ${CMAKE_SOURCE_DIR}/src
