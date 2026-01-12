@@ -505,7 +505,7 @@ void CompoundDatatype::Serialize(S& s) const {
     }
 }
 
-template<serde::Deserializer D>
+template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
 __device__
 hdf5::expected<CompoundDatatype> CompoundDatatype::Deserialize(D& de) {
     auto num_members = serde::Read<uint16_t>(de);

@@ -77,7 +77,7 @@ struct DataspaceMessage {
         }
     }
 
-    template<serde::Deserializer D>
+    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
     __device__
     static hdf5::expected<DataspaceMessage> Deserialize(D& de) {
         if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
@@ -202,7 +202,7 @@ struct FillValueOldMessage {
         }
     }
 
-    template<serde::Deserializer D>
+    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
     __device__
     static hdf5::expected<FillValueOldMessage> Deserialize(D& de) {
         FillValueOldMessage msg{};
@@ -257,7 +257,7 @@ struct FillValueMessage {
         }
     }
 
-    template<serde::Deserializer D>
+    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
     __device__
     static hdf5::expected<FillValueMessage> Deserialize(D& de) {
         if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x02)) {
@@ -377,7 +377,7 @@ struct ExternalDataFilesMessage {
         }
     }
 
-    template<serde::Deserializer D>
+    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
     __device__
     static hdf5::expected<ExternalDataFilesMessage> Deserialize(D& de) {
         if (serde::Read<uint8_t>(de) != 1) {
@@ -541,7 +541,7 @@ struct CompactStorageProperty {
         s.WriteBuffer(raw_data);
     }
 
-    template<serde::Deserializer D>
+    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
     __device__
     static hdf5::expected<CompactStorageProperty> Deserialize(D& de) {
         auto size = serde::Read<uint16_t>(de);
@@ -735,7 +735,7 @@ struct AttributeMessage {
         s.WriteBuffer(data);
     }
 
-    template<serde::Deserializer D>
+    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
     __device__
     static hdf5::expected<AttributeMessage> Deserialize(D& de) {
         if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
@@ -847,7 +847,7 @@ struct ObjectCommentMessage {
         ));
     }
 
-    template<serde::Deserializer D>
+    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
     __device__
     static hdf5::expected<ObjectCommentMessage> Deserialize(D& de) {
         auto comment = ReadNullTerminatedString(de);
@@ -1558,7 +1558,7 @@ struct ObjectHeader {
     static hdf5::expected<void> ParseObjectHeaderMessages(ObjectHeader& hd, D& de, uint32_t size_limit, uint16_t total_message_ct);
 
     // FIXME: ignore unknown messages
-    template<serde::Deserializer D>
+    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
     __device__
     static hdf5::expected<ObjectHeader> Deserialize(D& de) {
         if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {

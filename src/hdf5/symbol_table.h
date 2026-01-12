@@ -105,7 +105,7 @@ struct SymbolTableNode {
         }
     }
 
-    template<serde::Deserializer D>
+    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
     __device__
     static hdf5::expected<SymbolTableNode> Deserialize(D& de) {
         if (serde::Read<cstd::array<uint8_t, 4>>(de) != cstd::array<uint8_t, 4>{ 'S', 'N', 'O', 'D' }) {
