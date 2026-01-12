@@ -1,3 +1,4 @@
+#include "../cuda_compat.h"
 #include "gpu_posix.h"
 #include <cuda_runtime.h>
 
