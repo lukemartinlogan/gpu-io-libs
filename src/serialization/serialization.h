@@ -2,6 +2,7 @@
 
 #include <span>
 #include "../hdf5/types.h"
+#include "../hdf5/gpu_allocator.h"
 
 namespace serde {
     // (quirk with C++ concepts)
@@ -58,6 +59,11 @@ namespace serde {
     template<typename D>
     concept Deserializer = Seekable<D> && requires(D&& d, cstd::span<byte_t> data) {
         { d.ReadBuffer(data) } -> std::same_as<void>;
+    };
+
+    template<typename T>
+    concept ProvidesAllocator = requires(T&& t) {
+        { t.GetAllocator() } -> std::same_as<hdf5::HdfAllocator*>;
     };
 
     // -- DATA TYPES --
