@@ -59,28 +59,10 @@ RUN /home/iowarp/miniconda3/bin/conda tos accept --override-channels --channel h
     && /home/iowarp/miniconda3/bin/conda clean -ya
 
 # Add conda to PATH for build steps
-USER root
 ENV PATH="/home/iowarp/miniconda3/bin:${PATH}"
 
-# Clone and build iowarp core (context-transport-primitives)
-RUN cd /tmp \
-    && git clone https://github.com/iowarp/core.git -b 74-fix-context-transport-primitives-for-the-gpu \
-    && cd core \
-    && mkdir -p build && cd build \
-    && cmake ../ --preset cuda-debug \
-        -DCMAKE_CUDA_ARCHITECTURES=89 \
-        -DHSHM_ENABLE_TESTS=OFF \
-        -DHSHM_ENABLE_BENCHMARKS=OFF \
-        -DCHIMAERA_ENABLE_TESTS=OFF \
-        -DCHIMAERA_ENABLE_BENCHMARKS=OFF \
-        -DCMAKE_PREFIX_PATH="/home/iowarp/miniconda3" \
-    && make -j$(nproc) \
-    && make install \
-    && ldconfig \
-    && cd /tmp && rm -rf core
-
-# Switch back to iowarp user
-USER iowarp
+# iowarp/core (HermesShm) is now built via CMake FetchContent
+# No need to pre-install it here
 
 # Add conda and CUDA to bashrc
 RUN echo '' >> /home/iowarp/.bashrc \
