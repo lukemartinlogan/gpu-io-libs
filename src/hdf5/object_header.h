@@ -546,27 +546,28 @@ struct FilterPipelineMessage {
 };
 
 struct CompactStorageProperty {
-    // TODO(kernel-hang): shrunk to avoid GPU stack overflow (prev: 1024)
-    static constexpr size_t kMaxCompactStorageSizeBytes = 16;
+    hdf5::vector<byte_t> raw_data;
 
-    cstd::inplace_vector<byte_t, kMaxCompactStorageSizeBytes> raw_data;
+    __device__ __host__
+    explicit CompactStorageProperty(hdf5::HdfAllocator* alloc)
+        : raw_data(alloc) {}
 
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const {
         serde::Write(s, static_cast<uint16_t>(raw_data.size()));
-        s.WriteBuffer(raw_data);
+        s.WriteBuffer(cstd::span<const byte_t>(raw_data.data(), raw_data.size()));
     }
 
-    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
     __device__
     static hdf5::expected<CompactStorageProperty> Deserialize(D& de) {
         auto size = serde::Read<uint16_t>(de);
 
-        CompactStorageProperty msg{};
+        CompactStorageProperty msg(de.GetAllocator());
         msg.raw_data.resize(size);
 
-        de.ReadBuffer(msg.raw_data);
+        de.ReadBuffer(cstd::span<byte_t>(msg.raw_data.data(), msg.raw_data.size()));
 
         return msg;
     }
