@@ -369,7 +369,7 @@ struct ExternalDataFilesMessage {
         }
     };
 
-    offset_t heap_address;
+    offset_t heap_address = kUndefinedOffset;
     cstd::inplace_vector<ExternalFileSlot, kMaxExternalFileSlots> slots;
 
     template<serde::Serializer S>
