@@ -35,7 +35,7 @@ hdf5::expected<File> File::New(const char* filename, iowarp::GpuContext* ctx) {
         iowarp::gpu_posix::close(fd, *ctx);
         return cstd::unexpected(superblock_result.error());
     }
-    auto superblock = *superblock_result;
+    SuperblockV0 superblock = *superblock_result;
     printf("[HDF5 File] Superblock read successfully\n");
 
     if (superblock.base_addr != 0) {
