@@ -1,6 +1,8 @@
 #pragma once
 
 #include "superblock.h"
+#include "gpu_allocator.h"
+#include "../serialization/serialization.h"
 #include "../serialization/gpu_posix.h"
 #include "../iowarp/gpu_context.h"
 
@@ -21,6 +23,11 @@ struct FileLink {
         return {fd, ctx};
     }
 
+    __device__ __host__
+    [[nodiscard]] hdf5::HdfAllocator* GetAllocator() const {
+        return ctx->allocator_;
+    }
+
     template<serde::Serializer S>
     __device__
     offset_t AllocateAtEOF(len_t size_bytes, S& serializer) {
@@ -37,3 +44,5 @@ struct FileLink {
         return addr;
     }
 };
+
+static_assert(iowarp::ProvidesAllocator<FileLink>);
