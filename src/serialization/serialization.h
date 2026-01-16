@@ -69,11 +69,6 @@ namespace serde {
         { d.ReadBuffer(data) } -> std::same_as<void>;
     };
 
-    template<typename T>
-    concept ProvidesAllocator = requires(T&& t) {
-        { t.GetAllocator() } -> std::same_as<hdf5::HdfAllocator*>;
-    };
-
     // -- DATA TYPES --
     template<typename T>
     concept NonTriviallySerializable = requires(const T& t, NullSerializer& s) { { t.Serialize(s) } -> std::same_as<void>; }
