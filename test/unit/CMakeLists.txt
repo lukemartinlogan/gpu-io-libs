@@ -16,6 +16,7 @@ if(CMAKE_CUDA_COMPILER)
 
     # Set HDF5 cpp files to compile as CUDA
     set_source_files_properties(${HDF5_SOURCES} PROPERTIES LANGUAGE CUDA)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/src/iowarp/cpu_polling.cpp PROPERTIES LANGUAGE CUDA)
 
     target_include_directories(gpu_file_read_test PRIVATE
         ${CMAKE_SOURCE_DIR}/src
@@ -27,8 +28,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(gpu_file_read_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -37,9 +37,6 @@ if(CMAKE_CUDA_COMPILER)
         CUDA_ENABLED=1
         LIBCUDACXX_AVAILABLE=1
         _CCCL_HAS_SORTING_ALGORITHMS=1
-        HSHM_ENABLE_PTHREADS=1
-        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
-        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
     )
 
     target_compile_options(gpu_file_read_test PRIVATE
@@ -72,8 +69,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(minimal_gpu_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -117,8 +113,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(minimal_io_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -310,7 +305,6 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(hdf5_minimal_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
     )
 
     target_compile_definitions(hdf5_minimal_test PRIVATE
@@ -369,8 +363,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(hdf5_single_source_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -407,8 +400,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(minimal_ice_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -445,8 +437,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(ice_bisect_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -483,8 +474,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(ice_full_variant_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -521,8 +511,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(ice_object_header_msg_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -559,8 +548,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(ice_variant_plus_field_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -597,8 +585,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(ice_small_variant_plus_field_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -635,8 +622,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(ice_size_threshold_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -673,8 +659,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(ice_vector_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -711,8 +696,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(ice_alignment_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -749,8 +733,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(ice_field_alignment_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -787,8 +770,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(ice_padding_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -825,8 +807,7 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(ice_group_test PRIVATE
         CUDA::cudart
         CCCL::CCCL
-        stdgpu::stdgpu
-        hshm::cudacxx
+        hshm::cuda_cxx
         hshm::serialize
         hshm::lightbeam
     )
@@ -861,6 +842,7 @@ if(CMAKE_CUDA_COMPILER)
     )
 
     set_source_files_properties(${HDF5_TEST_SOURCES} PROPERTIES LANGUAGE CUDA)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/src/iowarp/cpu_polling.cpp PROPERTIES LANGUAGE CUDA)
 
     target_include_directories(hdf5_comprehensive_test PRIVATE
         ${CMAKE_SOURCE_DIR}/src
@@ -882,9 +864,6 @@ if(CMAKE_CUDA_COMPILER)
         CUDA_ENABLED=1
         LIBCUDACXX_AVAILABLE=1
         _CCCL_HAS_SORTING_ALGORITHMS=1
-        HSHM_ENABLE_PTHREADS=1
-        HSHM_DEFAULT_THREAD_MODEL=hshm::thread::Pthread
-        HSHM_DEFAULT_THREAD_MODEL_GPU=hshm::thread::Cuda
     )
 
     target_compile_options(hdf5_comprehensive_test PRIVATE
