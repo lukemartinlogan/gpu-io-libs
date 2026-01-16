@@ -23,10 +23,12 @@ struct FileEntry {
 // Simplified to track only one file at a time
 struct GpuContext {
   shm_queue* queue_;
+  hdf5::HdfAllocator* allocator_;
+  cstd::span<char> staging_buffer_;
   FileEntry file_entry_;
 
   __device__ __host__
-  GpuContext() : queue_(nullptr) {}
+  GpuContext() : queue_(nullptr), allocator_(nullptr), staging_buffer_() {}
 
   __device__ __host__
   [[nodiscard]] offset_t GetEOF(int fd) const {
