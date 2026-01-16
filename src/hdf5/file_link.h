@@ -20,7 +20,7 @@ struct FileLink {
 
     __device__
     [[nodiscard]] GpuPosixReaderWriter MakeRW() const {
-        return {fd, ctx};
+        return GpuPosixReaderWriter(fd, ctx);
     }
 
     __device__ __host__
