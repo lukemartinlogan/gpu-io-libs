@@ -642,9 +642,11 @@ struct ChunkedStorageProperty {
 };
 
 struct DataLayoutMessage {
+    // ContiguousStorageProperty must be first because CompactStorageProperty
+    // requires an allocator and has no default constructor
     cstd::variant<
-        CompactStorageProperty,
         ContiguousStorageProperty,
+        CompactStorageProperty,
         ChunkedStorageProperty
     > properties;
 
