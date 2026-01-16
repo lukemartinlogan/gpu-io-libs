@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.h"
+#include "gpu_allocator.h"
 #include "../serialization/serialization.h"
 #include "../util/string.h"
 
@@ -344,14 +345,23 @@ struct CompoundMember {
 struct CompoundDatatype {
     static constexpr size_t kMaxCompoundMembers = 16;
 
-    cstd::inplace_vector<CompoundMember, kMaxCompoundMembers> members;
+    hdf5::vector<CompoundMember> members;
     uint32_t size{};
+
+    hdf5::padding<4> _pad{};
+
+    __device__ __host__
+    explicit CompoundDatatype(hdf5::HdfAllocator* alloc)
+        : members(alloc), size(0) {}
+
+    __device__ __host__
+    CompoundDatatype() : members(nullptr), size(0) {}
 
     template<serde::Serializer S>
     __device__
     void Serialize(S& s) const;
 
-    template<serde::Deserializer D>
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
     __device__
     static hdf5::expected<CompoundDatatype> Deserialize(D& de);
 };
@@ -386,6 +396,8 @@ struct DatatypeMessage {
         kArray = 10,
         kComplex = 11,
     } class_v;
+
+    hdf5::padding<6> _pad{};
 
     cstd::variant<
         FixedPoint,
@@ -505,14 +517,14 @@ void CompoundDatatype::Serialize(S& s) const {
     }
 }
 
-template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
+template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
 __device__
 hdf5::expected<CompoundDatatype> CompoundDatatype::Deserialize(D& de) {
     auto num_members = serde::Read<uint16_t>(de);
     // reserved (zero)
     serde::Skip<uint8_t>(de);
 
-    CompoundDatatype comp{};
+    CompoundDatatype comp(de.GetAllocator());
 
     if (num_members > kMaxCompoundMembers) {
         return hdf5::error(
