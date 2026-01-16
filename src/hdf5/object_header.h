@@ -706,20 +706,23 @@ public:
 };
 
 struct AttributeMessage {
-    // TODO(kernel-hang): shrunk to avoid GPU stack overflow (prev: 1024)
-    static constexpr size_t kMaxAttributeDataSize = 32;
-
     hdf5::string name;
     DatatypeMessage datatype;
     DataspaceMessage dataspace;
 
-    // TODO: is there a better way to create this
-    cstd::inplace_vector<byte_t, kMaxAttributeDataSize> data;
+    hdf5::vector<byte_t> data;
+
+    __device__ __host__
+    explicit AttributeMessage(hdf5::HdfAllocator* alloc)
+        : name(), datatype(), dataspace(), data(alloc) {}
+
+    __device__ __host__
+    AttributeMessage() : name(), datatype(), dataspace(), data(nullptr) {}
 
     template<typename T>
     __device__
     hdf5::expected<T> ReadDataAs() {
-        BufferDeserializer buf_de(data);
+        BufferDeserializer buf_de(cstd::span<const byte_t>(data.data(), data.size()));
 
         T out = serde::Read<T>(buf_de);
 
@@ -738,13 +741,13 @@ struct AttributeMessage {
         serde::Write(s, static_cast<uint8_t>(0));
 
         // FIXME: these values aren't correctly calculated in the slightest
-        serde::Write(s, static_cast<uint16_t>(name.size() + 1));
+        serde::Write(s, static_cast<uint16_t>(name.size() + 1));  // +1 for null terminator
         serde::Write(s, static_cast<uint16_t>(0 /* TODO: datatype size */));
         serde::Write(s, static_cast<uint16_t>(0 /* TODO: dataspace size */));
 
-        // write name
+        // write name with null terminator
         WriteEightBytePaddedFields(s, cstd::span(
-            reinterpret_cast<const byte_t*>(name.data()),
+            reinterpret_cast<const byte_t*>(name.c_str()),
             name.size() + 1
         ));
 
@@ -759,10 +762,10 @@ struct AttributeMessage {
         WriteRemainingToPadToEightBytes(s, s.GetPosition() - dataspace_write_start);
 
         // write data
-        s.WriteBuffer(data);
+        s.WriteBuffer(cstd::span<const byte_t>(data.data(), data.size()));
     }
 
-    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
     __device__
     static hdf5::expected<AttributeMessage> Deserialize(D& de) {
         if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
@@ -790,7 +793,7 @@ struct AttributeMessage {
 
         cstd::array<byte_t, kMaxAttributeBufferSize> buf{};
 
-        AttributeMessage msg{};
+        AttributeMessage msg(de.GetAllocator());
 
         // read name
         ReadEightBytePaddedData(de, cstd::span(buf.data(), name_size));
@@ -807,7 +810,7 @@ struct AttributeMessage {
         cstd::span datatype_buf(buf.data(), datatype_size);
         ReadEightBytePaddedData(de, datatype_buf);
 
-        auto datatype_result = serde::Read<DatatypeMessage>(BufferDeserializer(datatype_buf));
+        auto datatype_result = serde::Read<DatatypeMessage>(BufferDeserializer(datatype_buf, de.GetAllocator()));
         if (!datatype_result) return cstd::unexpected(datatype_result.error());
         msg.datatype = *datatype_result;
 
@@ -815,7 +818,7 @@ struct AttributeMessage {
         cstd::span dataspace_buf(buf.data(), dataspace_size);
         ReadEightBytePaddedData(de, dataspace_buf);
 
-        auto dataspace_result = serde::Read<DataspaceMessage>(BufferDeserializer(dataspace_buf));
+        auto dataspace_result = serde::Read<DataspaceMessage>(BufferDeserializer(dataspace_buf, de.GetAllocator()));
         if (!dataspace_result) return cstd::unexpected(dataspace_result.error());
         msg.dataspace = *dataspace_result;
 
@@ -823,7 +826,7 @@ struct AttributeMessage {
         size_t data_size = msg.datatype.Size() * msg.dataspace.MaxElements();
         msg.data.resize(data_size);
 
-        de.ReadBuffer(msg.data);
+        de.ReadBuffer(cstd::span<byte_t>(msg.data.data(), msg.data.size()));
 
         return msg;
     }
