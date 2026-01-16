@@ -2,6 +2,7 @@
 
 #include "types.h"
 #include "datatype.h"
+#include "gpu_allocator.h"
 #include "../serialization/buffer.h"
 #include "../serialization/serialization.h"
 #include "../util/align.h"
@@ -190,7 +191,14 @@ public:
 struct FillValueOldMessage {
     static constexpr size_t kMaxFillValueSize = 256;
 
-    cstd::inplace_vector<byte_t, kMaxFillValueSize> fill_value;
+    hdf5::vector<byte_t> fill_value;
+
+    __device__ __host__
+    explicit FillValueOldMessage(hdf5::HdfAllocator* alloc)
+        : fill_value(alloc) {}
+
+    __device__ __host__
+    FillValueOldMessage() : fill_value(nullptr) {}
 
     template<serde::Serializer S>
     __device__
@@ -198,22 +206,20 @@ struct FillValueOldMessage {
         serde::Write(s, static_cast<uint32_t>(fill_value.size()));
 
         if (!fill_value.empty()) {
-            s.WriteBuffer(fill_value);
+            s.WriteBuffer(cstd::span<const byte_t>(fill_value.data(), fill_value.size()));
         }
     }
 
-    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
     __device__
     static hdf5::expected<FillValueOldMessage> Deserialize(D& de) {
-        FillValueOldMessage msg{};
+        FillValueOldMessage msg(de.GetAllocator());
 
         auto size = serde::Read<uint32_t>(de);
 
         if (size > 0) {
             msg.fill_value.resize(size);
-            de.ReadBuffer(msg.fill_value);
-        } else {
-            msg.fill_value.clear();
+            de.ReadBuffer(cstd::span<byte_t>(msg.fill_value.data(), msg.fill_value.size()));
         }
 
         return msg;
