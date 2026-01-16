@@ -244,7 +244,20 @@ struct FillValueMessage {
         kIfExplicit = 2,
     } write_time;
 
-    cstd::optional<cstd::inplace_vector<byte_t, kMaxFillValueSizeBytes>> fill_value;
+    hdf5::vector<byte_t> fill_value;
+    bool has_fill_value_ = false;
+
+    hdf5::padding<7> _pad{};
+
+    __device__ __host__
+    explicit FillValueMessage(hdf5::HdfAllocator* alloc)
+        : space_alloc_time(SpaceAllocTime::kNotUsed), write_time(ValWriteTime::kOnAlloc),
+          fill_value(alloc), has_fill_value_(false) {}
+
+    __device__ __host__
+    FillValueMessage()
+        : space_alloc_time(SpaceAllocTime::kNotUsed), write_time(ValWriteTime::kOnAlloc),
+          fill_value(nullptr), has_fill_value_(false) {}
 
     template<serde::Serializer S>
     __device__
@@ -254,23 +267,23 @@ struct FillValueMessage {
         serde::Write(s, static_cast<uint8_t>(space_alloc_time));
         serde::Write(s, static_cast<uint8_t>(write_time));
 
-        if (fill_value.has_value()) {
+        if (has_fill_value_) {
             serde::Write(s, static_cast<uint8_t>(1));
-            serde::Write(s, static_cast<uint32_t>(fill_value->size()));
-            s.WriteBuffer(*fill_value);
+            serde::Write(s, static_cast<uint32_t>(fill_value.size()));
+            s.WriteBuffer(cstd::span<const byte_t>(fill_value.data(), fill_value.size()));
         } else {
             serde::Write(s, static_cast<uint8_t>(0));
         }
     }
 
-    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
     __device__
     static hdf5::expected<FillValueMessage> Deserialize(D& de) {
         if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x02)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
-        FillValueMessage msg{};
+        FillValueMessage msg(de.GetAllocator());
 
         // space allocation time
         auto space_alloc = serde::Read<uint8_t>(de);
@@ -281,24 +294,22 @@ struct FillValueMessage {
         msg.space_alloc_time = static_cast<SpaceAllocTime>(space_alloc);
 
         // fv write time
-        auto write_time = serde::Read<uint8_t>(de);
-        if (write_time >= 3) {
+        auto write_time_val = serde::Read<uint8_t>(de);
+        if (write_time_val >= 3) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "fill value write time was invalid");
         }
 
-        msg.write_time = static_cast<ValWriteTime>(write_time);
+        msg.write_time = static_cast<ValWriteTime>(write_time_val);
 
         auto defined = serde::Read<uint8_t>(de);
         if (defined == 0) {
-            msg.fill_value = cstd::nullopt;
+            msg.has_fill_value_ = false;
         } else if (defined == 1) {
             auto size = serde::Read<uint32_t>(de);
 
-            cstd::inplace_vector<byte_t, kMaxFillValueSizeBytes> fv;
-            fv.resize(size);
-            de.ReadBuffer(fv);
-
-            msg.fill_value = fv;
+            msg.fill_value.resize(size);
+            de.ReadBuffer(cstd::span<byte_t>(msg.fill_value.data(), msg.fill_value.size()));
+            msg.has_fill_value_ = true;
         } else {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "invalid fill value defined state");
         }
