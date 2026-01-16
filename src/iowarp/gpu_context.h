@@ -1,8 +1,12 @@
 #pragma once
 
 #include "../hdf5/cstd.h"
+#include "../hdf5/gpu_allocator.h"
 #include "shm_queue.h"
 #include "../hdf5/types.h"
+#include "hermes_shm/memory/backend/array_backend.h"
+
+#include <cuda_runtime.h>
 
 namespace iowarp {
 
