@@ -394,7 +394,7 @@ struct ExternalDataFilesMessage {
         }
     }
 
-    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
+    template<serde::Deserializer D>
     __device__
     static hdf5::expected<ExternalDataFilesMessage> Deserialize(D& de) {
         if (serde::Read<uint8_t>(de) != 1) {
