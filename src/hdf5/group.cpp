@@ -87,11 +87,20 @@ hdf5::expected<Dataset> Group::CreateDataset(
     new_ds.WriteMessage(dataspace);
     new_ds.WriteMessage(type);
 
-    new_ds.WriteMessage(FillValueMessage {
-        .space_alloc_time = FillValueMessage::SpaceAllocTime::kEarly,
-        .write_time = FillValueMessage::ValWriteTime::kIfExplicit,
-        .fill_value = cstd::move(fill_value),
-    });
+    auto io_fv = object_.file->MakeRW();
+    FillValueMessage fv_msg(io_fv.GetAllocator());
+
+    fv_msg.space_alloc_time = FillValueMessage::SpaceAllocTime::kEarly;
+    fv_msg.write_time = FillValueMessage::ValWriteTime::kIfExplicit;
+
+    if (fill_value.has_value()) {
+        for (const auto& byte : *fill_value) {
+            fv_msg.fill_value.push_back(byte);
+        }
+        fv_msg.has_fill_value_ = true;
+    }
+
+    new_ds.WriteMessage(fv_msg);
 
     if (chunk_dims.has_value()) {
         ChunkedStorageProperty chunked_prop {
