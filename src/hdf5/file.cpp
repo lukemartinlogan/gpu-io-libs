@@ -1,5 +1,6 @@
 #include "file.h"
 #include "../iowarp/gpu_posix.h"
+#include "../serialization/gpu_posix.h"
 
 #ifdef _WIN32
   #include <io.h>
