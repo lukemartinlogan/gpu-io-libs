@@ -1047,7 +1047,14 @@ struct DriverInfoMessage {
 
     // 8 ascii bytes
     hdf5::gpu_string<8> driver_id{};
-    cstd::inplace_vector<byte_t, kMaxDriverInfoSize> driver_info;
+    hdf5::vector<byte_t> driver_info;
+
+    __device__ __host__
+    explicit DriverInfoMessage(hdf5::HdfAllocator* alloc)
+        : driver_info(alloc) {}
+
+    __device__ __host__
+    DriverInfoMessage() : driver_info(nullptr) {}
 
     template<serde::Serializer S>
     __device__
@@ -1067,10 +1074,10 @@ struct DriverInfoMessage {
 
         serde::Write(s, static_cast<uint16_t>(driver_info.size()));
 
-        s.WriteBuffer(driver_info);
+        s.WriteBuffer(cstd::span<const byte_t>(driver_info.data(), driver_info.size()));
     }
 
-    template<serde::Deserializer D>
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
     __device__
     static hdf5::expected<DriverInfoMessage> Deserialize(D& de) {
         if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
@@ -1078,7 +1085,7 @@ struct DriverInfoMessage {
         }
 
         // read 8 bytes, then make a string out of it
-        DriverInfoMessage msg{};
+        DriverInfoMessage msg(de.GetAllocator());
 
         // read id
         cstd::array<char, kDriverIdSize> id{};
@@ -1088,10 +1095,9 @@ struct DriverInfoMessage {
         if (!driver_id_result) return cstd::unexpected(driver_id_result.error());
         msg.driver_id = *driver_id_result;
 
-
         auto driver_info_size = serde::Read<uint16_t>(de);
         msg.driver_info.resize(driver_info_size);
-        de.ReadBuffer(msg.driver_info);
+        de.ReadBuffer(cstd::span<byte_t>(msg.driver_info.data(), msg.driver_info.size()));
 
         return msg;
     }
