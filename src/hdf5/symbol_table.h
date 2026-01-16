@@ -2,6 +2,7 @@
 
 #include "local_heap.h"
 #include "types.h"
+#include "gpu_allocator.h"
 #include "../serialization/serialization.h"
 #include "gpu_string.h"
 
@@ -71,7 +72,15 @@ struct SymbolTableNode {
     // might need to be bigger? but group_leaf_node_k is ~ 4
     static constexpr size_t kMaxSymbolTableEntries = 16;
 
-    cstd::inplace_vector<SymbolTableEntry, kMaxSymbolTableEntries> entries;
+    // not sure if dynamic allocation here is necessary here
+    hdf5::vector<SymbolTableEntry> entries;
+
+    __device__ __host__
+    explicit SymbolTableNode(hdf5::HdfAllocator* alloc)
+        : entries(alloc) {}
+
+    __device__ __host__
+    SymbolTableNode() : entries(nullptr) {}
 
     template<serde::Deserializer D>
     __device__
@@ -105,7 +114,7 @@ struct SymbolTableNode {
         }
     }
 
-    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
     __device__
     static hdf5::expected<SymbolTableNode> Deserialize(D& de) {
         if (serde::Read<cstd::array<uint8_t, 4>>(de) != cstd::array<uint8_t, 4>{ 'S', 'N', 'O', 'D' }) {
@@ -122,7 +131,7 @@ struct SymbolTableNode {
         // actual data
         auto num_symbols = serde::Read<uint16_t>(de);
 
-        SymbolTableNode node{};
+        SymbolTableNode node(de.GetAllocator());
 
         if (num_symbols > kMaxSymbolTableEntries) {
             return hdf5::error(
@@ -131,6 +140,7 @@ struct SymbolTableNode {
             );
         }
 
+        node.entries.reserve(num_symbols);
         for (uint16_t i = 0; i < num_symbols; ++i) {
             auto entry_result = serde::Read<SymbolTableEntry>(de);
             if (!entry_result) return cstd::unexpected(entry_result.error());
