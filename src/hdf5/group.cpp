@@ -256,7 +256,9 @@ __device__
 hdf5::expected<void> Group::WriteEntryToNewNode(SymbolTableEntry entry) {
     offset_t name_offset = entry.link_name_offset;
 
-    SymbolTableNode node { .entries = { cstd::move(entry) }, };
+    auto io = object_.file->MakeRW();
+    SymbolTableNode node(io.GetAllocator());
+    node.entries.push_back(cstd::move(entry));
 
     // this should zero out the rest of the padding bytes for later
     cstd::array<byte_t, SymbolTableNode::kMaxSerializedSize> node_buf{};
@@ -276,7 +278,6 @@ hdf5::expected<void> Group::WriteEntryToNewNode(SymbolTableEntry entry) {
 
     serde::Skip(node_buf_rw, padding_size);
 
-    auto io = object_.file->MakeRW();
     offset_t node_alloc = object_.file->AllocateAtEOF(node_buf_rw.GetPosition(), io);
     io.SetPosition(node_alloc);
     io.WriteBuffer(node_buf_rw.GetWritten());
