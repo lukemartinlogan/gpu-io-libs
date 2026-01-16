@@ -123,6 +123,12 @@ public:
     position_ = offset;
   }
 
+  // Get the allocator from the GPU context for dynamic allocations
+  __device__ __host__
+  [[nodiscard]] hdf5::HdfAllocator* GetAllocator() const {
+    return ctx_->allocator_;
+  }
+
 private:
   int fd_;
   iowarp::GpuContext* ctx_;
@@ -130,3 +136,4 @@ private:
 };
 
 static_assert(serde::Serializer<GpuPosixReaderWriter> && serde::Deserializer<GpuPosixReaderWriter>);
+static_assert(iowarp::ProvidesAllocator<GpuPosixReaderWriter>);
