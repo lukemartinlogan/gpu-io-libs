@@ -878,7 +878,7 @@ struct ObjectCommentMessage {
         ));
     }
 
-    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
+    template<serde::Deserializer D>
     __device__
     static hdf5::expected<ObjectCommentMessage> Deserialize(D& de) {
         auto comment = ReadNullTerminatedString(de);
