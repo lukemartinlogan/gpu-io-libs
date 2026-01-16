@@ -31,7 +31,7 @@ struct DataspaceMessage {
     hdf5::dim_vector<DimensionInfo> dimensions;
 
     __device__
-    DataspaceMessage(const hdf5::dim_vector<DimensionInfo>&, bool max_dim_present, bool perm_indices_present);
+    DataspaceMessage(const hdf5::dim_vector<DimensionInfo>& dims, bool max_dim_present, bool perm_indices_present);
 
     __device__
     [[nodiscard]] bool IsMaxDimensionsPresent() const {
