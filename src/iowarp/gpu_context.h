@@ -54,4 +54,112 @@ struct GpuContext {
   }
 };
 
+class GpuContextBuilder {
+public:
+  static constexpr size_t kDefaultStagingSize = 64 * 1024;  // 64KB
+  static constexpr size_t kDefaultHeapSize = 1024 * 1024;   // 1MB
+
+  GpuContextBuilder() = default;
+  ~GpuContextBuilder() { Destroy(); }
+
+  // owns CUDA resources, so shouldn't be moved nor copied
+  GpuContextBuilder(const GpuContextBuilder&) = delete;
+  GpuContextBuilder& operator=(const GpuContextBuilder&) = delete;
+  GpuContextBuilder(GpuContextBuilder&&) = delete;
+  GpuContextBuilder& operator=(GpuContextBuilder&&) = delete;
+
+  bool Build() {
+    return Build(kDefaultStagingSize, kDefaultHeapSize);
+  }
+
+  bool Build(size_t staging_size, size_t heap_size) {
+    if (built_) return false;
+
+    if (cudaHostAlloc(&h_queue_, sizeof(shm_queue), cudaHostAllocMapped) != cudaSuccess) {
+      return false;
+    }
+    cudaHostGetDevicePointer(&d_queue_, h_queue_, 0);
+    new (h_queue_) shm_queue();
+
+    if (cudaHostAlloc(&h_ctx_, sizeof(GpuContext), cudaHostAllocMapped) != cudaSuccess) {
+      Destroy();
+      return false;
+    }
+
+    cudaHostGetDevicePointer(&d_ctx_, h_ctx_, 0);
+    new (h_ctx_) GpuContext();
+    h_ctx_->queue_ = d_queue_;
+
+    staging_size_ = staging_size;
+    if (cudaHostAlloc(&h_staging_, staging_size_, cudaHostAllocMapped) != cudaSuccess) {
+      Destroy();
+      return false;
+    }
+
+    cudaHostGetDevicePointer(&d_staging_, h_staging_, 0);
+    h_ctx_->staging_buffer_ = cstd::span<char>(d_staging_, staging_size_);
+
+    size_t alloc_size = heap_size + 3 * hshm::ipc::kBackendHeaderSize;
+    if (cudaHostAlloc(&h_alloc_mem_, alloc_size, cudaHostAllocMapped) != cudaSuccess) {
+      Destroy();
+      return false;
+    }
+    cudaHostGetDevicePointer(&d_alloc_mem_, h_alloc_mem_, 0);
+
+    if (!backend_.shm_init(hshm::ipc::MemoryBackendId::GetRoot(), alloc_size, h_alloc_mem_)) {
+      Destroy();
+      return false;
+    }
+
+    memset(backend_.data_, 0, backend_.data_capacity_);
+
+    h_allocator_ = backend_.MakeAlloc<hdf5::HdfAllocator>();
+    size_t alloc_offset = reinterpret_cast<char*>(h_allocator_) - h_alloc_mem_;
+    d_allocator_ = reinterpret_cast<hdf5::HdfAllocator*>(d_alloc_mem_ + alloc_offset);
+    h_ctx_->allocator_ = d_allocator_;
+
+    built_ = true;
+    return true;
+  }
+
+  void Destroy() {
+    if (h_alloc_mem_) { cudaFreeHost(h_alloc_mem_); h_alloc_mem_ = nullptr; }
+    if (h_staging_) { cudaFreeHost(h_staging_); h_staging_ = nullptr; }
+    if (h_ctx_) { h_ctx_->~GpuContext(); cudaFreeHost(h_ctx_); h_ctx_ = nullptr; }
+    if (h_queue_) { h_queue_->~shm_queue(); cudaFreeHost(h_queue_); h_queue_ = nullptr; }
+    built_ = false;
+  }
+
+  [[nodiscard]] GpuContext* DeviceContext() const { return d_ctx_; }
+
+  [[nodiscard]] GpuContext* HostContext() const { return h_ctx_; }
+
+  [[nodiscard]] shm_queue* HostQueue() const { return h_queue_; }
+
+  [[nodiscard]] bool IsBuilt() const { return built_; }
+
+private:
+  bool built_ = false;
+
+  // queue
+  shm_queue* h_queue_ = nullptr;
+  shm_queue* d_queue_ = nullptr;
+
+  // context
+  GpuContext* h_ctx_ = nullptr;
+  GpuContext* d_ctx_ = nullptr;
+
+  // staging buffer
+  char* h_staging_ = nullptr;
+  char* d_staging_ = nullptr;
+  size_t staging_size_ = 0;
+
+  // allocator
+  char* h_alloc_mem_ = nullptr;
+  char* d_alloc_mem_ = nullptr;
+  hshm::ipc::ArrayBackend backend_;
+  hdf5::HdfAllocator* h_allocator_ = nullptr;
+  hdf5::HdfAllocator* d_allocator_ = nullptr;
+};
+
 } // namespace iowarp
