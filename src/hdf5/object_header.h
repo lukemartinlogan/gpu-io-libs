@@ -1534,7 +1534,7 @@ struct ObjectHeaderMessage {
             return cstd::unexpected(message_result.error());
         }
 
-        msg.message = *message_result;
+        msg.message = cstd::move(*message_result);
 
         auto difference = de.GetPosition() - start;
 
@@ -1559,19 +1559,23 @@ struct ObjectHeaderMessage {
 
 private:
     cstd::bitset<8> flags_{};
+
+    hdf5::padding<5> _pad{};
 };
 
 struct ObjectHeader {
-    // TODO(kernel-hang): shrunk to avoid GPU stack overflow (prev: 48)
-    static constexpr size_t kMaxObjectHeaderMessages = 8;
-
     // number of hard links to this object in the current file
     uint32_t object_ref_count{};
     // number of bytes of header message data for this header
     // does not include size of object header continuation blocks
     uint32_t object_header_size{};
     // messages
-    cstd::inplace_vector<ObjectHeaderMessage, kMaxObjectHeaderMessages> messages{};
+    hdf5::vector<ObjectHeaderMessage> messages;
+
+    // Constructor with allocator (required for hshm::vector)
+    __device__ __host__
+    explicit ObjectHeader(hdf5::HdfAllocator* alloc)
+        : object_ref_count(0), object_header_size(0), messages(alloc) {}
 
     template<serde::Serializer S>
     __device__
@@ -1595,7 +1599,7 @@ struct ObjectHeader {
     static hdf5::expected<void> ParseObjectHeaderMessages(ObjectHeader& hd, D& de, uint32_t size_limit, uint16_t total_message_ct);
 
     // FIXME: ignore unknown messages
-    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
     __device__
     static hdf5::expected<ObjectHeader> Deserialize(D& de) {
         if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
@@ -1606,7 +1610,7 @@ struct ObjectHeader {
 
         auto message_count = serde::Read<uint16_t>(de);
 
-        ObjectHeader hd{};
+        ObjectHeader hd(de.GetAllocator());
 
         hd.object_ref_count = serde::Read<uint32_t>(de);
         hd.object_header_size = serde::Read<uint32_t>(de);
