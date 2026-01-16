@@ -413,6 +413,10 @@ struct ExternalDataFilesMessage {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "ExternalDataFilesMessage: allocated slots does not match used slots");
         }
 
+        if (used_slots > kMaxExternalFileSlots) {
+            return hdf5::error(hdf5::HDF5ErrorCode::CapacityExceeded, "ExternalDataFilesMessage: too many slots");
+        }
+
         msg.heap_address = serde::Read<offset_t>(de);
 
         msg.slots.reserve(used_slots);
