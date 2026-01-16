@@ -77,7 +77,7 @@ struct DataspaceMessage {
         }
     }
 
-    template<serde::Deserializer D> requires serde::ProvidesAllocator<D>
+    template<serde::Deserializer D>
     __device__
     static hdf5::expected<DataspaceMessage> Deserialize(D& de) {
         if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
