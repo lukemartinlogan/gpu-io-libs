@@ -6,6 +6,7 @@
 #include "../serialization/buffer.h"
 #include "../serialization/serialization.h"
 #include "../util/align.h"
+#include "../util/string.h"
 
 struct NilMessage {
     uint16_t size{};
