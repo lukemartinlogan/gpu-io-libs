@@ -426,6 +426,9 @@ struct ExternalDataFilesMessage {
     }
 
 private:
+    __device__ __host__
+    ExternalDataFilesMessage() = default;
+
     static constexpr uint8_t kVersionNumber = 0x01;
 public:
     static constexpr uint16_t kType = 0x07;
