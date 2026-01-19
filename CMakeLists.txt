@@ -93,6 +93,12 @@ if(CMAKE_CUDA_COMPILER)
 
     file(GLOB_RECURSE HDF5_CPP_SOURCES "src/hdf5/*.cpp")
     set_source_files_properties(${HDF5_CPP_SOURCES} PROPERTIES LANGUAGE CUDA)
+
+    # cpu_polling.cpp uses hermes_shm atomics which require CUDA compilation
+    set_source_files_properties(
+        "${CMAKE_SOURCE_DIR}/src/iowarp/cpu_polling.cpp"
+        PROPERTIES LANGUAGE CUDA
+    )
 endif()
 
 add_library(hdf5_lib STATIC ${SOURCES})
