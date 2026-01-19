@@ -1680,7 +1680,7 @@ hdf5::expected<void> ObjectHeader::ParseObjectHeaderMessages(ObjectHeader& hd, D
         if (!msg_result) {
             return cstd::unexpected(msg_result.error());
         }
-        hd.messages.push_back(*msg_result);
+        hd.messages.push_back(cstd::move(*msg_result));
 
         frame.bytes_read += de.GetPosition() - before_read;
 
