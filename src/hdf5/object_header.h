@@ -8,6 +8,9 @@
 #include "../util/align.h"
 #include "../util/string.h"
 
+// Maximum size for attribute data components (name, datatype, dataspace)
+inline constexpr size_t kMaxAttributeDataSize = 256;
+
 struct NilMessage {
     uint16_t size{};
 
