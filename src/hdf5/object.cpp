@@ -4,9 +4,8 @@
 
 __device__
 cstd::optional<Object::Space> Object::FindSpace(size_t size, bool must_be_nil) const {
-    JumpToRelativeOffset(0);
-
     auto io = file->MakeRW();
+    io.SetPosition(file_pos_);
 
     serde::Skip(io, 2);
 
@@ -76,8 +75,8 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 
     cstd::optional<Space> nil_space = FindSpace(msg_bytes.size(), true);
 
-    JumpToRelativeOffset(2);
     auto io = file->MakeRW();
+    io.SetPosition(file_pos_ + 2);
     auto written_ct = serde::Read<uint16_t>(io);
 
     if (nil_space.has_value()) {
@@ -252,7 +251,7 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
         }
     }
 
-    JumpToRelativeOffset(2);
+    io.SetPosition(file_pos_ + 2);
     serde::Write(io, written_ct);
 }
 
@@ -260,9 +259,8 @@ void Object::WriteMessage(const HeaderMessageVariant& msg) const {
 // ReSharper disable once CppMemberFunctionMayBeConst
 __device__
 cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
-    JumpToRelativeOffset(0);
-
     auto io = file->MakeRW();
+    io.SetPosition(file_pos_);
     serde::Skip(io, 2);
 
     auto total_message_ct = serde::Read<uint16_t>(io);
@@ -303,9 +301,8 @@ cstd::optional<ObjectHeaderMessage> Object::DeleteMessage(uint16_t msg_type) {
 // TODO: fix code duplication
 __device__
 cstd::optional<ObjectHeaderMessage> Object::GetMessage(uint16_t msg_type) {
-    JumpToRelativeOffset(0);
-
     auto io = file->MakeRW();
+    io.SetPosition(file_pos_);
     serde::Skip(io, 2);
 
     auto total_message_ct = serde::Read<uint16_t>(io);

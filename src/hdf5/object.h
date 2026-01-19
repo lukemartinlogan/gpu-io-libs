@@ -26,9 +26,8 @@ public:
 
     __device__
     [[nodiscard]] hdf5::expected<ObjectHeader> GetHeader() const {
-        JumpToRelativeOffset(0);
-
         auto io = file->MakeRW();
+        io.SetPosition(file_pos_);
         return serde::Read<ObjectHeader>(io);
     }
 
@@ -93,13 +92,6 @@ private:
         uint32_t search_size,
         bool must_be_nil
     );
-
-    // TODO: not a huge fan of this method
-    __device__
-    void JumpToRelativeOffset(offset_t offset) const {
-        auto io = file->MakeRW();
-        io.SetPosition(file_pos_ + offset);
-    }
 
     __device__
     explicit Object(FileLink* file, offset_t pos_)
