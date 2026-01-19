@@ -106,17 +106,28 @@ public:
     }
     cudaHostGetDevicePointer(&d_alloc_mem_, h_alloc_mem_, 0);
 
-    if (!backend_.shm_init(hshm::ipc::MemoryBackendId::GetRoot(), alloc_size, h_alloc_mem_)) {
+    // Zero-initialize BEFORE shm_init (which sets up allocator headers)
+    memset(h_alloc_mem_, 0, alloc_size);
+
+    // Initialize backend with device pointer so all internal pointers
+    // are in device address space (accessible from both CPU and GPU)
+    if (!backend_.shm_init(hshm::ipc::MemoryBackendId::GetRoot(), alloc_size, d_alloc_mem_)) {
       Destroy();
       return false;
     }
 
-    memset(backend_.data_, 0, backend_.data_capacity_);
-
     h_allocator_ = backend_.MakeAlloc<hdf5::HdfAllocator>();
-    size_t alloc_offset = reinterpret_cast<char*>(h_allocator_) - h_alloc_mem_;
-    d_allocator_ = reinterpret_cast<hdf5::HdfAllocator*>(d_alloc_mem_ + alloc_offset);
+    // Since backend was initialized with d_alloc_mem_, h_allocator_ is already
+    // a device pointer - just use it directly
+    d_allocator_ = h_allocator_;
     h_ctx_->allocator_ = d_allocator_;
+
+    printf("[GpuContextBuilder] h_alloc_mem=%p, d_alloc_mem=%p\n", h_alloc_mem_, d_alloc_mem_);
+    printf("[GpuContextBuilder] h_allocator=%p, d_allocator=%p\n", h_allocator_, d_allocator_);
+    printf("[GpuContextBuilder] backend.data_=%p\n", backend_.data_);
+
+    // Ensure GPU can see all allocator initialization writes
+    cudaDeviceSynchronize();
 
     built_ = true;
     return true;
@@ -137,6 +148,13 @@ public:
   [[nodiscard]] shm_queue* HostQueue() const { return h_queue_; }
 
   [[nodiscard]] bool IsBuilt() const { return built_; }
+
+  [[nodiscard]] hdf5::HdfAllocator* DeviceAllocator() const { return d_allocator_; }
+
+  [[nodiscard]] char* DeviceAllocMem() const { return d_alloc_mem_; }
+
+  // Get the offset from alloc_mem to data_ (where allocator is placed)
+  [[nodiscard]] size_t DataOffset() const { return 3 * hshm::ipc::kBackendHeaderSize; }
 
 private:
   bool built_ = false;
