@@ -6,7 +6,6 @@
 #include "hdf5/group.h"
 #include "hdf5/dataset.h"
 #include "iowarp/gpu_context.h"
-#include "iowarp/gpu_posix.h"
 #include "iowarp/cpu_polling.h"
 
 __device__ bool g_test_passed = true;
@@ -35,7 +34,7 @@ __device__ int g_tests_failed = 0;
 __device__
 void test_read_basic_file(iowarp::GpuContext* ctx, const char* filename) {
     printf("\n=== Test: Read Basic File ===\n");
-    printf("[TEST] Context ptr: %p, staging_buffer: %p, filename: %s\n", ctx, ctx->staging_buffer_, filename);
+    printf("[TEST] Context ptr: %p, filename: %s\n", ctx, filename);
 
     auto file_result = File::New(filename, ctx);
     CHECK_EXPECTED(file_result, "Open test_basic.h5");
@@ -287,13 +286,153 @@ void test_create_file(iowarp::GpuContext* ctx) {
     printf("✓ test_create_file passed\n");
 }
 
+// Results structure for allocator test (store in mapped memory for CPU readback)
+struct AllocTestResults {
+    bool raw_mem_test_pass;
+    size_t this_val;
+    size_t data_start_val;
+    size_t region_size_val;
+    void* backend_ptr;
+    size_t alloc_offset;
+    bool alloc_is_null;
+    void* alloc_ptr;
+    bool alloc_write_test_pass;
+    // Raw memory dump for inspection (BEFORE and AFTER allocation)
+    size_t allocator_raw_before[16];
+    size_t allocator_raw_after[16];
+    // Additional debugging for heap internals
+    size_t big_heap_offset;      // Current heap offset before allocation
+    size_t big_heap_max_offset;  // Max offset
+    size_t heap_alloc_result;    // Direct heap allocation result
+    size_t allocator_data_off;   // GetAllocatorDataOff()
+    size_t allocator_data_size;  // GetAllocatorDataSize()
+};
+
+// Minimal test to isolate allocator behavior on GPU
+__global__
+void test_allocator_kernel(hdf5::HdfAllocator* allocator, char* raw_mem, size_t data_offset, AllocTestResults* results) {
+    if (threadIdx.x == 0 && blockIdx.x == 0) {
+        printf("\n=== Direct Allocator Test (GPU) ===\n");
+
+        // Test 1: Raw memory access (bypass allocator completely)
+        char* data_region = raw_mem + data_offset;
+        char orig_val = data_region[0];
+        data_region[0] = 0x42;
+        char read_back = data_region[0];
+        results->raw_mem_test_pass = (read_back == 0x42);
+        data_region[0] = orig_val;  // restore
+        printf("[Test 1] Raw memory access: %s\n", results->raw_mem_test_pass ? "PASS" : "FAIL");
+
+        // Test 2: Read allocator fields
+        results->this_val = allocator->this_;
+        results->data_start_val = allocator->data_start_;
+        results->region_size_val = allocator->region_size_;
+        printf("[Test 2] this_=%lu, data_start_=%lu, region_size_=%lu\n",
+               (unsigned long)results->this_val,
+               (unsigned long)results->data_start_val,
+               (unsigned long)results->region_size_val);
+
+        // Dump raw allocator memory BEFORE allocation
+        size_t* alloc_as_size_t = reinterpret_cast<size_t*>(allocator);
+        for (int i = 0; i < 16; i++) {
+            results->allocator_raw_before[i] = alloc_as_size_t[i];
+        }
+
+        // Test 3: GetBackendData
+        char* backend = allocator->GetBackendData();
+        results->backend_ptr = backend;
+        printf("[Test 3] GetBackendData()=%p\n", backend);
+
+        // Test 3.5: Check heap internals (at known offsets from memory dump)
+        // offset 104 = big_heap_.heap_, offset 112 = big_heap_.max_offset_
+        results->big_heap_offset = alloc_as_size_t[13];      // offset 104 / 8 = 13
+        results->big_heap_max_offset = alloc_as_size_t[14];  // offset 112 / 8 = 14
+        results->allocator_data_off = allocator->GetAllocatorDataOff();
+        results->allocator_data_size = allocator->GetAllocatorDataSize();
+        printf("[Test 3.5] big_heap: offset=%lu, max=%lu\n",
+               (unsigned long)results->big_heap_offset,
+               (unsigned long)results->big_heap_max_offset);
+        printf("[Test 3.5] allocator_data_off=%lu, allocator_data_size=%lu\n",
+               (unsigned long)results->allocator_data_off,
+               (unsigned long)results->allocator_data_size);
+
+        // Dump more allocator memory to see free list state (size_t at various offsets)
+        printf("[Test 3.6] Allocator memory dump (words 16-31):\n");
+        for (int i = 16; i < 32; i++) {
+            printf("  [%2d] offset %3d: %20lu (0x%016lx)\n",
+                   i, i*8, (unsigned long)alloc_as_size_t[i], (unsigned long)alloc_as_size_t[i]);
+        }
+
+        // Test 4: Try allocation
+        printf("[Test 4] Calling AllocateOffset(64)...\n");
+        printf("[Test 4] results ptr=%p, allocator ptr=%p\n", results, allocator);
+
+        auto offset = allocator->AllocateOffset(64);
+
+        // Check for aliasing: is results inside allocator's region?
+        char* results_as_char = reinterpret_cast<char*>(results);
+        char* alloc_start = reinterpret_cast<char*>(allocator);
+        char* alloc_end = alloc_start + 1048576;  // region_size
+        printf("[Test 4] results=%p, allocator range=[%p, %p)\n",
+               results_as_char, alloc_start, alloc_end);
+        if (results_as_char >= alloc_start && results_as_char < alloc_end) {
+            printf("[Test 4] WARNING: results struct is INSIDE allocator region!\n");
+        }
+
+        // Use volatile to prevent any optimization of the local
+        volatile size_t local_offset = offset.off_.load();
+        volatile bool local_is_null = offset.IsNull();
+
+        printf("[Test 4] offset.off_ raw value=%lu\n", (unsigned long)offset.off_.load());
+        printf("[Test 4] local_offset=%lu, local_is_null=%d\n",
+               (unsigned long)local_offset, (int)local_is_null);
+
+        // Now store to results
+        results->alloc_offset = local_offset;
+        results->alloc_is_null = local_is_null;
+
+        printf("[Test 4] results->alloc_offset=%lu (after store)\n",
+               (unsigned long)results->alloc_offset);
+
+        if (!local_is_null && local_offset != 0) {
+            char* alloc_ptr = backend + local_offset;
+            results->alloc_ptr = alloc_ptr;
+            printf("[Test 4] Allocated at offset %lu, ptr=%p\n",
+                   (unsigned long)local_offset, alloc_ptr);
+
+            // Only write if offset is at or beyond data_start (not within allocator header)
+            if (local_offset >= results->data_start_val) {
+                alloc_ptr[0] = 'X';
+                results->alloc_write_test_pass = (alloc_ptr[0] == 'X');
+                printf("[Test 4] Write test: %s\n", results->alloc_write_test_pass ? "PASS" : "FAIL");
+            } else {
+                printf("[Test 4] DANGER: offset %lu is within allocator (data_start=%lu)! Not writing.\n",
+                       (unsigned long)local_offset, (unsigned long)results->data_start_val);
+                results->alloc_write_test_pass = false;
+            }
+        } else {
+            results->alloc_ptr = nullptr;
+            results->alloc_write_test_pass = false;
+            printf("[Test 4] Allocation FAILED (local_offset=%lu, local_is_null=%d)\n",
+                   (unsigned long)local_offset, (int)local_is_null);
+            printf("[Test 4] Re-reading offset.off_=%lu\n", (unsigned long)offset.off_.load());
+        }
+
+        // Dump raw allocator memory AFTER allocation
+        for (int i = 0; i < 16; i++) {
+            results->allocator_raw_after[i] = alloc_as_size_t[i];
+        }
+
+        printf("=== End Direct Allocator Test ===\n\n");
+    }
+}
+
 __global__
 void run_tests_kernel(iowarp::GpuContext* ctx, char* test_basic_path) {
     if (threadIdx.x == 0 && blockIdx.x == 0) {
         printf("[KERNEL] Entry\n");
         printf("[KERNEL] ctx=%p\n", ctx);
         printf("[KERNEL] queue=%p\n", ctx->queue_);
-        printf("[KERNEL] staging=%p\n", ctx->staging_buffer_);
         printf("[KERNEL] Init complete\n");
 
         printf("========================================\n");
@@ -321,54 +460,24 @@ int main() {
     printf("Initializing CUDA...\n");
 
     // Set large stack size for deep HDF5 call chains with cuda::std templates
-    cudaError_t stack_err = cudaDeviceSetLimit(cudaLimitStackSize, 64 * 1024);  // 64KB stack
-    if (stack_err != cudaSuccess) {
-        printf("[MAIN] Failed to set stack size: %s\n", cudaGetErrorString(stack_err));
+    cudaError_t err = cudaDeviceSetLimit(cudaLimitStackSize, 64 * 1024);  // 64KB stack
+    if (err != cudaSuccess) {
+        printf("[MAIN] Failed to set stack size: %s\n", cudaGetErrorString(err));
     }
-    stack_err = cudaDeviceSetLimit(cudaLimitMallocHeapSize, 256 * 1024 * 1024);  // 256MB heap
-    if (stack_err != cudaSuccess) {
-        printf("[MAIN] Failed to set heap size: %s\n", cudaGetErrorString(stack_err));
+    err = cudaDeviceSetLimit(cudaLimitMallocHeapSize, 256 * 1024 * 1024);  // 256MB heap
+    if (err != cudaSuccess) {
+        printf("[MAIN] Failed to set heap size: %s\n", cudaGetErrorString(err));
     }
 
-    // Allocate shared queue
-    using namespace iowarp;
-    shm_queue* h_queue;
-    shm_queue* d_queue;
-    cudaError_t err = cudaHostAlloc(&h_queue, sizeof(shm_queue), cudaHostAllocMapped);
-    if (err != cudaSuccess) {
-        printf("[MAIN] cudaHostAlloc failed: %s\n", cudaGetErrorString(err));
+    // Build GPU context with all required resources
+    iowarp::GpuContextBuilder ctx_builder;
+    if (!ctx_builder.Build()) {
+        printf("[MAIN] Failed to build GPU context\n");
         return 1;
     }
-    cudaHostGetDevicePointer(&d_queue, h_queue, 0);
-    new (h_queue) shm_queue();
+    printf("[MAIN] GPU context built successfully\n");
 
-    // Allocate context
-    GpuContext* h_ctx;
-    GpuContext* d_ctx;
-    err = cudaHostAlloc(&h_ctx, sizeof(GpuContext), cudaHostAllocMapped);
-    if (err != cudaSuccess) {
-        printf("[MAIN] cudaHostAlloc failed: %s\n", cudaGetErrorString(err));
-        return 1;
-    }
-    cudaHostGetDevicePointer(&d_ctx, h_ctx, 0);
-    new (h_ctx) GpuContext();
-    h_ctx->queue_ = d_queue;
-
-    // Allocate staging buffer for GPU-CPU I/O (64KB, CPU-accessible)
-    char* h_staging;
-    char* d_staging;
-    err = cudaHostAlloc(&h_staging, 64 * 1024, cudaHostAllocMapped);
-    if (err != cudaSuccess) {
-        printf("[MAIN] cudaHostAlloc for staging buffer failed: %s\n", cudaGetErrorString(err));
-        return 1;
-    }
-    cudaHostGetDevicePointer(&d_staging, h_staging, 0);
-    h_ctx->staging_buffer_ = d_staging;
-    printf("[MAIN] Staging buffer allocated\n");
-
-    printf("Running GPU tests...\n\n");
-
-    // Allocate filenames in mapped memory (CPU-accessible)
+    // Allocate filename in mapped memory
     char* h_test_basic_path;
     char* d_test_basic_path;
     err = cudaHostAlloc(&h_test_basic_path, 256, cudaHostAllocMapped);
@@ -379,11 +488,68 @@ int main() {
     cudaHostGetDevicePointer(&d_test_basic_path, h_test_basic_path, 0);
     strcpy(h_test_basic_path, "/IdeaProjects/gpu-io-libs/data/test_basic.h5");
 
-    // Run tests in a scope with polling thread
-    {
-        PollingThreadManager polling(h_queue, h_ctx);
+    printf("Running GPU tests...\n\n");
 
-        run_tests_kernel<<<1, 1>>>(d_ctx, d_test_basic_path);
+    // Allocate results structure in mapped memory
+    AllocTestResults* h_results;
+    AllocTestResults* d_results;
+    err = cudaHostAlloc(&h_results, sizeof(AllocTestResults), cudaHostAllocMapped);
+    if (err != cudaSuccess) {
+        printf("[MAIN] cudaHostAlloc for results failed: %s\n", cudaGetErrorString(err));
+        return 1;
+    }
+    cudaHostGetDevicePointer(&d_results, h_results, 0);
+    memset(h_results, 0, sizeof(AllocTestResults));
+
+    // First, run the minimal allocator test to isolate allocator behavior
+    printf("[MAIN] Running direct allocator test...\n");
+    test_allocator_kernel<<<1, 1>>>(ctx_builder.DeviceAllocator(),
+                                    ctx_builder.DeviceAllocMem(),
+                                    ctx_builder.DataOffset(),
+                                    d_results);
+    err = cudaDeviceSynchronize();
+
+    // Print results from CPU side (more reliable than GPU printf for 64-bit values)
+    printf("\n[CPU READBACK] Results from GPU:\n");
+    printf("  raw_mem_test: %s\n", h_results->raw_mem_test_pass ? "PASS" : "FAIL");
+    printf("  this_val: %zu (0x%zx)\n", h_results->this_val, h_results->this_val);
+    printf("  data_start_val: %zu\n", h_results->data_start_val);
+    printf("  region_size_val: %zu\n", h_results->region_size_val);
+    printf("  backend_ptr: %p\n", h_results->backend_ptr);
+    printf("  alloc_offset: %zu (0x%zx)\n", h_results->alloc_offset, h_results->alloc_offset);
+    printf("  alloc_is_null: %s\n", h_results->alloc_is_null ? "TRUE (NULL)" : "FALSE (valid)");
+    printf("  alloc_ptr: %p\n", h_results->alloc_ptr);
+    printf("  alloc_write_test: %s\n", h_results->alloc_write_test_pass ? "PASS" : "FAIL");
+    printf("  big_heap_offset: %zu\n", h_results->big_heap_offset);
+    printf("  big_heap_max_offset: %zu\n", h_results->big_heap_max_offset);
+    printf("  allocator_data_off: %zu\n", h_results->allocator_data_off);
+    printf("  allocator_data_size: %zu\n", h_results->allocator_data_size);
+    printf("\n[CPU READBACK] Raw allocator memory BEFORE allocation:\n");
+    for (int i = 0; i < 16; i++) {
+        printf("  [%2d] offset %3d: %20zu (0x%016zx)\n", i, i*8, h_results->allocator_raw_before[i], h_results->allocator_raw_before[i]);
+    }
+    printf("\n[CPU READBACK] Raw allocator memory AFTER allocation:\n");
+    for (int i = 0; i < 16; i++) {
+        bool changed = (h_results->allocator_raw_before[i] != h_results->allocator_raw_after[i]);
+        printf("  [%2d] offset %3d: %20zu (0x%016zx)%s\n", i, i*8,
+               h_results->allocator_raw_after[i], h_results->allocator_raw_after[i],
+               changed ? " <-- CHANGED" : "");
+    }
+
+    if (err != cudaSuccess) {
+        fprintf(stderr, "[MAIN] Allocator test CUDA error: %s\n", cudaGetErrorString(err));
+        cudaFreeHost(h_results);
+        return 1;
+    }
+    printf("[MAIN] Direct allocator test completed\n\n");
+
+    cudaFreeHost(h_results);
+
+    // Run tests with polling thread
+    {
+        iowarp::PollingThreadManager polling(ctx_builder.HostQueue(), ctx_builder.HostContext());
+
+        run_tests_kernel<<<1, 1>>>(ctx_builder.DeviceContext(), d_test_basic_path);
 
         err = cudaDeviceSynchronize();
         if (err != cudaSuccess) {
@@ -401,12 +567,6 @@ int main() {
     cudaMemcpyFromSymbol(&tests_run, g_tests_run, sizeof(int));
     cudaMemcpyFromSymbol(&tests_failed, g_tests_failed, sizeof(int));
 
-    // Cleanup
-    cudaFreeHost(h_staging);
-    h_ctx->~GpuContext();
-    h_queue->~shm_queue();
-    cudaFreeHost(h_queue);
-    cudaFreeHost(h_ctx);
-
+    // ctx_builder destructor handles cleanup
     return passed ? 0 : 1;
 }
