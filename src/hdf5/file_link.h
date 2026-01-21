@@ -16,7 +16,13 @@ struct FileLink {
     FileLink(int file_descriptor, iowarp::GpuContext* context, const SuperblockV0& sb)
         : fd(file_descriptor), ctx(context), superblock(sb) {}
 
-    ~FileLink() = default;
+    __device__
+    ~FileLink() {
+        if (fd >= 0 && ctx) {
+            iowarp::gpu_posix::close(fd, *ctx);
+            fd = -1;
+        }
+    }
 
     __device__
     [[nodiscard]] GpuPosixReaderWriter MakeRW() const {
