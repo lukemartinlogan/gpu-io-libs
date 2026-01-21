@@ -29,6 +29,14 @@ struct gpu_string_view {
     constexpr gpu_string_view(const char (&str)[N])
         : data_(str), length_(N - 1) {}  // -1 for null terminator
 
+    // Construct from null-terminated C string (computes length at runtime)
+    __device__
+    gpu_string_view(const char* str) : data_(str), length_(0) {
+        if (str) {
+            while (str[length_] != '\0') ++length_;
+        }
+    }
+
     // Default constructor - empty view
     __device__
     constexpr gpu_string_view()
