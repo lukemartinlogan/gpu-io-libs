@@ -3,12 +3,10 @@ FROM nvidia/cuda:12.6.0-devel-ubuntu24.04
 # Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install base dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     gcc-13 \
     g++-13 \
-    cmake \
     ninja-build \
     git \
     wget \
@@ -20,6 +18,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 \
     && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
+
+# Install CMake 4.2.1 (latest, required for NVBench)
+RUN wget -q https://github.com/Kitware/CMake/releases/download/v4.2.1/cmake-4.2.1-linux-x86_64.tar.gz \
+    && tar -xzf cmake-4.2.1-linux-x86_64.tar.gz \
+    && cp -r cmake-4.2.1-linux-x86_64/bin/* /usr/local/bin/ \
+    && cp -r cmake-4.2.1-linux-x86_64/share/* /usr/local/share/ \
+    && rm -rf cmake-4.2.1-linux-x86_64 cmake-4.2.1-linux-x86_64.tar.gz
 
 # Set CUDA environment variables
 ENV CUDA_HOME=/usr/local/cuda
