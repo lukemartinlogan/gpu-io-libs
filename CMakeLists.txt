@@ -148,3 +148,4 @@ if(CMAKE_CUDA_COMPILER)
 endif()
 
 add_subdirectory(test/unit)
+add_subdirectory(benches)
