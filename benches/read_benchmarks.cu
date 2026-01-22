@@ -2,8 +2,10 @@
 #include <cuda_runtime.h>
 #include <fstream>
 #include <filesystem>
+#include <fcntl.h>
 
 #include "common/benchmark_utils.h"
+#include "iowarp/gpu_posix.h"
 
 #ifdef HDF5_CPU_BASELINE_ENABLED
 #include "common/hdf5_reference.h"
@@ -25,6 +27,85 @@ static bool copy_benchmark_file() {
         std::filesystem::copy_options::overwrite_existing
     );
     return std::filesystem::exists(WRITE_TEST_FILE);
+}
+
+// ============================================================================
+// Low-level Polling Latency Kernels
+// These kernels directly use gpu_posix calls to measure polling round-trip time
+// ============================================================================
+
+// Measure latency of a single open() call
+__global__ void polling_open_kernel(
+    iowarp::GpuContext* ctx,
+    const char* filepath,
+    int* result_fd
+) {
+    if (threadIdx.x == 0 && blockIdx.x == 0) {
+        *result_fd = iowarp::gpu_posix::open(filepath, O_RDONLY, 0, *ctx);
+    }
+}
+
+// Measure latency of a single close() call
+__global__ void polling_close_kernel(
+    iowarp::GpuContext* ctx,
+    int fd,
+    int* result
+) {
+    if (threadIdx.x == 0 && blockIdx.x == 0) {
+        *result = iowarp::gpu_posix::close(fd, *ctx);
+    }
+}
+
+// Measure latency of a single pread() call with minimal data (1 byte)
+__global__ void polling_pread_kernel(
+    iowarp::GpuContext* ctx,
+    int fd,
+    char* buffer,
+    ssize_t* result
+) {
+    if (threadIdx.x == 0 && blockIdx.x == 0) {
+        // Read just 1 byte to isolate polling overhead from I/O transfer time
+        *result = iowarp::gpu_posix::pread(fd, buffer, 1, 0, *ctx);
+    }
+}
+
+// Kernel that does N consecutive pread operations to measure per-operation latency
+__global__ void polling_pread_batch_kernel(
+    iowarp::GpuContext* ctx,
+    int fd,
+    char* buffer,
+    int count,
+    ssize_t* total_result
+) {
+    if (threadIdx.x == 0 && blockIdx.x == 0) {
+        ssize_t total = 0;
+        for (int i = 0; i < count; i++) {
+            ssize_t r = iowarp::gpu_posix::pread(fd, buffer, 1, i, *ctx);
+            total += r;
+        }
+        *total_result = total;
+    }
+}
+
+// Measure JUST the polling round-trip using GPU clock cycles
+// This excludes kernel launch overhead
+__global__ void polling_pread_timed_kernel(
+    iowarp::GpuContext* ctx,
+    int fd,
+    char* buffer,
+    int iterations,
+    unsigned long long* total_cycles
+) {
+    if (threadIdx.x == 0 && blockIdx.x == 0) {
+        unsigned long long start = clock64();
+
+        for (int i = 0; i < iterations; i++) {
+            iowarp::gpu_posix::pread(fd, buffer, 1, 0, *ctx);
+        }
+
+        unsigned long long end = clock64();
+        *total_cycles = end - start;
+    }
 }
 
 // ============================================================================
@@ -436,6 +517,366 @@ BENCHMARK(BM_GPU_SequentialWrite_Double)
 
 // TODO: CreateGroup benchmark disabled - causes segfault, needs investigation
 // static void BM_GPU_CreateGroup(benchmark::State& state) { ... }
+
+// ============================================================================
+// Polling Latency Benchmarks
+// These measure the raw round-trip time of the CPU polling mechanism
+// ============================================================================
+
+// Benchmark: Single open() call latency
+static void BM_PollingLatency_Open(benchmark::State& state) {
+    int* h_result;
+    int* d_result;
+    cudaHostAlloc(&h_result, sizeof(int), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_result, h_result, 0);
+
+    for (auto _ : state) {
+        polling_open_kernel<<<1, 1>>>(
+            g_gpu_ctx->device_ctx(),
+            g_gpu_ctx->device_filepath(),
+            d_result
+        );
+        cudaDeviceSynchronize();
+
+        // Close the file we just opened (outside timing)
+        state.PauseTiming();
+        polling_close_kernel<<<1, 1>>>(
+            g_gpu_ctx->device_ctx(),
+            *h_result,
+            d_result
+        );
+        cudaDeviceSynchronize();
+        state.ResumeTiming();
+    }
+
+    cudaFreeHost(h_result);
+}
+BENCHMARK(BM_PollingLatency_Open)->Unit(benchmark::kMicrosecond);
+
+// Benchmark: Single close() call latency
+static void BM_PollingLatency_Close(benchmark::State& state) {
+    int* h_fd;
+    int* d_fd;
+    int* h_result;
+    int* d_result;
+
+    cudaHostAlloc(&h_fd, sizeof(int), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_fd, h_fd, 0);
+    cudaHostAlloc(&h_result, sizeof(int), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_result, h_result, 0);
+
+    for (auto _ : state) {
+        // Open file (outside timing)
+        state.PauseTiming();
+        polling_open_kernel<<<1, 1>>>(
+            g_gpu_ctx->device_ctx(),
+            g_gpu_ctx->device_filepath(),
+            d_fd
+        );
+        cudaDeviceSynchronize();
+        state.ResumeTiming();
+
+        // Time just the close
+        polling_close_kernel<<<1, 1>>>(
+            g_gpu_ctx->device_ctx(),
+            *h_fd,
+            d_result
+        );
+        cudaDeviceSynchronize();
+    }
+
+    cudaFreeHost(h_fd);
+    cudaFreeHost(h_result);
+}
+BENCHMARK(BM_PollingLatency_Close)->Unit(benchmark::kMicrosecond);
+
+// Benchmark: Single pread() call latency (1 byte)
+static void BM_PollingLatency_PRead(benchmark::State& state) {
+    // Open file once before benchmark
+    int* h_fd;
+    int* d_fd;
+    cudaHostAlloc(&h_fd, sizeof(int), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_fd, h_fd, 0);
+
+    polling_open_kernel<<<1, 1>>>(
+        g_gpu_ctx->device_ctx(),
+        g_gpu_ctx->device_filepath(),
+        d_fd
+    );
+    cudaDeviceSynchronize();
+    int fd = *h_fd;
+
+    // Allocate buffer for read
+    char* h_buffer;
+    char* d_buffer;
+    ssize_t* h_result;
+    ssize_t* d_result;
+
+    cudaHostAlloc(&h_buffer, 1, cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_buffer, h_buffer, 0);
+    cudaHostAlloc(&h_result, sizeof(ssize_t), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_result, h_result, 0);
+
+    for (auto _ : state) {
+        polling_pread_kernel<<<1, 1>>>(
+            g_gpu_ctx->device_ctx(),
+            fd,
+            d_buffer,
+            d_result
+        );
+        cudaDeviceSynchronize();
+    }
+
+    // Close file
+    int* h_close_result;
+    int* d_close_result;
+    cudaHostAlloc(&h_close_result, sizeof(int), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_close_result, h_close_result, 0);
+
+    polling_close_kernel<<<1, 1>>>(
+        g_gpu_ctx->device_ctx(),
+        fd,
+        d_close_result
+    );
+    cudaDeviceSynchronize();
+
+    cudaFreeHost(h_fd);
+    cudaFreeHost(h_buffer);
+    cudaFreeHost(h_result);
+    cudaFreeHost(h_close_result);
+}
+BENCHMARK(BM_PollingLatency_PRead)->Unit(benchmark::kMicrosecond);
+
+// Benchmark: Open + Close combined latency (2 polling round-trips)
+static void BM_PollingLatency_OpenClose(benchmark::State& state) {
+    int* h_fd;
+    int* d_fd;
+    int* h_result;
+    int* d_result;
+
+    cudaHostAlloc(&h_fd, sizeof(int), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_fd, h_fd, 0);
+    cudaHostAlloc(&h_result, sizeof(int), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_result, h_result, 0);
+
+    for (auto _ : state) {
+        polling_open_kernel<<<1, 1>>>(
+            g_gpu_ctx->device_ctx(),
+            g_gpu_ctx->device_filepath(),
+            d_fd
+        );
+        cudaDeviceSynchronize();
+
+        polling_close_kernel<<<1, 1>>>(
+            g_gpu_ctx->device_ctx(),
+            *h_fd,
+            d_result
+        );
+        cudaDeviceSynchronize();
+    }
+
+    cudaFreeHost(h_fd);
+    cudaFreeHost(h_result);
+}
+BENCHMARK(BM_PollingLatency_OpenClose)->Unit(benchmark::kMicrosecond);
+
+// Benchmark: Multiple pread() calls to measure per-operation latency
+// state.range(0) = number of consecutive reads
+static void BM_PollingLatency_PReadBatch(benchmark::State& state) {
+    const int count = state.range(0);
+
+    // Open file once before benchmark
+    int* h_fd;
+    int* d_fd;
+    cudaHostAlloc(&h_fd, sizeof(int), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_fd, h_fd, 0);
+
+    polling_open_kernel<<<1, 1>>>(
+        g_gpu_ctx->device_ctx(),
+        g_gpu_ctx->device_filepath(),
+        d_fd
+    );
+    cudaDeviceSynchronize();
+    int fd = *h_fd;
+
+    // Allocate buffer for read
+    char* h_buffer;
+    char* d_buffer;
+    ssize_t* h_result;
+    ssize_t* d_result;
+
+    cudaHostAlloc(&h_buffer, 1, cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_buffer, h_buffer, 0);
+    cudaHostAlloc(&h_result, sizeof(ssize_t), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_result, h_result, 0);
+
+    for (auto _ : state) {
+        polling_pread_batch_kernel<<<1, 1>>>(
+            g_gpu_ctx->device_ctx(),
+            fd,
+            d_buffer,
+            count,
+            d_result
+        );
+        cudaDeviceSynchronize();
+    }
+
+    // Report per-operation latency
+    state.SetItemsProcessed(state.iterations() * count);
+
+    // Close file
+    int* h_close_result;
+    int* d_close_result;
+    cudaHostAlloc(&h_close_result, sizeof(int), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_close_result, h_close_result, 0);
+
+    polling_close_kernel<<<1, 1>>>(
+        g_gpu_ctx->device_ctx(),
+        fd,
+        d_close_result
+    );
+    cudaDeviceSynchronize();
+
+    cudaFreeHost(h_fd);
+    cudaFreeHost(h_buffer);
+    cudaFreeHost(h_result);
+    cudaFreeHost(h_close_result);
+}
+BENCHMARK(BM_PollingLatency_PReadBatch)
+    ->Arg(1)->Arg(10)->Arg(100)->Arg(1000)
+    ->Unit(benchmark::kMicrosecond);
+
+// Benchmark: Precise GPU-side timing of polling round-trip (excludes kernel launch overhead)
+// Uses clock64() inside the kernel to measure just the polling time
+static void BM_PollingLatency_PRead_GPUTimed(benchmark::State& state) {
+    const int iterations = state.range(0);
+
+    // Get GPU clock rate for conversion
+    int device;
+    cudaGetDevice(&device);
+    cudaDeviceProp props;
+    cudaGetDeviceProperties(&props, device);
+    double clock_rate_khz = props.clockRate;  // in kHz
+
+    // Open file once before benchmark
+    int* h_fd;
+    int* d_fd;
+    cudaHostAlloc(&h_fd, sizeof(int), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_fd, h_fd, 0);
+
+    polling_open_kernel<<<1, 1>>>(
+        g_gpu_ctx->device_ctx(),
+        g_gpu_ctx->device_filepath(),
+        d_fd
+    );
+    cudaDeviceSynchronize();
+    int fd = *h_fd;
+
+    // Allocate buffers
+    char* h_buffer;
+    char* d_buffer;
+    unsigned long long* h_cycles;
+    unsigned long long* d_cycles;
+
+    cudaHostAlloc(&h_buffer, 1, cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_buffer, h_buffer, 0);
+    cudaHostAlloc(&h_cycles, sizeof(unsigned long long), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_cycles, h_cycles, 0);
+
+    for (auto _ : state) {
+        polling_pread_timed_kernel<<<1, 1>>>(
+            g_gpu_ctx->device_ctx(),
+            fd,
+            d_buffer,
+            iterations,
+            d_cycles
+        );
+        cudaDeviceSynchronize();
+
+        // Convert cycles to microseconds and report
+        double total_us = (*h_cycles / clock_rate_khz) * 1000.0;
+        state.SetIterationTime(total_us / 1e6);  // benchmark expects seconds
+    }
+
+    // Report per-operation stats
+    state.SetItemsProcessed(state.iterations() * iterations);
+
+    // Close file
+    int* h_close_result;
+    int* d_close_result;
+    cudaHostAlloc(&h_close_result, sizeof(int), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_close_result, h_close_result, 0);
+
+    polling_close_kernel<<<1, 1>>>(
+        g_gpu_ctx->device_ctx(),
+        fd,
+        d_close_result
+    );
+    cudaDeviceSynchronize();
+
+    cudaFreeHost(h_fd);
+    cudaFreeHost(h_buffer);
+    cudaFreeHost(h_cycles);
+    cudaFreeHost(h_close_result);
+}
+BENCHMARK(BM_PollingLatency_PRead_GPUTimed)
+    ->Arg(1)->Arg(10)->Arg(100)->Arg(1000)->Arg(10000)->Arg(100000)
+    ->UseManualTime()
+    ->Unit(benchmark::kMicrosecond);
+
+// Benchmark: Full file operation cycle (open + read + close) - 3 polling round-trips
+static void BM_PollingLatency_FullCycle(benchmark::State& state) {
+    int* h_fd;
+    int* d_fd;
+    char* h_buffer;
+    char* d_buffer;
+    ssize_t* h_read_result;
+    ssize_t* d_read_result;
+    int* h_close_result;
+    int* d_close_result;
+
+    cudaHostAlloc(&h_fd, sizeof(int), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_fd, h_fd, 0);
+    cudaHostAlloc(&h_buffer, 1, cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_buffer, h_buffer, 0);
+    cudaHostAlloc(&h_read_result, sizeof(ssize_t), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_read_result, h_read_result, 0);
+    cudaHostAlloc(&h_close_result, sizeof(int), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_close_result, h_close_result, 0);
+
+    for (auto _ : state) {
+        // Open
+        polling_open_kernel<<<1, 1>>>(
+            g_gpu_ctx->device_ctx(),
+            g_gpu_ctx->device_filepath(),
+            d_fd
+        );
+        cudaDeviceSynchronize();
+
+        // Read 1 byte
+        polling_pread_kernel<<<1, 1>>>(
+            g_gpu_ctx->device_ctx(),
+            *h_fd,
+            d_buffer,
+            d_read_result
+        );
+        cudaDeviceSynchronize();
+
+        // Close
+        polling_close_kernel<<<1, 1>>>(
+            g_gpu_ctx->device_ctx(),
+            *h_fd,
+            d_close_result
+        );
+        cudaDeviceSynchronize();
+    }
+
+    cudaFreeHost(h_fd);
+    cudaFreeHost(h_buffer);
+    cudaFreeHost(h_read_result);
+    cudaFreeHost(h_close_result);
+}
+BENCHMARK(BM_PollingLatency_FullCycle)->Unit(benchmark::kMicrosecond);
 
 // ============================================================================
 // CPU Benchmarks (HDF5 library baseline)
