@@ -106,6 +106,36 @@ hdf5::expected<uint64_t> HyperslabIterator::GetLinearIndex() const {
 }
 
 __device__
+hdf5::expected<ContiguousRun> HyperslabIterator::GetNextContiguousRun() {
+    if (at_end_) {
+        return hdf5::error(hdf5::HDF5ErrorCode::IteratorAtEnd, "Iterator is at end");
+    }
+
+    auto start_idx_result = GetLinearIndex();
+    if (!start_idx_result) {
+        return cstd::unexpected(start_idx_result.error());
+    }
+    uint64_t start_idx = *start_idx_result;
+    uint64_t run_length = 1;
+
+    while (Advance()) {
+        auto next_idx_result = GetLinearIndex();
+        if (!next_idx_result) {
+            break;
+        }
+
+        if (*next_idx_result == start_idx + run_length) {
+            run_length++;
+        } else {
+            // iterator is now positioned at the start of the next run
+            break;
+        }
+    }
+
+    return ContiguousRun{start_idx, run_length};
+}
+
+__device__
 hdf5::expected<uint64_t> HyperslabIterator::GetTotalElements() const {
     if (count_.empty()) {
         return hdf5::error(hdf5::HDF5ErrorCode::EmptyParameter, "Count is empty");

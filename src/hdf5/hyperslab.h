@@ -3,6 +3,17 @@
 #include "types.h"
 
 /**
+ * @brief Represents a contiguous run of elements in a hyperslab selection.
+ *
+ * Used to batch multiple contiguous elements into a single I/O operation
+ * instead of reading/writing one element at a time.
+ */
+struct ContiguousRun {
+    uint64_t start_linear_index;
+    uint64_t element_count;
+};
+
+/**
  * @brief Iterator for traversing selected elements in a hyperslab selection.
  * 
  * This class implements HDF5's hyperslab selection pattern, iterating through
@@ -68,6 +79,18 @@ public:
      */
     __device__
     [[nodiscard]] hdf5::expected<uint64_t> GetLinearIndex() const;
+
+    /**
+     * @brief Get the next contiguous run of elements.
+     *
+     * Returns a run of elements that are contiguous in the file (consecutive
+     * linear indices). After this call, the iterator is positioned at the
+     * start of the next run, or at_end_ is true.
+     *
+     * @return ContiguousRun with start index and element count, or error
+     */
+    __device__
+    hdf5::expected<ContiguousRun> GetNextContiguousRun();
 
     /**
      * @brief Get the total number of elements in the hyperslab selection.

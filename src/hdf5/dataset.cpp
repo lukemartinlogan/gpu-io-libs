@@ -244,26 +244,26 @@ hdf5::expected<void> Dataset::ReadHyperslab(
         size_t buffer_offset = 0;
 
         while (!iterator.IsAtEnd()) {
-            auto linear_index_result = iterator.GetLinearIndex();
-
-            if (!linear_index_result) {
-                return cstd::unexpected(linear_index_result.error());
+            auto run_result = iterator.GetNextContiguousRun();
+            if (!run_result) {
+                return cstd::unexpected(run_result.error());
             }
 
-            size_t data_offset = *linear_index_result * element_size;
+            const auto& run = *run_result;
+            size_t data_offset = run.start_linear_index * element_size;
+            size_t bytes_to_copy = run.element_count * element_size;
 
-            if (data_offset + element_size > compact->raw_data.size()) {
+            if (data_offset + bytes_to_copy > compact->raw_data.size()) {
                 return hdf5::error(hdf5::HDF5ErrorCode::SelectionOutOfBounds, "Hyperslab selection exceeds compact storage bounds");
             }
 
             cstd::_copy(
                 compact->raw_data.begin() + data_offset,
-                compact->raw_data.begin() + data_offset + element_size,
+                compact->raw_data.begin() + data_offset + bytes_to_copy,
                 buffer.data() + buffer_offset
             );
 
-            buffer_offset += element_size;
-            iterator.Advance();
+            buffer_offset += bytes_to_copy;
         }
 
     } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
@@ -271,19 +271,19 @@ hdf5::expected<void> Dataset::ReadHyperslab(
         auto io = object_.file->MakeRW();
 
         while (!iterator.IsAtEnd()) {
-            auto linear_index = iterator.GetLinearIndex();
-
-            if (!linear_index) {
-                return cstd::unexpected(linear_index.error());
+            auto run_result = iterator.GetNextContiguousRun();
+            if (!run_result) {
+                return cstd::unexpected(run_result.error());
             }
 
-            offset_t file_offset = contiguous->address + *linear_index * element_size;
+            const auto& run = *run_result;
+            offset_t file_offset = contiguous->address + run.start_linear_index * element_size;
+            size_t bytes_to_read = run.element_count * element_size;
 
             io.SetPosition(file_offset);
-            io.ReadBuffer(cstd::span(buffer.data() + buffer_offset, element_size));
+            io.ReadBuffer(cstd::span(buffer.data() + buffer_offset, bytes_to_read));
 
-            buffer_offset += element_size;
-            iterator.Advance();
+            buffer_offset += bytes_to_read;
         }
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
@@ -364,19 +364,19 @@ hdf5::expected<void> Dataset::WriteHyperslab(
         auto io = object_.file->MakeRW();
 
         while (!iterator.IsAtEnd()) {
-            auto linear_index = iterator.GetLinearIndex();
-
-            if (!linear_index) {
-                return cstd::unexpected(linear_index.error());
+            auto run_result = iterator.GetNextContiguousRun();
+            if (!run_result) {
+                return cstd::unexpected(run_result.error());
             }
 
-            offset_t file_offset = contiguous->address + *linear_index * element_size;
+            const auto& run = *run_result;
+            offset_t file_offset = contiguous->address + run.start_linear_index * element_size;
+            size_t bytes_to_write = run.element_count * element_size;
 
             io.SetPosition(file_offset);
-            io.WriteBuffer(cstd::span(data.data() + data_offset, element_size));
+            io.WriteBuffer(cstd::span(data.data() + data_offset, bytes_to_write));
 
-            data_offset += element_size;
-            iterator.Advance();
+            data_offset += bytes_to_write;
         }
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
