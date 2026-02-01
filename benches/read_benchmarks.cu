@@ -278,6 +278,8 @@ static void BM_GPU_FileOpen(benchmark::State& state) {
     cudaMalloc(&d_success, sizeof(bool));
 
     for (auto _ : state) {
+        g_gpu_ctx->builder.HostContext()->allocator_->Reset();
+
         file_open_kernel<<<1, 1>>>(
             g_gpu_ctx->device_ctx(),
             g_gpu_ctx->device_filepath(),
@@ -301,6 +303,8 @@ static void BM_GPU_DatasetOpen(benchmark::State& state) {
     strcpy(h_dsname, "data_1d_double");
 
     for (auto _ : state) {
+        g_gpu_ctx->builder.HostContext()->allocator_->Reset();
+
         dataset_open_kernel<<<1, 1>>>(
             g_gpu_ctx->device_ctx(),
             g_gpu_ctx->device_filepath(),
@@ -330,6 +334,8 @@ static void BM_GPU_SequentialRead_Double(benchmark::State& state) {
     strcpy(h_dsname, "data_1d_double");
 
     for (auto _ : state) {
+        g_gpu_ctx->builder.HostContext()->allocator_->Reset();
+
         sequential_read_kernel<double><<<1, 1>>>(
             g_gpu_ctx->device_ctx(),
             g_gpu_ctx->device_filepath(),
@@ -368,6 +374,8 @@ static void BM_GPU_SequentialRead_Int32(benchmark::State& state) {
     strcpy(h_dsname, "data_1d_int32");
 
     for (auto _ : state) {
+        g_gpu_ctx->builder.HostContext()->allocator_->Reset();
+
         sequential_read_kernel<int32_t><<<1, 1>>>(
             g_gpu_ctx->device_ctx(),
             g_gpu_ctx->device_filepath(),
@@ -407,6 +415,8 @@ static void BM_GPU_HyperslabRead_Double(benchmark::State& state) {
     strcpy(h_dsname, "data_1d_double");
 
     for (auto _ : state) {
+        g_gpu_ctx->builder.HostContext()->allocator_->Reset();
+
         hyperslab_read_kernel<double><<<1, 1>>>(
             g_gpu_ctx->device_ctx(),
             g_gpu_ctx->device_filepath(),
@@ -445,6 +455,8 @@ static void BM_GPU_HyperslabRead_Int32(benchmark::State& state) {
     strcpy(h_dsname, "data_1d_int32");
 
     for (auto _ : state) {
+        g_gpu_ctx->builder.HostContext()->allocator_->Reset();
+
         hyperslab_read_kernel<int32_t><<<1, 1>>>(
             g_gpu_ctx->device_ctx(),
             g_gpu_ctx->device_filepath(),
@@ -488,6 +500,8 @@ static void BM_GPU_SequentialWrite_Double(benchmark::State& state) {
     strcpy(h_dsname, "data_1d_double");
 
     for (auto _ : state) {
+        g_gpu_ctx->builder.HostContext()->allocator_->Reset();
+
         state.PauseTiming();
         copy_benchmark_file();
         state.ResumeTiming();
