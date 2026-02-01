@@ -6,26 +6,17 @@ namespace iowarp::gpu_posix {
 
 __device__ int open(const char* filename, int flags, int mode, GpuContext& ctx) {
   // TODO: ideally we probably shouldn't have a const_cast here; needs refactor
-  printf("[GPU POSIX] open() called for file: %s\n", filename);
 
-  printf("[GPU POSIX] Posting open message to queue\n");
   ctx.queue_->post(IoMessage::Open(const_cast<char*>(filename), flags, mode));
-  printf("[GPU POSIX] Message posted, queue size: %llu\n", ctx.queue_->size());
 
-  printf("[GPU POSIX] Waiting for CPU to process...\n");
   uint64_t wait_count = 0;
   while (ctx.queue_->size() > 0) {
     __nanosleep(500);
     wait_count++;
-    if (wait_count % 1000000 == 0) {
-      printf("[GPU POSIX] Still waiting... (count: %llu, queue size: %llu)\n", wait_count, ctx.queue_->size());
-    }
   }
-  printf("[GPU POSIX] CPU finished processing, queue cleared\n");
 
   auto& msg = ctx.queue_->get();
   int fd = msg.fd;
-  printf("[GPU POSIX] open() returned fd: %d\n", fd);
 
   ctx.file_entry_.fd = fd;
   ctx.file_entry_.is_open = true;
@@ -53,7 +44,6 @@ __device__ ssize_t pwrite(int fd, const void* buffer, size_t size, size_t offset
 }
 
 __device__ ssize_t pread(int fd, void* buffer, size_t size, size_t offset, GpuContext& ctx) {
-  printf("[GPU POSIX] pread() called: fd=%d, size=%zu, offset=%zu\n", fd, size, offset);
   ctx.queue_->post(IoMessage::Read(fd, static_cast<char*>(buffer), size, offset));
 
   while (ctx.queue_->size() > 0) {
@@ -61,7 +51,6 @@ __device__ ssize_t pread(int fd, void* buffer, size_t size, size_t offset, GpuCo
   }
 
   auto& msg = ctx.queue_->get();
-  printf("[GPU POSIX] pread() returned: %zd bytes\n", msg.result_);
   return msg.result_;
 }
 
