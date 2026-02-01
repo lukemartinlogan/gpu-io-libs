@@ -45,17 +45,12 @@ hdf5::expected<File> File::New(const char* filename, iowarp::GpuContext* ctx) {
         return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "non-zero base address not implemented");
     }
 
-    printf("[HDF5 File] Allocating FileLink\n");
-    FileLink* file_link;
-#ifdef __CUDA_ARCH__
-    file_link = static_cast<FileLink*>(malloc(sizeof(FileLink)));
-    printf("[HDF5 File] FileLink allocated at %p, constructing...\n", file_link);
-    new (file_link) FileLink(fd, ctx, superblock);
-    printf("[HDF5 File] FileLink constructed\n");
-#else
-    cudaHostAlloc(reinterpret_cast<void**>(&file_link), sizeof(FileLink), cudaHostAllocMapped);
-    new (file_link) FileLink(fd, ctx, superblock);
-#endif
+    auto file_link_ptr = ctx->allocator_->NewObj<FileLink>(fd, ctx, superblock);
+    if (file_link_ptr.IsNull()) {
+        iowarp::gpu_posix::close(fd, *ctx);
+        return hdf5::error(hdf5::HDF5ErrorCode::FileOpenFailed, "failed to allocate FileLink");
+    }
+    FileLink* file_link = file_link_ptr.ptr_;
 
     offset_t root_group_header_addr = file_link->superblock.base_addr + file_link->superblock.root_group_symbol_table_entry_addr.object_header_addr;
     printf("[HDF5 File] Root group header addr: %llu\n", root_group_header_addr);
@@ -63,13 +58,7 @@ hdf5::expected<File> File::New(const char* filename, iowarp::GpuContext* ctx) {
     printf("[HDF5 File] Creating Object\n");
     auto object_result = Object::New(file_link, root_group_header_addr);
     if (!object_result) {
-        printf("[HDF5 File] Failed to create Object\n");
-#ifdef __CUDA_ARCH__
         file_link->~FileLink();
-        free(file_link);
-#else
-        cudaFreeHost(file_link);
-#endif
         return cstd::unexpected(object_result.error());
     }
     printf("[HDF5 File] Object created successfully\n");
@@ -77,13 +66,7 @@ hdf5::expected<File> File::New(const char* filename, iowarp::GpuContext* ctx) {
     printf("[HDF5 File] Creating root Group\n");
     auto root_group = Group::New(*object_result);
     if (!root_group) {
-        printf("[HDF5 File] Failed to create root Group\n");
-#ifdef __CUDA_ARCH__
         file_link->~FileLink();
-        free(file_link);
-#else
-        cudaFreeHost(file_link);
-#endif
         return cstd::unexpected(root_group.error());
     }
     printf("[HDF5 File] Root Group created successfully\n");
