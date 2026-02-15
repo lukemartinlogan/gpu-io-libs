@@ -4,22 +4,22 @@ if(CMAKE_CUDA_COMPILER)
     # GPU HDF5 File Read Test
     # Compile HDF5 sources directly to avoid device linking conflicts
     file(GLOB_RECURSE HDF5_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/hdf5/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../src/hdf5/*.cpp
     )
 
     add_executable(gpu_file_read_test
         gpu_file_read_test.cu
         ${HDF5_SOURCES}
-        ${CMAKE_SOURCE_DIR}/src/iowarp/gpu_posix.cu
-        ${CMAKE_SOURCE_DIR}/src/iowarp/cpu_polling.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../src/iowarp/gpu_posix.cu
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../src/iowarp/cpu_polling.cpp
     )
 
     # Set HDF5 cpp files to compile as CUDA
     set_source_files_properties(${HDF5_SOURCES} PROPERTIES LANGUAGE CUDA)
-    set_source_files_properties(${CMAKE_SOURCE_DIR}/src/iowarp/cpu_polling.cpp PROPERTIES LANGUAGE CUDA)
+    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/../src/iowarp/cpu_polling.cpp PROPERTIES LANGUAGE CUDA)
 
     target_include_directories(gpu_file_read_test PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../src
         ${cccl_SOURCE_DIR}/libcudacxx/include
         ${cccl_SOURCE_DIR}/thrust
         ${cccl_SOURCE_DIR}/cub
@@ -58,7 +58,7 @@ if(CMAKE_CUDA_COMPILER)
     )
 
     target_link_libraries(simple_file_test PRIVATE
-        hdf5_lib
+        hdf5_gpu_lib
     )
 
     set_target_properties(simple_file_test PROPERTIES
@@ -73,21 +73,21 @@ if(CMAKE_CUDA_COMPILER)
 
     # HDF5 Comprehensive Test (full read/write/create test)
     file(GLOB_RECURSE HDF5_TEST_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/hdf5/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../src/hdf5/*.cpp
     )
 
     add_executable(hdf5_comprehensive_test
         hdf5_comprehensive_test.cu
         ${HDF5_TEST_SOURCES}
-        ${CMAKE_SOURCE_DIR}/src/iowarp/gpu_posix.cu
-        ${CMAKE_SOURCE_DIR}/src/iowarp/cpu_polling.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../src/iowarp/gpu_posix.cu
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../src/iowarp/cpu_polling.cpp
     )
 
     set_source_files_properties(${HDF5_TEST_SOURCES} PROPERTIES LANGUAGE CUDA)
-    set_source_files_properties(${CMAKE_SOURCE_DIR}/src/iowarp/cpu_polling.cpp PROPERTIES LANGUAGE CUDA)
+    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/../src/iowarp/cpu_polling.cpp PROPERTIES LANGUAGE CUDA)
 
     target_include_directories(hdf5_comprehensive_test PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../src
         ${cccl_SOURCE_DIR}/libcudacxx/include
         ${cccl_SOURCE_DIR}/thrust
         ${cccl_SOURCE_DIR}/cub
