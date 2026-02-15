@@ -1,5 +1,4 @@
 #pragma once
-#include <functional>
 
 #include "file_link.h"
 #include "local_heap.h"
@@ -7,7 +6,6 @@
 #include "types.h"
 #include "../serialization/serialization.h"
 #include "gpu_string.h"
-#include "../util/gpu_vector.h"
 
 struct BTreeGroupNodeKey {
     // byte offset into local heap
@@ -27,51 +25,51 @@ static_assert(
 struct ChunkCoordinates {
     hdf5::dim_vector<uint64_t> coords;
 
-    __device__ __host__
+    __device__
     ChunkCoordinates() = default;
 
-    __device__ __host__
+    __device__
     explicit ChunkCoordinates(const hdf5::dim_vector<uint64_t>& coordinates) : coords(coordinates) {}
-    __device__ __host__
-    explicit ChunkCoordinates(hdf5::dim_vector<uint64_t>&& coordinates) : coords(std::move(coordinates)) {}
+    __device__
+    explicit ChunkCoordinates(hdf5::dim_vector<uint64_t>&& coordinates) : coords(cstd::move(coordinates)) {}
 
-   __device__ __host__
+   __device__
    bool operator==(const ChunkCoordinates& other) const {
        return coords == other.coords;
    }
 
-   __device__ __host__
+   __device__
    bool operator!=(const ChunkCoordinates& other) const {
        return !(*this == other);
    }
 
-   __device__ __host__
+   __device__
    bool operator<(const ChunkCoordinates& other) const {
        return coords < other.coords;
    }
 
-   __device__ __host__
+   __device__
    bool operator<=(const ChunkCoordinates& other) const {
        return other >= *this;
    }
 
-   __device__ __host__
+   __device__
    bool operator>(const ChunkCoordinates& other) const {
        return other < *this;
    }
 
-   __device__ __host__
+   __device__
    bool operator>=(const ChunkCoordinates& other) const {
        return !(*this < other);
    }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] size_t Dimensions() const {
         return coords.size();
     }
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         serde::Write(s, static_cast<uint64_t>(coords.size()));
         for (const uint64_t coord: coords) {
@@ -80,7 +78,7 @@ struct ChunkCoordinates {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static ChunkCoordinates Deserialize(D& de) {
         ChunkCoordinates chunk_coords{};
 
@@ -110,7 +108,7 @@ struct BTreeChunkedRawDataNodeKey {
     size_t elem_byte_size;
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         serde::Write(s, chunk_size);
         serde::Write(s, filter_mask);
@@ -127,7 +125,7 @@ struct BTreeChunkedRawDataNodeKey {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<BTreeChunkedRawDataNodeKey> DeserializeWithTermInfo(D& de, ChunkedKeyTerminatorInfo term_info) {
         BTreeChunkedRawDataNodeKey key{};
 
@@ -151,7 +149,7 @@ struct BTreeChunkedRawDataNodeKey {
         return key;
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] uint16_t AllocationSize() const {
         // Key size = chunk_size + filter_mask + (dimensions * sizeof(uint64_t))
         // + 1 for the terminating 0, since this is allocation size
@@ -170,10 +168,10 @@ public:
     cstd::inplace_vector<K, MAX_BTREE_ENTRIES> keys;
     cstd::inplace_vector<offset_t, MAX_BTREE_ENTRIES> child_pointers;
 
-    __device__ __host__
+    __device__
     [[nodiscard]] uint16_t EntriesUsed() const;
 
-    __device__ __host__
+    __device__
     [[nodiscard]] uint16_t KeySize() const;
 
 private:
@@ -210,30 +208,30 @@ struct BTreeNode {
     // max number of children this node points to
     // all nodes have same max degree (max entries used) but
     // most nodes point to less than that
-    __device__ __host__
+    __device__
     [[nodiscard]] uint16_t EntriesUsed() const;
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool IsLeaf() const {
         return level == 0;
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> Get(hdf5::string_view name, FileLink& file, const LocalHeap& heap) const;
 
-    __device__ __host__
+    __device__
     [[nodiscard]] cstd::optional<offset_t> GetChunk(const ChunkCoordinates& chunk_coords, FileLink& file) const;
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const;
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<BTreeNode> DeserializeGroup(D& de);
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<BTreeNode> DeserializeChunked(D& de, ChunkedKeyTerminatorInfo term_info);
 
 private:
@@ -245,14 +243,14 @@ private:
         uint16_t leaf;
         uint16_t internal;
 
-        __device__ __host__
+        __device__
         [[nodiscard]] uint16_t Get(bool is_leaf) const {
             return is_leaf ? leaf : internal;
         }
     };
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     hdf5::expected<BTreeNode> ReadChild(D& de) const {
         if (cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
             return DeserializeGroup(de);
@@ -266,13 +264,13 @@ private:
         }
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] BTreeNode Split(KValues k);
 
-    __device__ __host__
+    __device__
     hdf5::expected<cstd::optional<SplitResult>> InsertGroup(offset_t this_offset, offset_t name_offset, offset_t obj_header_ptr, FileLink& file, LocalHeap& heap);
 
-    __device__ __host__
+    __device__
     hdf5::expected<cstd::optional<SplitResultChunked>> InsertChunked(
         offset_t this_offset,
         const BTreeChunkedRawDataNodeKey& key,
@@ -281,7 +279,7 @@ private:
     );
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     hdf5::expected<cstd::optional<uint16_t>> FindGroupIndex(hdf5::string_view key, const LocalHeap& heap, D& de) const {
         if (!cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
             return cstd::nullopt;
@@ -306,7 +304,7 @@ private:
             return cstd::unexpected(prev_result.error());
         }
 
-        hdf5::string prev = std::move(*prev_result);
+        hdf5::string prev = cstd::move(*prev_result);
 
         for (size_t i = 1; i < group_entries.keys.size(); ++i) {
             auto next = heap.ReadString(group_entries.keys[i].first_object_name, de);
@@ -320,7 +318,7 @@ private:
                 break;
             }
 
-            prev = std::move(*next);
+            prev = cstd::move(*next);
         }
 
         if (child_index == entries_ct + 1) {
@@ -331,14 +329,14 @@ private:
         return child_index;
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] cstd::optional<uint16_t> FindChunkedIndex(const ChunkCoordinates& chunk_coords) const;
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool AtCapacity(KValues k) const;
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     hdf5::expected<uint16_t> GroupInsertionPosition(hdf5::string_view key, const LocalHeap& heap, D& de) const {
         if (!cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
             return hdf5::error(hdf5::HDF5ErrorCode::WrongNodeType, "InsertionPosition only supported for group nodes");
@@ -374,28 +372,28 @@ private:
         return child_index;
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] uint16_t ChunkedInsertionPosition(const ChunkCoordinates& chunk_coords) const;
 
     template <class K>
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<K> GetMaxKey(FileLink& file) const;
 
     template <class K>
-    __device__ __host__
+    __device__
     [[nodiscard]] K GetMinKey() const;
 
-    __device__ __host__
+    __device__
     [[nodiscard]] len_t AllocationSize(KValues k) const;
 
-    __device__ __host__
+    __device__
     len_t WriteNodeGetAllocSize(offset_t offset, FileLink& file, KValues k) const;
 
-    __device__ __host__
+    __device__
     offset_t AllocateAndWrite(FileLink& file, KValues k) const;
 
     template<typename Visitor>
-    __device__ __host__
+    __device__
     hdf5::expected<void> Recurse(Visitor&& visitor, FileLink& file) const {
         static_assert(
             std::is_invocable_r_v<hdf5::expected<void>, Visitor, hdf5::string, offset_t>,
@@ -412,6 +410,8 @@ private:
 
         cstd::inplace_vector<StackFrame, kMaxDepth> stack;
         stack.push_back({*this, 0});
+
+        auto io = file.MakeRW();
 
         while (!stack.empty()) {
             auto& frame = stack.back();
@@ -434,13 +434,13 @@ private:
                     return cstd::unexpected(name_result.error());
                 }
 
-                auto visitor_result = visitor(std::move(*name_result), ptr);
+                auto visitor_result = visitor(cstd::move(*name_result), ptr);
                 if (!visitor_result) {
                     return cstd::unexpected(visitor_result.error());
                 }
             } else {
-                file.io.SetPosition(file.superblock.base_addr + ptr);
-                auto child_result = frame.node.ReadChild(file.io);
+                io.SetPosition(file.superblock.base_addr + ptr);
+                auto child_result = frame.node.ReadChild(io);
                 if (!child_result) return cstd::unexpected(child_result.error());
 
                 stack.push_back({*child_result, 0});
@@ -451,7 +451,7 @@ private:
     }
 
     template<typename Visitor>
-    __device__ __host__
+    __device__
     hdf5::expected<void> RecurseChunked(Visitor&& visitor, FileLink& file) const {
         static_assert(
             std::is_invocable_r_v<hdf5::expected<void>, Visitor, BTreeChunkedRawDataNodeKey, offset_t>,
@@ -467,6 +467,8 @@ private:
 
         cstd::inplace_vector<StackFrame, kMaxDepth> stack;
         stack.push_back({*this, 0});
+
+        auto io = file.MakeRW();
 
         while (!stack.empty()) {
             auto& frame = stack.back();
@@ -492,8 +494,8 @@ private:
                     }
                 }
             } else {
-                file.io.SetPosition(file.superblock.base_addr + ptr);
-                auto child_result = frame.node.ReadChild(file.io);
+                io.SetPosition(file.superblock.base_addr + ptr);
+                auto child_result = frame.node.ReadChild(io);
                 if (!child_result) return cstd::unexpected(child_result.error());
 
                 stack.push_back({*child_result, 0});
@@ -525,42 +527,42 @@ struct GroupBTree {
     // TODO: max need to increase this
     static constexpr size_t kMaxGroupElements = 128;
 
-    __device__ __host__
-    explicit GroupBTree(offset_t addr, std::shared_ptr<FileLink> file, const LocalHeap& heap)
-        : file_(std::move(file)), heap_(heap), addr_(addr) {}
+    __device__
+    explicit GroupBTree(offset_t addr, FileLink* file, const LocalHeap& heap)
+        : file_(file), heap_(heap), addr_(addr) {}
 
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> Get(hdf5::string_view name) const;
 
-    __device__ __host__
+    __device__
     hdf5::expected<void> InsertGroup(offset_t name_offset, offset_t object_header_ptr);
 
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<size_t> Size() const;
 
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<cstd::inplace_vector<offset_t, kMaxGroupElements>> Elements() const;
 private:
     friend class Group;
 
-    __device__ __host__
+    __device__
     GroupBTree() = default;
 
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<cstd::optional<BTreeNode>> ReadRoot() const;
 
 private:
-    std::shared_ptr<FileLink> file_{};
+    FileLink* file_{};
     LocalHeap heap_{};
     cstd::optional<offset_t> addr_{};
 };
 
 struct ChunkedBTree {
-    __device__ __host__
-    explicit ChunkedBTree(offset_t addr, std::shared_ptr<FileLink> file, ChunkedKeyTerminatorInfo term_info)
-        : file_(std::move(file)), addr_(addr), terminator_info_(term_info) {}
+    __device__
+    explicit ChunkedBTree(offset_t addr, FileLink* file, ChunkedKeyTerminatorInfo term_info)
+        : file_(file), addr_(addr), terminator_info_(term_info) {}
 
-    __device__ __host__
+    __device__
     hdf5::expected<void> InsertChunk(
         const ChunkCoordinates& chunk_coords,
         uint32_t chunk_size,
@@ -568,26 +570,23 @@ struct ChunkedBTree {
         offset_t data_ptr
     );
 
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> GetChunk(const ChunkCoordinates& chunk_coords) const;
 
-    // can be very large, so use dynamic vector
-    __device__ __host__
-    [[nodiscard]] hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Offsets() const;
 
-    __device__ __host__
-    static offset_t CreateNew(const std::shared_ptr<FileLink>& file, const hdf5::dim_vector<uint64_t>& max_size);
+    __device__
+    static offset_t CreateNew(FileLink* file, const hdf5::dim_vector<uint64_t>& max_size);
 
 private:
-    __device__ __host__
+    __device__
     ChunkedBTree() = default;
 
 public:
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<cstd::optional<BTreeNode>> ReadRoot() const;
 
 private:
-    std::shared_ptr<FileLink> file_{};
+    FileLink* file_{};
     cstd::optional<offset_t> addr_{};
 
     ChunkedKeyTerminatorInfo terminator_info_{};
@@ -595,7 +594,7 @@ private:
 
 // these implementations are here because of declaration order
 template<typename K, serde::Serializer S>
-__device__ __host__
+__device__
 void WriteEntries(const BTreeEntries<K>& entries, S& s) {
     uint16_t entries_ct = entries.child_pointers.size();
 
@@ -610,7 +609,7 @@ void WriteEntries(const BTreeEntries<K>& entries, S& s) {
 }
 
 template<serde::Serializer S>
-__device__ __host__
+__device__
 void BTreeNode::Serialize(S& s) const {
     uint8_t type;
     if (cstd::holds_alternative<BTreeEntries<BTreeGroupNodeKey>>(entries)) {
@@ -621,7 +620,7 @@ void BTreeNode::Serialize(S& s) const {
         UNREACHABLE("Variant has invalid state");
     }
 
-    serde::Write(s, kSignature);
+    serde::Write(s, cstd::array<uint8_t, 4>{ 'T', 'R', 'E', 'E' });
 
     serde::Write(s, type);
     serde::Write(s, level);
@@ -640,9 +639,9 @@ void BTreeNode::Serialize(S& s) const {
 }
 
 template<serde::Deserializer D>
-__device__ __host__
+__device__
 hdf5::expected<BTreeNode> BTreeNode::DeserializeGroup(D& de) {
-    if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
+    if (serde::Read<cstd::array<uint8_t, 4>>(de) != cstd::array<uint8_t, 4>{ 'T', 'R', 'E', 'E' }) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "BTree signature was invalid");
     }
 
@@ -679,9 +678,9 @@ hdf5::expected<BTreeNode> BTreeNode::DeserializeGroup(D& de) {
 }
 
 template<serde::Deserializer D>
-__device__ __host__
+__device__
 hdf5::expected<BTreeNode> BTreeNode::DeserializeChunked(D& de, ChunkedKeyTerminatorInfo term_info) {
-    if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
+    if (serde::Read<cstd::array<uint8_t, 4>>(de) != cstd::array<uint8_t, 4>{ 'T', 'R', 'E', 'E' }) {
         return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "BTree signature was invalid");
     }
 

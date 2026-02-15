@@ -1,10 +1,40 @@
 #include "datatype.h"
 
-#include <stdexcept>
 
+__device__
+FixedPoint::FixedPoint(
+    uint32_t size,
+    uint16_t bit_offset,
+    uint16_t bit_precision,
+    bool big_endian,
+    bool low_padding,
+    bool high_padding,
+    bool is_signed
+) {
+    this->size = size;
+    this->bit_offset = bit_offset;
+    this->bit_precision = bit_precision;
+
+    this->bitset_.set(0, big_endian);
+    this->bitset_.set(1, low_padding);
+    this->bitset_.set(2, high_padding);
+    this->bitset_.set(3, is_signed);
+}
+
+__device__ FixedPoint FixedPoint::i32_t() {
+    return FixedPoint(
+        4,
+        0,
+        32,
+        false,
+        false,
+        false,
+        true
+    );
+}
 
 // TODO: have this method presented in a different way?
-__device__ __host__
+__device__
 FloatingPoint::FloatingPoint(
     uint32_t size,
     uint8_t sign_location,
@@ -73,22 +103,34 @@ FloatingPoint::FloatingPoint(
     }
 }
 
-const FloatingPoint FloatingPoint::f32_t = FloatingPoint(
-    4, 31, 0,
-    32,23, 8,
-    0, 23, 127,
-    ByteOrder::kLittleEndian,
-    MantissaNormalization::kMSBImpliedSet,
-    false, false, false
-);
+__device__ FloatingPoint FloatingPoint::f32_t() {
+    return FloatingPoint(
+        4, 31, 0,
+        32,23, 8,
+        0, 23, 127,
+        ByteOrder::kLittleEndian,
+        MantissaNormalization::kMSBImpliedSet,
+        false, false, false
+    );
+}
 
-const DatatypeMessage DatatypeMessage::f32_t = {
-    .version = Version::kEarlyCompound,
-    .class_v = Class::kFloatingPoint,
-    .data = FloatingPoint::f32_t,
-};
+__device__ DatatypeMessage DatatypeMessage::f32_t() {
+    DatatypeMessage msg;
+    msg.version = Version::kEarlyCompound;
+    msg.class_v = Class::kFloatingPoint;
+    msg.data = FloatingPoint::f32_t();
+    return msg;
+}
 
-__device__ __host__
+__device__ DatatypeMessage DatatypeMessage::i32_t() {
+    DatatypeMessage msg;
+    msg.version = Version::kEarlyCompound;
+    msg.class_v = Class::kFixedPoint;
+    msg.data = FixedPoint::i32_t();
+    return msg;
+}
+
+__device__
 VariableLength::VariableLength(const VariableLength& other)
     : type(other.type),
       padding(other.padding),
@@ -103,7 +145,7 @@ VariableLength::VariableLength(const VariableLength& other)
     // }
 }
 
-__device__ __host__
+__device__
 VariableLength& VariableLength::operator=(const VariableLength& other) {
     if (this == &other) {
         return *this;
@@ -124,7 +166,7 @@ VariableLength& VariableLength::operator=(const VariableLength& other) {
     return *this;
 }
 
-__device__ __host__
+__device__
 CompoundMember::CompoundMember(const CompoundMember& other)
         : name(other.name),
           byte_offset(other.byte_offset),
@@ -132,7 +174,7 @@ CompoundMember::CompoundMember(const CompoundMember& other)
           // message(std::make_unique<DatatypeMessage>(*other.message)) /* TODO(recursive-datatypes) */
 { }
 
-__device__ __host__
+__device__
 CompoundMember& CompoundMember::operator=(const CompoundMember& other) {
     if (this == &other) {
         return *this;

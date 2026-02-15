@@ -9,6 +9,9 @@ cmake-build-*/
 # CMake fetched dependencies
 **/_deps/
 
+# Workaround for iowarp/core FetchContent (uses CMAKE_SOURCE_DIR instead of CMAKE_CURRENT_SOURCE_DIR)
+cmake/
+
 # CMake cache
 CMakeCache.txt
 CMakeFiles/

@@ -2,6 +2,7 @@
 
 #include <span>
 #include "../hdf5/types.h"
+#include "../hdf5/gpu_allocator.h"
 
 namespace serde {
     // (quirk with C++ concepts)
@@ -40,6 +41,14 @@ namespace serde {
         __device__ __host__
         void SetPosition(offset_t) {
             ASSERT(false, "NullDeserializer shouldn't be called");
+        }
+
+        // ReSharper disable once CppMemberFunctionMayBeStatic
+        // NOLINTNEXTLINE(*-convert-member-functions-to-static)
+        __device__ __host__
+        hdf5::HdfAllocator* GetAllocator() {
+            ASSERT(false, "NullDeserializer shouldn't be called");
+            return nullptr;
         }
     };
 
@@ -86,7 +95,7 @@ namespace serde {
     // -- DESERIALIZE FUNCTIONS --
 
     template<TriviallySerializable T, Deserializer D>
-    __device__ __host__
+    __device__
     T Read(D&& d) {
         T out;
         d.ReadBuffer(cstd::as_writable_bytes(cstd::span(&out, 1)));
@@ -94,7 +103,7 @@ namespace serde {
     }
 
     template<NonTriviallySerializable T, Deserializer D>
-    __device__ __host__
+    __device__
     auto Read(D&& d) {
         return T::Deserialize(d);
     }

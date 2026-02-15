@@ -1,9 +1,7 @@
 #include "dataset.h"
 #include "hyperslab.h"
-#include <unordered_set>
-#include <numeric>
 
-__device__ __host__
+__device__
 hdf5::expected<Dataset> Dataset::New(const Object& object) {
     auto header_result = object.GetHeader();
     if (!header_result) return cstd::unexpected(header_result.error());
@@ -35,7 +33,7 @@ hdf5::expected<Dataset> Dataset::New(const Object& object) {
     return Dataset(object, layout, type, space);
 }
 
-__device__ __host__
+__device__
 hdf5::expected<void> Dataset::Read(cstd::span<byte_t> buffer, size_t start_index, size_t count) const {
     if (start_index + count > space_.TotalElements()) {
         return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "Index range out of bounds for dataset");
@@ -71,8 +69,9 @@ hdf5::expected<void> Dataset::Read(cstd::span<byte_t> buffer, size_t start_index
             return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "Index range out of bounds for contiguous storage dataset");
         }
 
-        object_.file->io.SetPosition(contiguous->address + start_index * element_size);
-        object_.file->io.ReadBuffer(cstd::span(buffer.data(), total_bytes));
+        auto io = object_.file->MakeRW();
+        io.SetPosition(contiguous->address + start_index * element_size);
+        io.ReadBuffer(cstd::span(buffer.data(), total_bytes));
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
         return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "chunked read not implemented yet");
@@ -83,7 +82,7 @@ hdf5::expected<void> Dataset::Read(cstd::span<byte_t> buffer, size_t start_index
     return {};
 }
 
-__device__ __host__
+__device__
 hdf5::expected<void> Dataset::Write(cstd::span<const byte_t> data, size_t start_index) const {
     if (data.size() % type_.Size() != 0) {
         return hdf5::error(hdf5::HDF5ErrorCode::BufferNotAligned, "Buffer size must be a multiple of the datatype size");
@@ -117,8 +116,9 @@ hdf5::expected<void> Dataset::Write(cstd::span<const byte_t> data, size_t start_
             return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "Index range out of bounds for contiguous storage dataset");
         }
 
-        object_.file->io.SetPosition(contiguous->address + start_index * element_size);
-        object_.file->io.WriteBuffer(data);
+        auto io = object_.file->MakeRW();
+        io.SetPosition(contiguous->address + start_index * element_size);
+        io.WriteBuffer(data);
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
         return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "chunked write not implemented yet");
@@ -129,54 +129,18 @@ hdf5::expected<void> Dataset::Write(cstd::span<const byte_t> data, size_t start_
     return {};
 }
 
-__device__ __host__
-hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Dataset::RawOffsets() const {
-    auto props = layout_.properties;
 
-    if (const auto* compact = cstd::get_if<CompactStorageProperty>(&props)) {
-        // For compact storage, return a single entry with zero coordinates matching dataset dimensionality
-        ChunkCoordinates coords;
-        coords.coords = hdf5::dim_vector<uint64_t>(space_.dimensions.size(), 0);
-        hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> result;
-        result.emplace_back(coords, offset_t{0}, static_cast<len_t>(compact->raw_data.size()));
-        return result;
-
-    } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
-        // For contiguous storage, return a single entry with zero coordinates matching dataset dimensionality
-        ChunkCoordinates coords;
-        coords.coords = hdf5::dim_vector<uint64_t>(space_.dimensions.size(), 0);
-        hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> result;
-        result.emplace_back(coords, contiguous->address, contiguous->size);
-        return result;
-
-    } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
-        // For chunked storage, use the B-tree to get all chunk offsets
-        ChunkedBTree chunked_tree(
-            chunked->b_tree_addr,
-            object_.file,
-            {
-                .dimensionality = static_cast<uint8_t>(chunked->dimension_sizes.size()),
-                .elem_byte_size = type_.Size(),
-            }
-        );
-        return chunked_tree.Offsets();
-    } else {
-        return hdf5::error(hdf5::HDF5ErrorCode::InvalidVariantState, "unknown storage type in dataset");
-    }
-}
-
-__device__ __host__
 template<typename Visitor>
-hdf5::expected<void> ProcessChunkedHyperslab(
+__device__ hdf5::expected<void> ProcessChunkedHyperslab(
     const ChunkedStorageProperty* chunked,
     HyperslabIterator& iterator,
     size_t element_size,
-    std::shared_ptr<FileLink> file,
+    FileLink* file,
     Visitor&& visitor
 ) {
     ChunkedBTree chunked_tree(
         chunked->b_tree_addr,
-        std::move(file),
+        file,
         {
             .dimensionality = static_cast<uint8_t>(chunked->dimension_sizes.size()),
             .elem_byte_size = element_size,
@@ -214,13 +178,11 @@ hdf5::expected<void> ProcessChunkedHyperslab(
             return cstd::unexpected(chunk_file_offset_result.error());
         }
 
-        // Calculate element file offset if chunk exists
         cstd::optional<offset_t> element_file_offset;
         if (chunk_file_offset_result->has_value()) {
             element_file_offset = **chunk_file_offset_result + within_chunk_offset * element_size;
         }
 
-        // Process this element using the provided processor
         auto visitor_result = visitor(element_file_offset, buffer_offset, chunk_coords);
         if (!visitor_result) {
             return cstd::unexpected(visitor_result.error());
@@ -233,7 +195,7 @@ hdf5::expected<void> ProcessChunkedHyperslab(
     return {};
 }
 
-__device__ __host__
+__device__
 hdf5::expected<void> Dataset::ReadHyperslab(
     cstd::span<byte_t> buffer,
     const hdf5::dim_vector<uint64_t>& start,
@@ -258,7 +220,7 @@ hdf5::expected<void> Dataset::ReadHyperslab(
     if (!iterator_result) {
         return cstd::unexpected(iterator_result.error());
     }
-    HyperslabIterator iterator = std::move(*iterator_result);
+    HyperslabIterator iterator = cstd::move(*iterator_result);
 
     size_t element_size = type_.Size();
     auto total_elements_result = iterator.GetTotalElements();
@@ -282,48 +244,50 @@ hdf5::expected<void> Dataset::ReadHyperslab(
         size_t buffer_offset = 0;
 
         while (!iterator.IsAtEnd()) {
-            auto linear_index_result = iterator.GetLinearIndex();
-
-            if (!linear_index_result) {
-                return cstd::unexpected(linear_index_result.error());
+            auto run_result = iterator.GetNextContiguousRun();
+            if (!run_result) {
+                return cstd::unexpected(run_result.error());
             }
 
-            size_t data_offset = *linear_index_result * element_size;
+            const auto& run = *run_result;
+            size_t data_offset = run.start_linear_index * element_size;
+            size_t bytes_to_copy = run.element_count * element_size;
 
-            if (data_offset + element_size > compact->raw_data.size()) {
+            if (data_offset + bytes_to_copy > compact->raw_data.size()) {
                 return hdf5::error(hdf5::HDF5ErrorCode::SelectionOutOfBounds, "Hyperslab selection exceeds compact storage bounds");
             }
 
             cstd::_copy(
                 compact->raw_data.begin() + data_offset,
-                compact->raw_data.begin() + data_offset + element_size,
+                compact->raw_data.begin() + data_offset + bytes_to_copy,
                 buffer.data() + buffer_offset
             );
 
-            buffer_offset += element_size;
-            iterator.Advance();
+            buffer_offset += bytes_to_copy;
         }
 
     } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
         size_t buffer_offset = 0;
+        auto io = object_.file->MakeRW();
 
         while (!iterator.IsAtEnd()) {
-            auto linear_index = iterator.GetLinearIndex();
-
-            if (!linear_index) {
-                return cstd::unexpected(linear_index.error());
+            auto run_result = iterator.GetNextContiguousRun();
+            if (!run_result) {
+                return cstd::unexpected(run_result.error());
             }
 
-            offset_t file_offset = contiguous->address + *linear_index * element_size;
+            const auto& run = *run_result;
+            offset_t file_offset = contiguous->address + run.start_linear_index * element_size;
+            size_t bytes_to_read = run.element_count * element_size;
 
-            object_.file->io.SetPosition(file_offset);
-            object_.file->io.ReadBuffer(cstd::span(buffer.data() + buffer_offset, element_size));
+            io.SetPosition(file_offset);
+            io.ReadBuffer(cstd::span(buffer.data() + buffer_offset, bytes_to_read));
 
-            buffer_offset += element_size;
-            iterator.Advance();
+            buffer_offset += bytes_to_read;
         }
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
+        auto io = object_.file->MakeRW();
         auto process_result = ProcessChunkedHyperslab(
             chunked, iterator, element_size, object_.file,
             [&](const cstd::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) -> hdf5::expected<void> {
@@ -331,8 +295,8 @@ hdf5::expected<void> Dataset::ReadHyperslab(
                     // chunk doesn't exist (sparse dataset)
                     cstd::fill_n(buffer.data() + buffer_offset, element_size, byte_t{0});
                 } else {
-                    object_.file->io.SetPosition(*element_file_offset);
-                    object_.file->io.ReadBuffer(cstd::span(buffer.data() + buffer_offset, element_size));
+                    io.SetPosition(*element_file_offset);
+                    io.ReadBuffer(cstd::span(buffer.data() + buffer_offset, element_size));
                 }
                 return {};
             });
@@ -346,7 +310,7 @@ hdf5::expected<void> Dataset::ReadHyperslab(
     return {};
 }
 
-__device__ __host__
+__device__
 hdf5::expected<void> Dataset::WriteHyperslab(
     cstd::span<const byte_t> data,
     const hdf5::dim_vector<uint64_t>& start,
@@ -371,7 +335,7 @@ hdf5::expected<void> Dataset::WriteHyperslab(
     if (!iterator_result) {
         return cstd::unexpected(iterator_result.error());
     }
-    HyperslabIterator iterator = std::move(*iterator_result);
+    HyperslabIterator iterator = cstd::move(*iterator_result);
 
     size_t element_size = type_.Size();
     auto total_elements_result = iterator.GetTotalElements();
@@ -397,24 +361,26 @@ hdf5::expected<void> Dataset::WriteHyperslab(
 
     } else if (const auto* contiguous = cstd::get_if<ContiguousStorageProperty>(&props)) {
         size_t data_offset = 0;
+        auto io = object_.file->MakeRW();
 
         while (!iterator.IsAtEnd()) {
-            auto linear_index = iterator.GetLinearIndex();
-
-            if (!linear_index) {
-                return cstd::unexpected(linear_index.error());
+            auto run_result = iterator.GetNextContiguousRun();
+            if (!run_result) {
+                return cstd::unexpected(run_result.error());
             }
 
-            offset_t file_offset = contiguous->address + *linear_index * element_size;
+            const auto& run = *run_result;
+            offset_t file_offset = contiguous->address + run.start_linear_index * element_size;
+            size_t bytes_to_write = run.element_count * element_size;
 
-            object_.file->io.SetPosition(file_offset);
-            object_.file->io.WriteBuffer(cstd::span(data.data() + data_offset, element_size));
+            io.SetPosition(file_offset);
+            io.WriteBuffer(cstd::span(data.data() + data_offset, bytes_to_write));
 
-            data_offset += element_size;
-            iterator.Advance();
+            data_offset += bytes_to_write;
         }
 
     } else if (const auto* chunked = cstd::get_if<ChunkedStorageProperty>(&props)) {
+        auto io = object_.file->MakeRW();
         auto process_result = ProcessChunkedHyperslab(
             chunked, iterator, element_size, object_.file,
             [&](const cstd::optional<offset_t>& element_file_offset, size_t buffer_offset, const ChunkCoordinates& /* chunk_coords */) -> hdf5::expected<void> {
@@ -425,8 +391,8 @@ hdf5::expected<void> Dataset::WriteHyperslab(
                     return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "Cannot write to non-existent chunk (chunk creation not implemented)");
                 }
 
-                object_.file->io.SetPosition(*element_file_offset);
-                object_.file->io.WriteBuffer(cstd::span(data.data() + buffer_offset, element_size));
+                io.SetPosition(*element_file_offset);
+                io.WriteBuffer(cstd::span(data.data() + buffer_offset, element_size));
                 return {};
             });
         if (!process_result) {
@@ -437,114 +403,4 @@ hdf5::expected<void> Dataset::WriteHyperslab(
     }
 
     return {};
-}
-
-__device__ __host__
-hdf5::expected<hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>>> Dataset::GetHyperslabChunkRawOffsets(
-    const hdf5::dim_vector<uint64_t>& start,
-    const hdf5::dim_vector<uint64_t>& count,
-    const hdf5::dim_vector<uint64_t>& stride,
-    const hdf5::dim_vector<uint64_t>& block
-) const {
-    hdf5::gpu_vector<cstd::tuple<ChunkCoordinates, offset_t, len_t>> result;
-
-    if (!cstd::holds_alternative<ChunkedStorageProperty>(layout_.properties)) {
-        return RawOffsets();
-    }
-
-    auto chunked = cstd::get<ChunkedStorageProperty>(layout_.properties);
-
-    size_t dimensionality = chunked.dimension_sizes.size();
-
-    ChunkedBTree chunked_tree(chunked.b_tree_addr, object_.file, {
-        .dimensionality = static_cast<uint8_t>(dimensionality),
-        .elem_byte_size = type_.Size(),
-    });
-
-    const len_t chunk_size_bytes = std::accumulate(
-        chunked.dimension_sizes.begin(),
-        chunked.dimension_sizes.end(),
-        type_.Size(),
-        std::multiplies{}
-    );
-
-    constexpr size_t kMaxChunksPerDim = 256;
-
-    hdf5::dim_vector<cstd::inplace_vector<uint64_t, kMaxChunksPerDim>> chunks_per_dim(dimensionality);
-
-    for (size_t dim = 0; dim < dimensionality; ++dim) {
-        uint64_t chunk_size = chunked.dimension_sizes[dim];
-        uint64_t dim_start = start[dim];
-        uint64_t dim_count = count[dim];
-        uint64_t dim_stride = stride.empty() ? 1 : stride[dim];
-        uint64_t dim_block = block.empty() ? 1 : block[dim];
-
-        // instead of a set, let's just use a bounded vector
-        // not sure if this will always be big enough
-        cstd::inplace_vector<uint64_t, kMaxChunksPerDim> unique_chunks;
-
-        // for each count iteration
-        for (uint64_t count_idx = 0; count_idx < dim_count; ++count_idx) {
-            uint64_t block_start = dim_start + count_idx * dim_stride;
-            uint64_t block_end = block_start + dim_block - 1;
-            
-            // find all chunks touched by this block
-            uint64_t start_chunk = (block_start / chunk_size) * chunk_size;
-            uint64_t end_chunk = (block_end / chunk_size) * chunk_size;
-            
-            for (uint64_t chunk_coord = start_chunk; chunk_coord <= end_chunk; chunk_coord += chunk_size) {
-                if (cstd::find(unique_chunks.begin(), unique_chunks.end(), chunk_coord) == unique_chunks.end()) {
-                    if (unique_chunks.size() >= kMaxChunksPerDim) {
-                        return hdf5::error(
-                            hdf5::HDF5ErrorCode::CapacityExceeded,
-                            "Too many chunks in dimension for hyperslab operation"
-                        );
-                    }
-
-                    unique_chunks.push_back(chunk_coord);
-                }
-            }
-        }
-        
-        if (unique_chunks.empty()) {
-            return result;
-        }
-
-        // sort for consistent ordering
-        cstd::sort(unique_chunks.begin(), unique_chunks.end());
-
-        chunks_per_dim[dim] = unique_chunks;
-    }
-
-    hdf5::dim_vector<uint64_t> current_combination(dimensionality);
-    hdf5::dim_vector<size_t> indices(dimensionality, 0);
-    
-    for (;;) {
-        // get current combination
-        for (size_t dim = 0; dim < dimensionality; ++dim) {
-            current_combination[dim] = chunks_per_dim[dim][indices[dim]];
-        }
-        
-        ChunkCoordinates chunk_coords(current_combination);
-        auto chunk_file_offset_result = chunked_tree.GetChunk(chunk_coords);
-        if (!chunk_file_offset_result) {
-            return cstd::unexpected(chunk_file_offset_result.error());
-        }
-
-        if (chunk_file_offset_result->has_value()) {
-            result.emplace_back(std::move(chunk_coords), **chunk_file_offset_result, chunk_size_bytes);
-        }
-        
-        // find first dimension that can increment
-        size_t dim = 0;
-        while (dim < dimensionality && ++indices[dim] >= chunks_per_dim[dim].size()) {
-            indices[dim] = 0;
-            ++dim;
-        }
-        if (dim == dimensionality) {
-            break;
-        }
-    }
-
-    return result;
 }

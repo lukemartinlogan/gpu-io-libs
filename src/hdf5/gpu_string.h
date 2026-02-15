@@ -19,39 +19,47 @@ struct gpu_string_view {
     size_t length_;
 
     // Construct from pointer and length
-    __device__ __host__
+    __device__
     constexpr gpu_string_view(const char* str, size_t len)
         : data_(str), length_(len) {}
 
     // Construct from null-terminated string literal
     template<size_t N>
-    __device__ __host__
+    __device__
     constexpr gpu_string_view(const char (&str)[N])
         : data_(str), length_(N - 1) {}  // -1 for null terminator
 
+    // Construct from null-terminated C string (computes length at runtime)
+    __device__
+    gpu_string_view(const char* str) : data_(str), length_(0) {
+        if (str) {
+            while (str[length_] != '\0') ++length_;
+        }
+    }
+
     // Default constructor - empty view
-    __device__ __host__
+    __device__
     constexpr gpu_string_view()
         : data_(nullptr), length_(0) {}
 
     // Accessors
-    __device__ __host__
+    __device__
     [[nodiscard]] constexpr const char* data() const { return data_; }
-    __device__ __host__
+    __device__
     [[nodiscard]] constexpr size_t size() const { return length_; }
-    __device__ __host__
+    __device__
     [[nodiscard]] constexpr size_t length() const { return length_; }
-    __device__ __host__
+    __device__
     [[nodiscard]] constexpr bool empty() const { return length_ == 0; }
 
     // Indexing
-    __device__ __host__
+    __device__
     constexpr char operator[](size_t idx) const {
         return data_[idx];
     }
 
     // Comparison
-    __device__ __host__
+    __device__
     constexpr bool operator==(gpu_string_view other) const {
         if (length_ != other.length_) return false;
         for (size_t i = 0; i < length_; ++i) {
@@ -60,13 +68,13 @@ struct gpu_string_view {
         return true;
     }
 
-    __device__ __host__
+    __device__
     constexpr bool operator!=(gpu_string_view other) const {
         return !(*this == other);
     }
 
     // Lexicographic comparison
-    __device__ __host__
+    __device__
     constexpr bool operator<(gpu_string_view other) const {
         size_t min_len = length_ < other.length_ ? length_ : other.length_;
         for (size_t i = 0; i < min_len; ++i) {
@@ -76,29 +84,29 @@ struct gpu_string_view {
         return length_ < other.length_;
     }
 
-    __device__ __host__
+    __device__
     constexpr bool operator<=(gpu_string_view other) const {
         return other >= *this;
     }
 
-    __device__ __host__
+    __device__
     constexpr bool operator>(gpu_string_view other) const {
         return other < *this;
     }
 
-    __device__ __host__
+    __device__
     constexpr bool operator>=(gpu_string_view other) const {
         return !(*this < other);
     }
 
     // Substring
-    __device__ __host__
-    constexpr gpu_string_view substr(size_t pos, size_t count = std::numeric_limits<size_t>::max()) const {
+    __device__
+    constexpr gpu_string_view substr(size_t pos, size_t count = static_cast<size_t>(-1)) const {
         if (pos > length_) {
             return gpu_string_view(data_, 0);
         }
         size_t actual_count = count;
-        if (pos + count > length_ || count == std::numeric_limits<size_t>::max()) {
+        if (pos + count > length_ || count == static_cast<size_t>(-1)) {
             actual_count = length_ - pos;
         }
         return gpu_string_view(data_ + pos, actual_count);
@@ -118,14 +126,14 @@ struct gpu_string {
     size_t length_ = 0;
 
     // Default constructor - empty string
-    __device__ __host__
+    __device__
     constexpr gpu_string() {
         data_[0] = '\0';
     }
 
     // Construct from null-terminated string literal
     template<size_t N>
-    __device__ __host__
+    __device__
     constexpr gpu_string(const char (&str)[N]) : length_(N - 1) {
         static_assert(N <= MaxLen + 1, "String literal exceeds maximum length");
         for (size_t i = 0; i < length_; ++i) {
@@ -135,7 +143,7 @@ struct gpu_string {
     }
 
     // Construct from view (explicit to prevent accidental copies)
-    __device__ __host__
+    __device__
     explicit gpu_string(gpu_string_view view) {
         if (view.size() > MaxLen) {
             // Truncate to MaxLen
@@ -151,6 +159,7 @@ struct gpu_string {
     }
 
     // Construct from pointer and length with error handling
+    __device__
     static hdf5::expected<gpu_string> from_chars(const char* str, size_t len) {
         if (len > MaxLen) {
             return hdf5::error(
@@ -170,77 +179,78 @@ struct gpu_string {
     }
 
     // Implicit conversion TO view (allows passing gpu_string where view is expected)
-    __device__ __host__
+    __device__
     constexpr operator gpu_string_view() const {
         return gpu_string_view(data_.data(), length_);
     }
 
     // Accessors
-    __device__ __host__
+    __device__
     [[nodiscard]] constexpr const char* data() const { return data_.data(); }
-    __device__ __host__
+    __device__
     [[nodiscard]] constexpr char* data() { return data_.data(); }
-    __device__ __host__
+    __device__
     [[nodiscard]] constexpr size_t size() const { return length_; }
-    __device__ __host__
+    __device__
     [[nodiscard]] constexpr size_t length() const { return length_; }
-    __device__ __host__
+    __device__
     [[nodiscard]] constexpr bool empty() const { return length_ == 0; }
-    __device__ __host__
+    __device__
     [[nodiscard]] constexpr const char* c_str() const { return data_.data(); }
+    __device__
     [[nodiscard]] constexpr static size_t max_size() { return MaxLen; }
 
     // Indexing
-    __device__ __host__
+    __device__
     constexpr char operator[](size_t idx) const {
         return data_[idx];
     }
 
-    __device__ __host__
+    __device__
     constexpr char& operator[](size_t idx) {
         return data_[idx];
     }
 
     // Iterators
-    __device__ __host__
+    __device__
     constexpr char* begin() { return data_.data(); }
-    __device__ __host__
+    __device__
     [[nodiscard]] constexpr const char* begin() const { return data_.data(); }
     [[nodiscard]] constexpr const char* cbegin() const { return begin(); }
 
-    __device__ __host__
+    __device__
     constexpr char* end() { return data_.data() + length_; }
-    __device__ __host__
+    __device__
     [[nodiscard]] constexpr const char* end() const { return data_.data() + length_; }
     [[nodiscard]] constexpr const char* cend() const { return end(); }
 
     // Comparison (delegate to view)
-    __device__ __host__
+    __device__
     constexpr bool operator==(gpu_string_view other) const {
         return gpu_string_view(*this) == other;
     }
 
-    __device__ __host__
+    __device__
     constexpr bool operator!=(gpu_string_view other) const {
         return gpu_string_view(*this) != other;
     }
 
-    __device__ __host__
+    __device__
     constexpr bool operator<(gpu_string_view other) const {
         return gpu_string_view(*this) < other;
     }
 
-    __device__ __host__
+    __device__
     constexpr bool operator<=(gpu_string_view other) const {
         return gpu_string_view(*this) <= other;
     }
 
-    __device__ __host__
+    __device__
     constexpr bool operator>(gpu_string_view other) const {
         return gpu_string_view(*this) > other;
     }
 
-    __device__ __host__
+    __device__
     constexpr bool operator>=(gpu_string_view other) const {
         return gpu_string_view(*this) >= other;
     }
@@ -251,6 +261,7 @@ struct gpu_string {
      * Append a string view to this string
      * Returns error if result would exceed MaxLen
      */
+    __device__
     hdf5::expected<void> append(gpu_string_view str) {
         if (length_ + str.size() > MaxLen) {
             return hdf5::error(
@@ -272,6 +283,7 @@ struct gpu_string {
      * Append a single character
      * Returns error if result would exceed MaxLen
      */
+    __device__
     hdf5::expected<void> push_back(char c) {
         if (length_ >= MaxLen) {
             return hdf5::error(
@@ -290,6 +302,7 @@ struct gpu_string {
     /**
      * Clear the string
      */
+    __device__
     void clear() {
         length_ = 0;
         data_[0] = '\0';
@@ -300,6 +313,7 @@ struct gpu_string {
      * If new_size > current size, fills with null bytes
      * Returns error if new_size > MaxLen
      */
+    __device__
     hdf5::expected<void> resize(size_t new_size, char fill = '\0') {
         if (new_size > MaxLen) {
             return hdf5::error(
@@ -323,13 +337,14 @@ struct gpu_string {
     /**
      * Get a substring as a view
      */
-    __device__ __host__
-    [[nodiscard]] constexpr gpu_string_view substr(size_t pos, size_t count = std::numeric_limits<size_t>::max()) const {
+    __device__
+    [[nodiscard]] constexpr gpu_string_view substr(size_t pos, size_t count = static_cast<size_t>(-1)) const {
         return gpu_string_view(*this).substr(pos, count);
     }
 };
 
 template<size_t MaxLen = 255>
+__device__
 constexpr hdf5::expected<gpu_string<MaxLen>> to_string(uint64_t value) {
     static_assert(MaxLen >= 20, "to_string requires MaxLen of at least 20 for uint64_t");
 

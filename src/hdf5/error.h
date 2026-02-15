@@ -67,7 +67,8 @@ namespace hdf5 {
     template<typename T>
     using expected = cstd::expected<T, HDF5Error>;
 
+    __device__
     constexpr cstd::unexpected<HDF5Error> error(const HDF5ErrorCode code, const char* desc = nullptr) {
-        return cstd::unexpected(HDF5Error{ .code = code, .description = desc });
+        return cstd::unexpected(HDF5Error{ code, desc });
     }
 }

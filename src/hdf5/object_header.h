@@ -1,19 +1,21 @@
 #pragma once
-#include <chrono>
-#include <cstdint>
-#include <vector>
 
 #include "types.h"
 #include "datatype.h"
+#include "gpu_allocator.h"
 #include "../serialization/buffer.h"
 #include "../serialization/serialization.h"
 #include "../util/align.h"
+#include "../util/string.h"
+
+// Maximum size for attribute data components (name, datatype, dataspace)
+inline constexpr size_t kMaxAttributeDataSize = 256;
 
 struct NilMessage {
     uint16_t size{};
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         // TODO: this can be optimized
         for (uint16_t i = 0; i < size; ++i) {
@@ -33,28 +35,28 @@ struct DimensionInfo {
 struct DataspaceMessage {
     hdf5::dim_vector<DimensionInfo> dimensions;
 
-    __device__ __host__
-    DataspaceMessage(const hdf5::dim_vector<DimensionInfo>&, bool max_dim_present, bool perm_indices_present);
+    __device__
+    DataspaceMessage(const hdf5::dim_vector<DimensionInfo>& dims, bool max_dim_present, bool perm_indices_present);
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool IsMaxDimensionsPresent() const {
         return bitset_.test(0);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool PermutationIndicesPresent() const {
         return bitset_.test(1);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] size_t TotalElements() const;
-    __device__ __host__
+    __device__
     [[nodiscard]] size_t MaxElements() const;
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x01));
 
         auto dimensionality = static_cast<uint8_t>(dimensions.size());
         serde::Write(s, dimensionality);
@@ -81,9 +83,9 @@ struct DataspaceMessage {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<DataspaceMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
@@ -114,11 +116,11 @@ struct DataspaceMessage {
         return msg;
     }
 
-    __device__ __host__
+    __device__
     DataspaceMessage() = default;
 
 private:
-    cstd::bitset<2> bitset_;
+    cstd::bitset<2> bitset_{};
 
     static constexpr uint8_t kVersionNumber = 0x01;
 public:
@@ -132,9 +134,9 @@ struct LinkInfoMessage {
     cstd::optional<offset_t> creation_order_btree_addr;
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x00));
 
         cstd::bitset<2> flags;
         flags.set(0, max_creation_index.has_value());
@@ -155,9 +157,9 @@ struct LinkInfoMessage {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<LinkInfoMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
@@ -193,30 +195,35 @@ public:
 struct FillValueOldMessage {
     static constexpr size_t kMaxFillValueSize = 256;
 
-    cstd::inplace_vector<byte_t, kMaxFillValueSize> fill_value;
+    hdf5::vector<byte_t> fill_value;
+
+    __device__ __host__
+    explicit FillValueOldMessage(hdf5::HdfAllocator* alloc)
+        : fill_value(alloc) {}
+
+    __device__ __host__
+    FillValueOldMessage() : fill_value(nullptr) {}
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         serde::Write(s, static_cast<uint32_t>(fill_value.size()));
 
         if (!fill_value.empty()) {
-            s.WriteBuffer(fill_value);
+            s.WriteBuffer(cstd::span<const byte_t>(fill_value.data(), fill_value.size()));
         }
     }
 
-    template<serde::Deserializer D>
-    __device__ __host__
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
+    __device__
     static hdf5::expected<FillValueOldMessage> Deserialize(D& de) {
-        FillValueOldMessage msg{};
+        FillValueOldMessage msg(de.GetAllocator());
 
         auto size = serde::Read<uint32_t>(de);
 
         if (size > 0) {
             msg.fill_value.resize(size);
-            de.ReadBuffer(msg.fill_value);
-        } else {
-            msg.fill_value.clear();
+            de.ReadBuffer(cstd::span<byte_t>(msg.fill_value.data(), msg.fill_value.size()));
         }
 
         return msg;
@@ -241,33 +248,46 @@ struct FillValueMessage {
         kIfExplicit = 2,
     } write_time;
 
-    cstd::optional<cstd::inplace_vector<byte_t, kMaxFillValueSizeBytes>> fill_value;
+    hdf5::vector<byte_t> fill_value;
+    bool has_fill_value_ = false;
+
+    hdf5::padding<7> _pad{};
+
+    __device__ __host__
+    explicit FillValueMessage(hdf5::HdfAllocator* alloc)
+        : space_alloc_time(SpaceAllocTime::kNotUsed), write_time(ValWriteTime::kOnAlloc),
+          fill_value(alloc), has_fill_value_(false) {}
+
+    __device__ __host__
+    FillValueMessage()
+        : space_alloc_time(SpaceAllocTime::kNotUsed), write_time(ValWriteTime::kOnAlloc),
+          fill_value(nullptr), has_fill_value_(false) {}
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x02));
 
         serde::Write(s, static_cast<uint8_t>(space_alloc_time));
         serde::Write(s, static_cast<uint8_t>(write_time));
 
-        if (fill_value.has_value()) {
+        if (has_fill_value_) {
             serde::Write(s, static_cast<uint8_t>(1));
-            serde::Write(s, static_cast<uint32_t>(fill_value->size()));
-            s.WriteBuffer(*fill_value);
+            serde::Write(s, static_cast<uint32_t>(fill_value.size()));
+            s.WriteBuffer(cstd::span<const byte_t>(fill_value.data(), fill_value.size()));
         } else {
             serde::Write(s, static_cast<uint8_t>(0));
         }
     }
 
-    template<serde::Deserializer D>
-    __device__ __host__
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
+    __device__
     static hdf5::expected<FillValueMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x02)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
-        FillValueMessage msg{};
+        FillValueMessage msg(de.GetAllocator());
 
         // space allocation time
         auto space_alloc = serde::Read<uint8_t>(de);
@@ -278,24 +298,22 @@ struct FillValueMessage {
         msg.space_alloc_time = static_cast<SpaceAllocTime>(space_alloc);
 
         // fv write time
-        auto write_time = serde::Read<uint8_t>(de);
-        if (write_time >= 3) {
+        auto write_time_val = serde::Read<uint8_t>(de);
+        if (write_time_val >= 3) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "fill value write time was invalid");
         }
 
-        msg.write_time = static_cast<ValWriteTime>(write_time);
+        msg.write_time = static_cast<ValWriteTime>(write_time_val);
 
         auto defined = serde::Read<uint8_t>(de);
         if (defined == 0) {
-            msg.fill_value = cstd::nullopt;
+            msg.has_fill_value_ = false;
         } else if (defined == 1) {
             auto size = serde::Read<uint32_t>(de);
 
-            cstd::inplace_vector<byte_t, kMaxFillValueSizeBytes> fv;
-            fv.resize(size);
-            de.ReadBuffer(fv);
-
-            msg.fill_value = fv;
+            msg.fill_value.resize(size);
+            de.ReadBuffer(cstd::span<byte_t>(msg.fill_value.data(), msg.fill_value.size()));
+            msg.has_fill_value_ = true;
         } else {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "invalid fill value defined state");
         }
@@ -311,13 +329,13 @@ public:
 
 struct LinkMessage {
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const { // NOLINT
         UNREACHABLE("LinkMessage::Serialize not implemented");
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<LinkMessage> Deserialize(D& de) {
         return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "LinkMessage not implemented");
     }
@@ -337,7 +355,7 @@ struct ExternalDataFilesMessage {
         len_t data_size;
 
         template<serde::Serializer S>
-        __device__ __host__
+        __device__
         void Serialize(S& s) const {
             serde::Write(s, name_offset);
             serde::Write(s, file_offset);
@@ -345,7 +363,7 @@ struct ExternalDataFilesMessage {
         }
 
         template<serde::Deserializer D>
-        __device__ __host__
+        __device__
         static ExternalFileSlot Deserialize(D& de) {
             return {
                 .name_offset = serde::Read<len_t>(de),
@@ -355,13 +373,13 @@ struct ExternalDataFilesMessage {
         }
     };
 
-    offset_t heap_address;
+    offset_t heap_address = kUndefinedOffset;
     cstd::inplace_vector<ExternalFileSlot, kMaxExternalFileSlots> slots;
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x01));
 
         // reserved (zero)
         serde::Write(s, static_cast<uint8_t>(0));
@@ -381,7 +399,7 @@ struct ExternalDataFilesMessage {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<ExternalDataFilesMessage> Deserialize(D& de) {
         if (serde::Read<uint8_t>(de) != 1) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "ExternalDataFilesMessage: unsupported version");
@@ -399,6 +417,10 @@ struct ExternalDataFilesMessage {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "ExternalDataFilesMessage: allocated slots does not match used slots");
         }
 
+        if (used_slots > kMaxExternalFileSlots) {
+            return hdf5::error(hdf5::HDF5ErrorCode::CapacityExceeded, "ExternalDataFilesMessage: too many slots");
+        }
+
         msg.heap_address = serde::Read<offset_t>(de);
 
         msg.slots.reserve(used_slots);
@@ -412,6 +434,9 @@ struct ExternalDataFilesMessage {
     }
 
 private:
+    __device__ __host__
+    ExternalDataFilesMessage() = default;
+
     static constexpr uint8_t kVersionNumber = 0x01;
 public:
     static constexpr uint16_t kType = 0x07;
@@ -421,15 +446,15 @@ struct BogusMessage {
     static constexpr uint32_t kBogusValue = 0xdeadbeef;
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const { // NOLINT
-        serde::Write(s, kBogusValue);
+        serde::Write(s, static_cast<uint32_t>(0xdeadbeef));
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<BogusMessage> Deserialize(D& de) {
-        if (serde::Read<uint32_t>(de) != kBogusValue) {
+        if (serde::Read<uint32_t>(de) != static_cast<uint32_t>(0xdeadbeef)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "BogusMessage: value is not 0xdeadbeef");
         }
 
@@ -449,20 +474,20 @@ struct GroupInfoMessage {
     // estimated length of entry name
     cstd::optional<uint16_t> est_entries_name_len;
 
-    __device__ __host__
+    __device__
     [[nodiscard]] uint16_t GetEstimatedNumberOfEntries() const {
         return est_num_entries.value_or(4);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] uint16_t GetEstimatedEntryNameLength() const {
         return est_entries_name_len.value_or(8);
     }
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x00));
 
         cstd::bitset<2> flags;
         flags.set(0, max_compact.has_value());
@@ -486,7 +511,7 @@ struct GroupInfoMessage {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<GroupInfoMessage> Deserialize(D& de) {
         if (serde::Read<uint8_t>(de) != 0) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Invalid version number for GroupInfoMessage");
@@ -517,13 +542,13 @@ public:
 
 struct FilterPipelineMessage {
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& _s) const { // NOLINT
         UNREACHABLE("FilterPipelineMessage::Serialize not implemented");
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<FilterPipelineMessage> Deserialize(D& _de) {
         return hdf5::error(hdf5::HDF5ErrorCode::NotImplemented, "FilterPipelineMessage not implemented");
     }
@@ -532,27 +557,28 @@ struct FilterPipelineMessage {
 };
 
 struct CompactStorageProperty {
-    // TODO: this may need to be increased
-    static constexpr size_t kMaxCompactStorageSizeBytes = 4096;
+    hdf5::vector<byte_t> raw_data;
 
-    cstd::inplace_vector<byte_t, kMaxCompactStorageSizeBytes> raw_data;
+    __device__ __host__
+    explicit CompactStorageProperty(hdf5::HdfAllocator* alloc)
+        : raw_data(alloc) {}
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         serde::Write(s, static_cast<uint16_t>(raw_data.size()));
-        s.WriteBuffer(raw_data);
+        s.WriteBuffer(cstd::span<const byte_t>(raw_data.data(), raw_data.size()));
     }
 
-    template<serde::Deserializer D>
-    __device__ __host__
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
+    __device__
     static hdf5::expected<CompactStorageProperty> Deserialize(D& de) {
         auto size = serde::Read<uint16_t>(de);
 
-        CompactStorageProperty msg{};
+        CompactStorageProperty msg(de.GetAllocator());
         msg.raw_data.resize(size);
 
-        de.ReadBuffer(msg.raw_data);
+        de.ReadBuffer(cstd::span<byte_t>(msg.raw_data.data(), msg.raw_data.size()));
 
         return msg;
     }
@@ -563,14 +589,14 @@ struct ContiguousStorageProperty {
     len_t size{};
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         serde::Write(s, address);
         serde::Write(s, size);
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<ContiguousStorageProperty> Deserialize(D& de) {
         return ContiguousStorageProperty {
             .address = serde::Read<offset_t>(de),
@@ -586,7 +612,7 @@ struct ChunkedStorageProperty {
     uint32_t elem_size_bytes;
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         serde::Write(s, static_cast<uint8_t>(dimension_sizes.size() + 1));
 
@@ -600,7 +626,7 @@ struct ChunkedStorageProperty {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<ChunkedStorageProperty> Deserialize(D& de) {
         auto dimensionality = serde::Read<uint8_t>(de) - 1;
 
@@ -620,16 +646,18 @@ struct ChunkedStorageProperty {
 };
 
 struct DataLayoutMessage {
+    // ContiguousStorageProperty must be first because CompactStorageProperty
+    // requires an allocator and has no default constructor
     cstd::variant<
-        CompactStorageProperty,
         ContiguousStorageProperty,
+        CompactStorageProperty,
         ChunkedStorageProperty
     > properties;
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x03));
 
         if (cstd::holds_alternative<CompactStorageProperty>(properties)) {
             serde::Write(s, static_cast<uint8_t>(kCompact));
@@ -646,9 +674,9 @@ struct DataLayoutMessage {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<DataLayoutMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x03)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
@@ -682,19 +710,23 @@ public:
 };
 
 struct AttributeMessage {
-    static constexpr size_t kMaxAttributeDataSize = 1024;
-
     hdf5::string name;
     DatatypeMessage datatype;
     DataspaceMessage dataspace;
 
-    // TODO: is there a better way to create this
-    cstd::inplace_vector<byte_t, kMaxAttributeDataSize> data;
+    hdf5::vector<byte_t> data;
+
+    __device__ __host__
+    explicit AttributeMessage(hdf5::HdfAllocator* alloc)
+        : name(), datatype(), dataspace(), data(alloc) {}
+
+    __device__ __host__
+    AttributeMessage() : name(), datatype(), dataspace(), data(nullptr) {}
 
     template<typename T>
-    __device__ __host__
+    __device__
     hdf5::expected<T> ReadDataAs() {
-        BufferDeserializer buf_de(data);
+        BufferDeserializer buf_de(cstd::span<const byte_t>(data.data(), data.size()));
 
         T out = serde::Read<T>(buf_de);
 
@@ -706,20 +738,20 @@ struct AttributeMessage {
     }
 
     template<serde::Serializer S> requires serde::Seekable<S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x01));
         // reserved (zero)
         serde::Write(s, static_cast<uint8_t>(0));
 
         // FIXME: these values aren't correctly calculated in the slightest
-        serde::Write(s, static_cast<uint16_t>(name.size() + 1));
+        serde::Write(s, static_cast<uint16_t>(name.size() + 1));  // +1 for null terminator
         serde::Write(s, static_cast<uint16_t>(0 /* TODO: datatype size */));
         serde::Write(s, static_cast<uint16_t>(0 /* TODO: dataspace size */));
 
-        // write name
+        // write name with null terminator
         WriteEightBytePaddedFields(s, cstd::span(
-            reinterpret_cast<const byte_t*>(name.data()),
+            reinterpret_cast<const byte_t*>(name.c_str()),
             name.size() + 1
         ));
 
@@ -734,13 +766,13 @@ struct AttributeMessage {
         WriteRemainingToPadToEightBytes(s, s.GetPosition() - dataspace_write_start);
 
         // write data
-        s.WriteBuffer(data);
+        s.WriteBuffer(cstd::span<const byte_t>(data.data(), data.size()));
     }
 
-    template<serde::Deserializer D>
-    __device__ __host__
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
+    __device__
     static hdf5::expected<AttributeMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
         // reserved (zero)
@@ -750,7 +782,8 @@ struct AttributeMessage {
         auto datatype_size = serde::Read<uint16_t>(de);
         auto dataspace_size = serde::Read<uint16_t>(de);
 
-        auto max_buf_size = std::max(std::max(name_size, datatype_size), dataspace_size);
+        // TODO: windows defines max as a macro :(
+        auto max_buf_size = (name_size > datatype_size ? name_size : datatype_size) > dataspace_size ? (name_size > datatype_size ? name_size : datatype_size) : dataspace_size;
 
         // all are generally small; this should be enough
         constexpr size_t kMaxAttributeBufferSize = kMaxAttributeDataSize * 2;
@@ -764,7 +797,7 @@ struct AttributeMessage {
 
         cstd::array<byte_t, kMaxAttributeBufferSize> buf{};
 
-        AttributeMessage msg{};
+        AttributeMessage msg(de.GetAllocator());
 
         // read name
         ReadEightBytePaddedData(de, cstd::span(buf.data(), name_size));
@@ -781,7 +814,7 @@ struct AttributeMessage {
         cstd::span datatype_buf(buf.data(), datatype_size);
         ReadEightBytePaddedData(de, datatype_buf);
 
-        auto datatype_result = serde::Read<DatatypeMessage>(BufferDeserializer(datatype_buf));
+        auto datatype_result = serde::Read<DatatypeMessage>(BufferDeserializer(datatype_buf, de.GetAllocator()));
         if (!datatype_result) return cstd::unexpected(datatype_result.error());
         msg.datatype = *datatype_result;
 
@@ -789,7 +822,7 @@ struct AttributeMessage {
         cstd::span dataspace_buf(buf.data(), dataspace_size);
         ReadEightBytePaddedData(de, dataspace_buf);
 
-        auto dataspace_result = serde::Read<DataspaceMessage>(BufferDeserializer(dataspace_buf));
+        auto dataspace_result = serde::Read<DataspaceMessage>(BufferDeserializer(dataspace_buf, de.GetAllocator()));
         if (!dataspace_result) return cstd::unexpected(dataspace_result.error());
         msg.dataspace = *dataspace_result;
 
@@ -797,13 +830,13 @@ struct AttributeMessage {
         size_t data_size = msg.datatype.Size() * msg.dataspace.MaxElements();
         msg.data.resize(data_size);
 
-        de.ReadBuffer(msg.data);
+        de.ReadBuffer(cstd::span<byte_t>(msg.data.data(), msg.data.size()));
 
         return msg;
     }
 private:
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     static void WriteRemainingToPadToEightBytes(S& s, offset_t written) {
         size_t leftover = (8 - written % 8) % 8;
 
@@ -812,7 +845,7 @@ private:
     }
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     static void WriteEightBytePaddedFields(S& s, cstd::span<const byte_t> buf) {
         s.WriteBuffer(buf);
 
@@ -820,7 +853,7 @@ private:
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static void ReadEightBytePaddedData(D& de, cstd::span<byte_t> buf) {
         de.ReadBuffer(buf);
 
@@ -840,7 +873,7 @@ struct ObjectCommentMessage {
     hdf5::string comment;
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         s.WriteBuffer(cstd::span(
             reinterpret_cast<const byte_t*>(comment.c_str()),
@@ -849,7 +882,7 @@ struct ObjectCommentMessage {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<ObjectCommentMessage> Deserialize(D& de) {
         auto comment = ReadNullTerminatedString(de);
 
@@ -857,7 +890,7 @@ struct ObjectCommentMessage {
             return cstd::unexpected(comment.error());
 
         return ObjectCommentMessage{
-            .comment = std::move(*comment)
+            .comment = cstd::move(*comment)
         };
     }
 
@@ -866,13 +899,13 @@ struct ObjectCommentMessage {
 
 struct ObjectModificationTimeOldMessage {
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& _s) const { // NOLINT
         UNREACHABLE("old object modification time message is deprecated");
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<ObjectModificationTimeOldMessage> Deserialize(D& _de) {
         return hdf5::error(hdf5::HDF5ErrorCode::DeprecatedFeature, "old object modification time message is deprecated");
     }
@@ -885,17 +918,17 @@ struct SharedMessageTableMessage {
     uint8_t num_indices{};
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x00));
         serde::Write(s, table_address);
         serde::Write(s, num_indices);
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<SharedMessageTableMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "SharedMessageTableMessage: unsupported version");
         }
 
@@ -938,9 +971,9 @@ struct ObjectModificationTimeMessage {
     cstd::chrono::system_clock::time_point modification_time;
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x01));
 
         serde::Write(s, static_cast<uint8_t>(0));
         serde::Write(s, static_cast<uint8_t>(0));
@@ -954,9 +987,9 @@ struct ObjectModificationTimeMessage {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<ObjectModificationTimeMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
 
@@ -984,18 +1017,18 @@ struct BTreeKValuesMessage {
     uint16_t group_leaf_k{};
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x00));
         serde::Write(s, indexed_storage_internal_k);
         serde::Write(s, group_internal_k);
         serde::Write(s, group_leaf_k);
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<BTreeKValuesMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "BTreeKValuesMessage: unsupported version");
         }
 
@@ -1017,12 +1050,19 @@ struct DriverInfoMessage {
 
     // 8 ascii bytes
     hdf5::gpu_string<8> driver_id{};
-    cstd::inplace_vector<byte_t, kMaxDriverInfoSize> driver_info;
+    hdf5::vector<byte_t> driver_info;
+
+    __device__ __host__
+    explicit DriverInfoMessage(hdf5::HdfAllocator* alloc)
+        : driver_info(alloc) {}
+
+    __device__ __host__
+    DriverInfoMessage() : driver_info(nullptr) {}
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x00));
 
         // check that driver_id has len kDriverIdSize and is all ascii
         ASSERT(
@@ -1037,18 +1077,18 @@ struct DriverInfoMessage {
 
         serde::Write(s, static_cast<uint16_t>(driver_info.size()));
 
-        s.WriteBuffer(driver_info);
+        s.WriteBuffer(cstd::span<const byte_t>(driver_info.data(), driver_info.size()));
     }
 
-    template<serde::Deserializer D>
-    __device__ __host__
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
+    __device__
     static hdf5::expected<DriverInfoMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "DriverInfoMessage: unsupported version");
         }
 
         // read 8 bytes, then make a string out of it
-        DriverInfoMessage msg{};
+        DriverInfoMessage msg(de.GetAllocator());
 
         // read id
         cstd::array<char, kDriverIdSize> id{};
@@ -1058,10 +1098,9 @@ struct DriverInfoMessage {
         if (!driver_id_result) return cstd::unexpected(driver_id_result.error());
         msg.driver_id = *driver_id_result;
 
-
         auto driver_info_size = serde::Read<uint16_t>(de);
         msg.driver_info.resize(driver_info_size);
-        de.ReadBuffer(msg.driver_info);
+        de.ReadBuffer(cstd::span<byte_t>(msg.driver_info.data(), msg.driver_info.size()));
 
         return msg;
     }
@@ -1084,9 +1123,9 @@ struct AttributeInfoMessage {
     cstd::optional<offset_t> creation_order_btree_addr;
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x00));
 
         cstd::bitset<2> flags;
         flags.set(0, max_creation_index.has_value());
@@ -1107,9 +1146,9 @@ struct AttributeInfoMessage {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<AttributeInfoMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "AttributeInfoMessage: unsupported version");
         }
 
@@ -1146,16 +1185,16 @@ struct ObjectReferenceCountMessage {
     uint32_t reference_count{};
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x00));
         serde::Write(s, reference_count);
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<ObjectReferenceCountMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "ObjectReferenceCountMessage: invalid version");
         }
 
@@ -1200,7 +1239,7 @@ struct FileSpaceInfoMessage {
     // 6 large-sized free-space managers
     cstd::optional<cstd::array<offset_t, 6>> large_managers;
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool PersistingFreeSpace() const {
         ASSERT((small_managers.has_value() == large_managers.has_value()), "FileSpaceInfoMessage: small and large managers must be both present or both absent");
 
@@ -1208,9 +1247,9 @@ struct FileSpaceInfoMessage {
     }
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x01));
         serde::Write(s, static_cast<uint8_t>(strategy));
 
         auto persisting_free_space = PersistingFreeSpace();
@@ -1228,9 +1267,9 @@ struct FileSpaceInfoMessage {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<FileSpaceInfoMessage> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "FileSpaceInfoMessage: invalid version");
         }
 
@@ -1322,15 +1361,15 @@ struct ObjectHeaderMessage {
 
     uint16_t size{};
 
-    __device__ __host__
+    __device__
     [[nodiscard]] uint16_t MessageType() const;
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool DataConstant() const {
         return flags_.test(0);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<bool> MessageShared() const {
         auto isShared = flags_.test(1);
 
@@ -1341,37 +1380,37 @@ struct ObjectHeaderMessage {
         return isShared;
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool ShouldNotBeShared() const {
         return flags_.test(2);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool AssertUnderstandMessageForWrite() const {
         return flags_.test(3);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool ShouldNotifyIfNotUnderstoodAndObjectModified() const {
         return flags_.test(4);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool NotUnderstoodAndObjectModified() const {
         return flags_.test(5);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool Shareable() const {
         return flags_.test(6);
     }
 
-    __device__ __host__
+    __device__
     [[nodiscard]] bool AssertUnderstandMessage() const {
         return flags_.test(7);
     }
 
-    __device__ __host__
+    __device__
     void NotifyNotUnderstoodAndModified() {
         if (ShouldNotifyIfNotUnderstoodAndObjectModified()) {
             flags_.set(5);
@@ -1379,7 +1418,7 @@ struct ObjectHeaderMessage {
     }
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         serde::Write(s, MessageType());
         serde::Write(s, size);
@@ -1396,7 +1435,7 @@ struct ObjectHeaderMessage {
 
     // TODO: this method probably shouldn't be public
     template<typename T, serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<HeaderMessageVariant> DeserializeMessageType(D&& de) {
         using Ret = decltype(serde::Read<T>(de));
 
@@ -1417,7 +1456,7 @@ struct ObjectHeaderMessage {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<ObjectHeaderMessage> Deserialize(D& de) {
         ObjectHeaderMessage msg{};
 
@@ -1441,7 +1480,7 @@ struct ObjectHeaderMessage {
                     for (uint16_t i = 0; i < msg.size; ++i) {
                         serde::Skip<uint8_t>(de);
                     }
-                    return HeaderMessageVariant(NilMessage { .size = msg.size });
+                    return HeaderMessageVariant(NilMessage { msg.size });
                 }
                 case DataspaceMessage::kType:
                     return DeserializeMessageType<DataspaceMessage>(de);
@@ -1498,7 +1537,7 @@ struct ObjectHeaderMessage {
             return cstd::unexpected(message_result.error());
         }
 
-        msg.message = *message_result;
+        msg.message = cstd::move(*message_result);
 
         auto difference = de.GetPosition() - start;
 
@@ -1523,23 +1562,28 @@ struct ObjectHeaderMessage {
 
 private:
     cstd::bitset<8> flags_{};
+
+    hdf5::padding<5> _pad{};
 };
 
 struct ObjectHeader {
-    static constexpr size_t kMaxObjectHeaderMessages = 48;
-
     // number of hard links to this object in the current file
     uint32_t object_ref_count{};
     // number of bytes of header message data for this header
     // does not include size of object header continuation blocks
     uint32_t object_header_size{};
     // messages
-    cstd::inplace_vector<ObjectHeaderMessage, kMaxObjectHeaderMessages> messages{};
+    hdf5::vector<ObjectHeaderMessage> messages;
+
+    // Constructor with allocator (required for hshm::vector)
+    __device__ __host__
+    explicit ObjectHeader(hdf5::HdfAllocator* alloc)
+        : object_ref_count(0), object_header_size(0), messages(alloc) {}
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, static_cast<uint8_t>(0x01));
         serde::Write(s, static_cast<uint8_t>(0));
         serde::Write(s, static_cast<uint16_t>(messages.size()));
         serde::Write(s, object_ref_count);
@@ -1554,14 +1598,14 @@ struct ObjectHeader {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<void> ParseObjectHeaderMessages(ObjectHeader& hd, D& de, uint32_t size_limit, uint16_t total_message_ct);
 
     // FIXME: ignore unknown messages
-    template<serde::Deserializer D>
-    __device__ __host__
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
+    __device__
     static hdf5::expected<ObjectHeader> Deserialize(D& de) {
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "Version number was invalid");
         }
         // reserved (zero)
@@ -1569,7 +1613,7 @@ struct ObjectHeader {
 
         auto message_count = serde::Read<uint16_t>(de);
 
-        ObjectHeader hd{};
+        ObjectHeader hd(de.GetAllocator());
 
         hd.object_ref_count = serde::Read<uint32_t>(de);
         hd.object_header_size = serde::Read<uint32_t>(de);
@@ -1586,15 +1630,15 @@ private:
 
     static constexpr uint8_t kVersionNumber = 0x01;
     static constexpr size_t kMaxContinuationDepth = 16;
-    // TODO: honestly, no idea what to guess this size should be
-    static constexpr size_t kMaxHeaderMessageSerializedSizeBytes = 1024 * 8;
+    // TODO(kernel-hang): shrunk to avoid GPU stack overflow (prev: 1024 * 8)
+    static constexpr size_t kMaxHeaderMessageSerializedSizeBytes = 512;
 };
 
 // methods for use in object.h/object.cpp
 inline constexpr uint32_t kPrefixSize = 8;
 
 template<serde::Serializer S>
-__device__ __host__
+__device__
 static void WriteHeader(S& s, uint16_t type, uint16_t size, uint8_t flags) {
     serde::Write(s, type);
     serde::Write(s, size);
@@ -1603,16 +1647,14 @@ static void WriteHeader(S& s, uint16_t type, uint16_t size, uint8_t flags) {
     serde::Write<cstd::array<byte_t, 3>>(s, {});
 }
 
-__device__ __host__
+__device__
 static len_t EmptyHeaderMessagesSize(len_t min_size) {
-    return EightBytesAlignedSize(std::max(
-        min_size,
-        sizeof(ObjectHeaderContinuationMessage) + kPrefixSize
-    ));
+    // TODO: windows defines max as a macro :(
+    return EightBytesAlignedSize(min_size > sizeof(ObjectHeaderContinuationMessage) + kPrefixSize ? min_size : sizeof(ObjectHeaderContinuationMessage) + kPrefixSize);
 }
 
 template<serde::Deserializer D>
-__device__ __host__
+__device__
 hdf5::expected<void> ObjectHeader::ParseObjectHeaderMessages(ObjectHeader& hd, D& de, uint32_t size_limit, uint16_t total_message_ct) {
     struct StackFrame {
         offset_t return_pos;
@@ -1641,7 +1683,7 @@ hdf5::expected<void> ObjectHeader::ParseObjectHeaderMessages(ObjectHeader& hd, D
         if (!msg_result) {
             return cstd::unexpected(msg_result.error());
         }
-        hd.messages.push_back(*msg_result);
+        hd.messages.push_back(cstd::move(*msg_result));
 
         frame.bytes_read += de.GetPosition() - before_read;
 

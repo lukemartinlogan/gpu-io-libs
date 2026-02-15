@@ -1,11 +1,8 @@
 #pragma once
 
-#include <array>
-#include <string>
-#include <vector>
-
 #include "local_heap.h"
 #include "types.h"
+#include "gpu_allocator.h"
 #include "../serialization/serialization.h"
 #include "gpu_string.h"
 
@@ -33,7 +30,7 @@ struct SymbolTableEntry {
     cstd::array<byte_t, 16> scratch_pad_space{};
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
         serde::Write(s, link_name_offset);
         serde::Write(s, object_header_addr);
@@ -44,7 +41,7 @@ struct SymbolTableEntry {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<SymbolTableEntry> Deserialize(D& de) {
         SymbolTableEntry ent{};
 
@@ -75,10 +72,18 @@ struct SymbolTableNode {
     // might need to be bigger? but group_leaf_node_k is ~ 4
     static constexpr size_t kMaxSymbolTableEntries = 16;
 
-    cstd::inplace_vector<SymbolTableEntry, kMaxSymbolTableEntries> entries;
+    // not sure if dynamic allocation here is necessary here
+    hdf5::vector<SymbolTableEntry> entries;
+
+    __device__ __host__
+    explicit SymbolTableNode(hdf5::HdfAllocator* alloc)
+        : entries(alloc) {}
+
+    __device__ __host__
+    SymbolTableNode() : entries(nullptr) {}
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<cstd::optional<offset_t>> FindEntry(hdf5::string_view name, const LocalHeap& heap, D& de) const {
         for (const auto& entry : entries) {
             // TODO(cuda_vector): this likely doesn't need to allocate if only used to check; might be a lifetime nightmare if made generally though
@@ -96,10 +101,10 @@ struct SymbolTableNode {
     }
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kSignature);
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, cstd::array<uint8_t, 4>{ 'S', 'N', 'O', 'D' });
+        serde::Write(s, static_cast<uint8_t>(0x01));
         serde::Write(s, uint8_t{0});
         serde::Write(s, static_cast<uint16_t>(entries.size()));
 
@@ -109,14 +114,14 @@ struct SymbolTableNode {
         }
     }
 
-    template<serde::Deserializer D>
-    __device__ __host__
+    template<serde::Deserializer D> requires iowarp::ProvidesAllocator<D>
+    __device__
     static hdf5::expected<SymbolTableNode> Deserialize(D& de) {
-        if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
+        if (serde::Read<cstd::array<uint8_t, 4>>(de) != cstd::array<uint8_t, 4>{ 'S', 'N', 'O', 'D' }) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "symbol table node signature was invalid");
         }
 
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x01)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "symbol table node version was invalid");
         }
 
@@ -126,7 +131,7 @@ struct SymbolTableNode {
         // actual data
         auto num_symbols = serde::Read<uint16_t>(de);
 
-        SymbolTableNode node{};
+        SymbolTableNode node(de.GetAllocator());
 
         if (num_symbols > kMaxSymbolTableEntries) {
             return hdf5::error(
@@ -135,6 +140,7 @@ struct SymbolTableNode {
             );
         }
 
+        node.entries.reserve(num_symbols);
         for (uint16_t i = 0; i < num_symbols; ++i) {
             auto entry_result = serde::Read<SymbolTableEntry>(de);
             if (!entry_result) return cstd::unexpected(entry_result.error());

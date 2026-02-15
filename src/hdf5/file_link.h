@@ -1,17 +1,54 @@
 #pragma once
 
 #include "superblock.h"
-#include "../serialization/stdio.h"
+#include "gpu_allocator.h"
+#include "../serialization/serialization.h"
+#include "../serialization/gpu_posix.h"
+#include "../iowarp/gpu_context.h"
 
 // FIXME: struct name
 struct FileLink {
-    StdioReaderWriter io;
+    int fd;
+    iowarp::GpuContext* ctx;
     SuperblockV0 superblock;
 
-    __device__ __host__
-    FileLink(StdioReaderWriter file_io, const SuperblockV0& superblock)
-        : io(std::move(file_io)), superblock(superblock) {}
+    __device__
+    FileLink(int file_descriptor, iowarp::GpuContext* context, const SuperblockV0& sb)
+        : fd(file_descriptor), ctx(context), superblock(sb) {}
+
+    __device__
+    ~FileLink() {
+        if (fd >= 0 && ctx) {
+            iowarp::gpu_posix::close(fd, *ctx);
+            fd = -1;
+        }
+    }
+
+    __device__
+    [[nodiscard]] GpuPosixReaderWriter MakeRW() const {
+        return GpuPosixReaderWriter(fd, ctx);
+    }
 
     __device__ __host__
-    offset_t AllocateAtEOF(len_t size_bytes);
+    [[nodiscard]] hdf5::HdfAllocator* GetAllocator() const {
+        return ctx->allocator_;
+    }
+
+    template<serde::Serializer S>
+    __device__
+    offset_t AllocateAtEOF(len_t size_bytes, S& serializer) {
+        offset_t addr = superblock.eof_addr;
+        superblock.eof_addr += size_bytes;
+
+        // Write the new EOF address to the superblock in the file
+        // (offset 40 is where eof_addr is stored in the superblock)
+        serializer.SetPosition(superblock.base_addr + 40);
+        serde::Write(serializer, superblock.eof_addr);
+
+        serializer.SetPosition(addr);
+
+        return addr;
+    }
 };
+
+static_assert(iowarp::ProvidesAllocator<FileLink>);

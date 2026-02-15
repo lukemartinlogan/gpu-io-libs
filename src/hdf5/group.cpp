@@ -3,7 +3,7 @@
 #include "symbol_table.h"
 
 
-__device__ __host__
+__device__
 hdf5::expected<Group> Group::New(const Object& object) {
     auto header_result = object.GetHeader();
     if (!header_result) return cstd::unexpected(header_result.error());
@@ -23,16 +23,17 @@ hdf5::expected<Group> Group::New(const Object& object) {
 
     auto symb_tbl = cstd::get<SymbolTableMessage>(symb_tbl_msg->message);
 
-    object.file->io.SetPosition(object.file->superblock.base_addr + symb_tbl.local_heap_addr);
-    auto local_heap_result = serde::Read<LocalHeap>(object.file->io);
+    auto io = object.file->MakeRW();
+    io.SetPosition(object.file->superblock.base_addr + symb_tbl.local_heap_addr);
+    auto local_heap_result = serde::Read<LocalHeap>(io);
     if (!local_heap_result) return cstd::unexpected(local_heap_result.error());
 
     GroupBTree table(symb_tbl.b_tree_addr, object.file, *local_heap_result);
 
-    return Group(object, std::move(table));
+    return Group(object, cstd::move(table));
 }
 
-__device__ __host__
+__device__
 hdf5::expected<Dataset> Group::OpenDataset(hdf5::string_view dataset_name) const {
     auto object_result = Get(dataset_name);
     if (!object_result) {
@@ -46,7 +47,7 @@ hdf5::expected<Dataset> Group::OpenDataset(hdf5::string_view dataset_name) const
     return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Dataset not found");
 }
 
-__device__ __host__
+__device__
 hdf5::expected<Dataset> Group::CreateDataset(
     hdf5::string_view dataset_name,
     const hdf5::dim_vector<len_t>& dimension_sizes,
@@ -86,11 +87,20 @@ hdf5::expected<Dataset> Group::CreateDataset(
     new_ds.WriteMessage(dataspace);
     new_ds.WriteMessage(type);
 
-    new_ds.WriteMessage(FillValueMessage {
-        .space_alloc_time = FillValueMessage::SpaceAllocTime::kEarly,
-        .write_time = FillValueMessage::ValWriteTime::kIfExplicit,
-        .fill_value = std::move(fill_value),
-    });
+    auto io_fv = object_.file->MakeRW();
+    FillValueMessage fv_msg(io_fv.GetAllocator());
+
+    fv_msg.space_alloc_time = FillValueMessage::SpaceAllocTime::kEarly;
+    fv_msg.write_time = FillValueMessage::ValWriteTime::kIfExplicit;
+
+    if (fill_value.has_value()) {
+        for (const auto& byte : *fill_value) {
+            fv_msg.fill_value.push_back(byte);
+        }
+        fv_msg.has_fill_value_ = true;
+    }
+
+    new_ds.WriteMessage(fv_msg);
 
     if (chunk_dims.has_value()) {
         ChunkedStorageProperty chunked_prop {
@@ -103,9 +113,10 @@ hdf5::expected<Dataset> Group::CreateDataset(
     } else {
         len_t dataset_bytes = dataspace.MaxElements() * type.Size();
 
-        offset_t data_alloc = object_.file->AllocateAtEOF(dataset_bytes);
+        auto io = object_.file->MakeRW();
+        offset_t data_alloc = object_.file->AllocateAtEOF(dataset_bytes, io);
 
-        object_.file->io.SetPosition(data_alloc);
+        io.SetPosition(data_alloc);
 
         new_ds.WriteMessage(DataLayoutMessage {
             ContiguousStorageProperty { .address = data_alloc, .size = dataset_bytes }
@@ -125,7 +136,7 @@ hdf5::expected<Dataset> Group::CreateDataset(
     return Dataset::New(new_ds);
 }
 
-__device__ __host__
+__device__
 hdf5::expected<Group> Group::OpenGroup(hdf5::string_view group_name) const {
     auto object_result = Get(group_name);
     if (!object_result) {
@@ -139,7 +150,7 @@ hdf5::expected<Group> Group::OpenGroup(hdf5::string_view group_name) const {
     return hdf5::error(hdf5::HDF5ErrorCode::InvalidDataValue, "Group not found");
 }
 
-__device__ __host__
+__device__
 hdf5::expected<Group> Group::CreateGroup(hdf5::string_view name) {
     auto exists_result = Get(name);
     if (!exists_result) {
@@ -170,7 +181,8 @@ hdf5::expected<Group> Group::CreateGroup(hdf5::string_view name) {
     }
     offset_t empty_offset = *empty_offset_result;
 
-    heap.RewriteToFile(object_.file->io);
+    auto io = object_.file->MakeRW();
+    heap.RewriteToFile(io);
 
     BTreeEntries<BTreeGroupNodeKey> entries{};
     entries.keys.push_back({ empty_offset });
@@ -191,7 +203,7 @@ hdf5::expected<Group> Group::CreateGroup(hdf5::string_view name) {
     return New(new_group_obj);
 }
 
-__device__ __host__
+__device__
 hdf5::expected<cstd::optional<Object>> Group::Get(hdf5::string_view name) const {
     auto sym_table_node_ptr_result = table_.Get(name);
     if (!sym_table_node_ptr_result) {
@@ -205,11 +217,12 @@ hdf5::expected<cstd::optional<Object>> Group::Get(hdf5::string_view name) const 
 
     offset_t base_addr = object_.file->superblock.base_addr;
 
-    object_.file->io.SetPosition(base_addr + *sym_table_node_ptr);
-    auto symbol_table_node_result = serde::Read<SymbolTableNode>(object_.file->io);
+    auto io = object_.file->MakeRW();
+    io.SetPosition(base_addr + *sym_table_node_ptr);
+    auto symbol_table_node_result = serde::Read<SymbolTableNode>(io);
     if (!symbol_table_node_result) return cstd::unexpected(symbol_table_node_result.error());
 
-    auto entry_addr_result = symbol_table_node_result->FindEntry(name, GetLocalHeap(), object_.file->io);
+    auto entry_addr_result = symbol_table_node_result->FindEntry(name, GetLocalHeap(), io);
     if (!entry_addr_result) {
         return cstd::unexpected(entry_addr_result.error());
     }
@@ -222,7 +235,7 @@ hdf5::expected<cstd::optional<Object>> Group::Get(hdf5::string_view name) const 
     return Object::New(object_.file, base_addr + *entry_addr);
 }
 
-__device__ __host__
+__device__
 hdf5::expected<void> Group::Insert(hdf5::string_view name, offset_t object_header_ptr) {
     auto name_offset_result = GetLocalHeap().WriteString(name, *object_.file);
     if (!name_offset_result) {
@@ -239,11 +252,13 @@ hdf5::expected<void> Group::Insert(hdf5::string_view name, offset_t object_heade
     return {};
 }
 
-__device__ __host__
+__device__
 hdf5::expected<void> Group::WriteEntryToNewNode(SymbolTableEntry entry) {
     offset_t name_offset = entry.link_name_offset;
 
-    SymbolTableNode node { .entries = { std::move(entry) }, };
+    auto io = object_.file->MakeRW();
+    SymbolTableNode node(io.GetAllocator());
+    node.entries.push_back(cstd::move(entry));
 
     // this should zero out the rest of the padding bytes for later
     cstd::array<byte_t, SymbolTableNode::kMaxSerializedSize> node_buf{};
@@ -263,9 +278,9 @@ hdf5::expected<void> Group::WriteEntryToNewNode(SymbolTableEntry entry) {
 
     serde::Skip(node_buf_rw, padding_size);
 
-    offset_t node_alloc = object_.file->AllocateAtEOF(node_buf_rw.GetPosition());
-    object_.file->io.SetPosition(node_alloc);
-    object_.file->io.WriteBuffer(node_buf_rw.GetWritten());
+    offset_t node_alloc = object_.file->AllocateAtEOF(node_buf_rw.GetPosition(), io);
+    io.SetPosition(node_alloc);
+    io.WriteBuffer(node_buf_rw.GetWritten());
 
     auto insert_result = table_.InsertGroup(name_offset, node_alloc);
 
@@ -278,7 +293,7 @@ hdf5::expected<void> Group::WriteEntryToNewNode(SymbolTableEntry entry) {
     return {};
 }
 
-__device__ __host__
+__device__
 hdf5::expected<SymbolTableNode> Group::GetSymbolTableNode() const {
     auto root_result = table_.ReadRoot();
     if (!root_result) return cstd::unexpected(root_result.error());
@@ -304,12 +319,13 @@ hdf5::expected<SymbolTableNode> Group::GetSymbolTableNode() const {
     }
 
     offset_t sym_tbl_node = entries->child_pointers.front();
-    object_.file->io.SetPosition(object_.file->superblock.base_addr + sym_tbl_node);
+    auto io = object_.file->MakeRW();
+    io.SetPosition(object_.file->superblock.base_addr + sym_tbl_node);
 
-    return serde::Read<SymbolTableNode>(object_.file->io);
+    return serde::Read<SymbolTableNode>(io);
 }
 
-__device__ __host__
+__device__
 void Group::UpdateBTreePointer() {
     SymbolTableMessage sym = object_.DeleteMessage<SymbolTableMessage>().value();
     sym.b_tree_addr = table_.addr_.value();

@@ -1,8 +1,17 @@
 #pragma once
 
-#include <cstdint>
-
 #include "types.h"
+
+/**
+ * @brief Represents a contiguous run of elements in a hyperslab selection.
+ *
+ * Used to batch multiple contiguous elements into a single I/O operation
+ * instead of reading/writing one element at a time.
+ */
+struct ContiguousRun {
+    uint64_t start_linear_index;
+    uint64_t element_count;
+};
 
 /**
  * @brief Iterator for traversing selected elements in a hyperslab selection.
@@ -30,6 +39,7 @@ public:
      *
      * @return expected containing the iterator or an error if parameters are invalid
      */
+    __device__
     static hdf5::expected<HyperslabIterator> New(
             const coord_t& start,
             const coord_t& count,
@@ -42,12 +52,14 @@ public:
      * @brief Move to the next selected element.
      * @return true if advanced successfully, false if at end
      */
+    __device__
     bool Advance();
 
     /**
      * @brief Check if iterator has reached the end.
      * @return true if at end, false otherwise
      */
+    __device__
     [[nodiscard]] bool IsAtEnd() const {
         return at_end_;
     }
@@ -56,6 +68,7 @@ public:
      * @brief Get the current multi-dimensional coordinate.
      * @return Current coordinate vector
      */
+    __device__
     [[nodiscard]] const coord_t& GetCurrentCoordinate() const {
         return current_coord_;
     }
@@ -64,20 +77,36 @@ public:
      * @brief Get the linear index of the current coordinate.
      * @return Linear index in row-major order
      */
+    __device__
     [[nodiscard]] hdf5::expected<uint64_t> GetLinearIndex() const;
+
+    /**
+     * @brief Get the next contiguous run of elements.
+     *
+     * Returns a run of elements that are contiguous in the file (consecutive
+     * linear indices). After this call, the iterator is positioned at the
+     * start of the next run, or at_end_ is true.
+     *
+     * @return ContiguousRun with start index and element count, or error
+     */
+    __device__
+    hdf5::expected<ContiguousRun> GetNextContiguousRun();
 
     /**
      * @brief Get the total number of elements in the hyperslab selection.
      * @return Total element count
      */
+    __device__
     [[nodiscard]] hdf5::expected<uint64_t> GetTotalElements() const;
 
     /**
      * @brief Reset iterator to the beginning of the selection.
      */
+    __device__
     void Reset();
 
 private:
+    __device__
     HyperslabIterator(
         const coord_t& start,
         const coord_t& count,
@@ -86,6 +115,7 @@ private:
         const coord_t& dataset_dims
     );
 
+    __device__
     static cstd::optional<hdf5::HDF5Error> ValidateParams(
         const coord_t& start,
         const coord_t& count,

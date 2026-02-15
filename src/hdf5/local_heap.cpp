@@ -1,12 +1,9 @@
-#include <vector>
-#include <stdexcept>
-
 #include "local_heap.h"
 
 #include "file_link.h"
 #include "../util/string.h"
 
-__device__ __host__
+__device__
 hdf5::expected<offset_t> LocalHeap::WriteString(hdf5::string_view string, FileLink& file) {
     hdf5::string null_terminated_str(string);
 
@@ -19,11 +16,13 @@ hdf5::expected<offset_t> LocalHeap::WriteString(hdf5::string_view string, FileLi
     );
 }
 
-__device__ __host__
+__device__
 cstd::tuple<LocalHeap, offset_t> LocalHeap::AllocateNew(FileLink& file, len_t min_size) {
-    len_t aligned_size = std::max(EightBytesAlignedSize(min_size), sizeof(FreeListBlock));
+    // TODO: windows defines max as a macro :(
+    len_t aligned_size = EightBytesAlignedSize(min_size) > sizeof(FreeListBlock) ? EightBytesAlignedSize(min_size) : sizeof(FreeListBlock);
 
-    offset_t heap_offset = file.AllocateAtEOF(kHeaderSize + aligned_size);
+    auto io = file.MakeRW();
+    offset_t heap_offset = file.AllocateAtEOF(kHeaderSize + aligned_size, io);
 
     LocalHeap heap;
     heap.this_offset = heap_offset;
@@ -36,19 +35,20 @@ cstd::tuple<LocalHeap, offset_t> LocalHeap::AllocateNew(FileLink& file, len_t mi
         .size = aligned_size,
     };
 
-    file.io.SetPosition(heap.data_segment_address);
-    serde::Write(file.io, new_fl);
+    io.SetPosition(heap.data_segment_address);
+    serde::Write(io, new_fl);
 
-    heap.RewriteToFile(file.io);
+    heap.RewriteToFile(io);
 
     return { heap, heap_offset };
 }
 
-__device__ __host__
+__device__
 hdf5::expected<offset_t> LocalHeap::WriteBytes(cstd::span<const byte_t> data, FileLink& file) {
     len_t aligned_size = EightBytesAlignedSize(data.size());
 
-    auto free_result = FindFreeSpace(aligned_size, file.io);
+    auto io = file.MakeRW();
+    auto free_result = FindFreeSpace(aligned_size, io);
     if (!free_result) {
         return cstd::unexpected(free_result.error());
     }
@@ -59,7 +59,7 @@ hdf5::expected<offset_t> LocalHeap::WriteBytes(cstd::span<const byte_t> data, Fi
             return cstd::unexpected(reserve_result.error());
         }
 
-        free_result = FindFreeSpace(aligned_size, file.io);
+        free_result = FindFreeSpace(aligned_size, io);
         if (!free_result) {
             return cstd::unexpected(free_result.error());
         }
@@ -82,27 +82,27 @@ hdf5::expected<offset_t> LocalHeap::WriteBytes(cstd::span<const byte_t> data, Fi
         };
 
         offset_t new_block_offset = free->this_offset + aligned_size;
-        file.io.SetPosition(data_segment_address + new_block_offset);
-        serde::Write(file.io, new_block);
+        io.SetPosition(data_segment_address + new_block_offset);
+        serde::Write(io, new_block);
 
         if (free->prev_block_offset.has_value()) {
-            file.io.SetPosition(data_segment_address + *free->prev_block_offset);
-            auto block = serde::Read<FreeListBlock>(file.io);
+            io.SetPosition(data_segment_address + *free->prev_block_offset);
+            auto block = serde::Read<FreeListBlock>(io);
 
             block.next_free_list_offset = new_block_offset;
-            file.io.SetPosition(data_segment_address + *free->prev_block_offset);
-            serde::Write(file.io, block);
+            io.SetPosition(data_segment_address + *free->prev_block_offset);
+            serde::Write(io, block);
         } else {
             free_list_head_offset = new_block_offset;
         }
     } else {
         if (free->prev_block_offset.has_value()) {
-            file.io.SetPosition(data_segment_address + *free->prev_block_offset);
-            auto block = serde::Read<FreeListBlock>(file.io);
+            io.SetPosition(data_segment_address + *free->prev_block_offset);
+            auto block = serde::Read<FreeListBlock>(io);
 
             block.next_free_list_offset = free->block.next_free_list_offset;
-            file.io.SetPosition(data_segment_address + *free->prev_block_offset);
-            serde::Write(file.io, block);
+            io.SetPosition(data_segment_address + *free->prev_block_offset);
+            serde::Write(io, block);
         } else {
             if (free->block.next_free_list_offset == kLastFreeBlock) {
                 free_list_head_offset = kUndefinedOffset;
@@ -112,30 +112,29 @@ hdf5::expected<offset_t> LocalHeap::WriteBytes(cstd::span<const byte_t> data, Fi
         }
     }
 
-    file.io.SetPosition(data_segment_address + free->this_offset);
-    file.io.WriteBuffer(data);
+    io.SetPosition(data_segment_address + free->this_offset);
+    io.WriteBuffer(data);
 
     for (len_t i = 0; i < aligned_size - data.size(); ++i) {
-        serde::Write(file.io, byte_t{});
+        serde::Write(io, byte_t{});
     }
 
-    RewriteToFile(file.io);
+    RewriteToFile(io);
 
     return free->this_offset;
 }
 
 // note: this method does not rewrite to file
-__device__ __host__
+__device__
 hdf5::expected<void> LocalHeap::ReserveAdditional(FileLink& file, size_t additional_bytes) {
     // 1. determine new size + alloc
-    size_t new_size = std::max(
-        data_segment_size * 2,
-        data_segment_size + additional_bytes
-    );
+    // TODO: windows defines max as a macro :(
+    size_t new_size = data_segment_size * 2 > data_segment_size + additional_bytes ? data_segment_size * 2 : data_segment_size + additional_bytes;
 
     new_size = EightBytesAlignedSize(new_size);
 
-    offset_t alloc = file.AllocateAtEOF(new_size);
+    auto io = file.MakeRW();
+    offset_t alloc = file.AllocateAtEOF(new_size, io);
 
     // 2. move data
 
@@ -149,15 +148,15 @@ hdf5::expected<void> LocalHeap::ReserveAdditional(FileLink& file, size_t additio
     cstd::array<byte_t, kMaxBufferSizeBytes> buffer{};
     cstd::span buffer_span(buffer.data(), data_segment_size);
 
-    file.io.SetPosition(data_segment_address);
-    file.io.ReadBuffer(buffer_span);
+    io.SetPosition(data_segment_address);
+    io.ReadBuffer(buffer_span);
 
-    file.io.SetPosition(alloc);
-    file.io.WriteBuffer(buffer_span);
+    io.SetPosition(alloc);
+    io.WriteBuffer(buffer_span);
 
     // TODO: additional bytes are already zeroed since writing to EOF?
     for (len_t i = 0; i < new_size - data_segment_size; ++i) {
-        serde::Write(file.io, byte_t{});
+        serde::Write(io, byte_t{});
     }
 
     // 4. update free list
@@ -170,8 +169,8 @@ hdf5::expected<void> LocalHeap::ReserveAdditional(FileLink& file, size_t additio
         block.next_free_list_offset = free_list_head_offset;
     }
 
-    file.io.SetPosition(alloc + data_segment_size);
-    serde::Write(file.io, block);
+    io.SetPosition(alloc + data_segment_size);
+    serde::Write(io, block);
 
     free_list_head_offset = data_segment_size;
 

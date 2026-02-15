@@ -1,8 +1,5 @@
 #pragma once
 
-#include <string>
-#include <cstdint>
-
 #include "types.h"
 #include "../serialization/serialization.h"
 #include "gpu_string.h"
@@ -16,7 +13,7 @@ struct LocalHeap {
 
     // TODO(cuda_vector): many calls of this function don't need ownership; 'LocalHeap::ViewString'?
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     [[nodiscard]] hdf5::expected<hdf5::string> ReadString(offset_t offset, D& de) const {
         if (offset >= data_segment_size) {
             return hdf5::error(hdf5::HDF5ErrorCode::IndexOutOfBounds, "LocalHeap: offset out of bounds");
@@ -29,22 +26,24 @@ struct LocalHeap {
         return ReadNullTerminatedString(de, rem_size);
     }
 
+    __device__
     hdf5::expected<offset_t> WriteString(hdf5::string_view string, FileLink& file);
 
+    __device__
     static cstd::tuple<LocalHeap, offset_t> AllocateNew(FileLink& file, len_t min_size);
 
     template<serde::Serializer S> requires serde::Seekable<S>
-    __device__ __host__
+    __device__
     void RewriteToFile(S& s) const {
         s.SetPosition(this_offset);
         serde::Write(s, *this);
     }
 
     template<serde::Serializer S>
-    __device__ __host__
+    __device__
     void Serialize(S& s) const {
-        serde::Write(s, kSignature);
-        serde::Write(s, kVersionNumber);
+        serde::Write(s, cstd::array<uint8_t, 4>{ 'H', 'E', 'A', 'P' });
+        serde::Write(s, static_cast<uint8_t>(0x00));
 
         // reserved (zero)
         serde::Write(s, cstd::array<byte_t, 3>{});
@@ -55,15 +54,15 @@ struct LocalHeap {
     }
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     static hdf5::expected<LocalHeap> Deserialize(D& de) {
         offset_t this_offset = de.GetPosition();
 
-        if (serde::Read<cstd::array<uint8_t, 4>>(de) != kSignature) {
+        if (serde::Read<cstd::array<uint8_t, 4>>(de) != cstd::array<uint8_t, 4>{ 'H', 'E', 'A', 'P' }) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidSignature, "LocalHeap signature was invalid");
         }
 
-        if (serde::Read<uint8_t>(de) != kVersionNumber) {
+        if (serde::Read<uint8_t>(de) != static_cast<uint8_t>(0x00)) {
             return hdf5::error(hdf5::HDF5ErrorCode::InvalidVersion, "LocalHeap version number was invalid");
         }
         // reserved (zero)
@@ -96,7 +95,7 @@ private:
     };
 
     template<serde::Deserializer D>
-    __device__ __host__
+    __device__
     hdf5::expected<cstd::optional<SuitableFreeSpace>> FindFreeSpace(len_t required_size, D& de) const {
         static_assert(sizeof(FreeListBlock) == 2 * sizeof(len_t), "mismatch between spec");
 
@@ -130,8 +129,10 @@ private:
         return cstd::nullopt;
     }
 
+    __device__
     hdf5::expected<offset_t> WriteBytes(cstd::span<const byte_t> data, FileLink& file);
 
+    __device__
     hdf5::expected<void> ReserveAdditional(FileLink& file, size_t additional_bytes);
 
 private:

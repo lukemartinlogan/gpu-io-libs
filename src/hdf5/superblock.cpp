@@ -1,11 +1,8 @@
-#include <stdexcept>
-#include <array>
-
 #include "superblock.h"
 #include "../util/lookup3.h"
 
 
-__device__ __host__
+__device__
 uint32_t SuperblockV2::Checksum() const { // NOLINT
     struct ChecksumData {
         cstd::array<uint8_t, 8> signature = kSuperblockSignature;

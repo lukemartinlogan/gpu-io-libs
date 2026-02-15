@@ -1,7 +1,6 @@
 #include "hyperslab.h"
 
-#include <algorithm>
-
+__device__
 hdf5::expected<HyperslabIterator> HyperslabIterator::New(
     const coord_t& start,
     const coord_t& count,
@@ -18,9 +17,10 @@ hdf5::expected<HyperslabIterator> HyperslabIterator::New(
         return cstd::unexpected(*error);
     }
 
-    return HyperslabIterator(start, count, std::move(norm_stride), std::move(norm_block), dataset_dims);
+    return HyperslabIterator(start, count, cstd::move(norm_stride), cstd::move(norm_block), dataset_dims);
 }
 
+__device__
 HyperslabIterator::HyperslabIterator(
     const coord_t& start,
     const coord_t& count,
@@ -41,6 +41,7 @@ HyperslabIterator::HyperslabIterator(
     count_index_.resize(n_dims, 0);
 }
 
+__device__
 bool HyperslabIterator::Advance() {
     if (at_end_) {
         return false;
@@ -79,6 +80,7 @@ bool HyperslabIterator::Advance() {
     return false;
 }
 
+__device__
 hdf5::expected<uint64_t> HyperslabIterator::GetLinearIndex() const {
     if (at_end_) {
         return hdf5::error(hdf5::HDF5ErrorCode::IteratorAtEnd, "Iterator is at end");
@@ -103,6 +105,37 @@ hdf5::expected<uint64_t> HyperslabIterator::GetLinearIndex() const {
     return linear_index;
 }
 
+__device__
+hdf5::expected<ContiguousRun> HyperslabIterator::GetNextContiguousRun() {
+    if (at_end_) {
+        return hdf5::error(hdf5::HDF5ErrorCode::IteratorAtEnd, "Iterator is at end");
+    }
+
+    auto start_idx_result = GetLinearIndex();
+    if (!start_idx_result) {
+        return cstd::unexpected(start_idx_result.error());
+    }
+    uint64_t start_idx = *start_idx_result;
+    uint64_t run_length = 1;
+
+    while (Advance()) {
+        auto next_idx_result = GetLinearIndex();
+        if (!next_idx_result) {
+            break;
+        }
+
+        if (*next_idx_result == start_idx + run_length) {
+            run_length++;
+        } else {
+            // iterator is now positioned at the start of the next run
+            break;
+        }
+    }
+
+    return ContiguousRun{start_idx, run_length};
+}
+
+__device__
 hdf5::expected<uint64_t> HyperslabIterator::GetTotalElements() const {
     if (count_.empty()) {
         return hdf5::error(hdf5::HDF5ErrorCode::EmptyParameter, "Count is empty");
@@ -111,7 +144,8 @@ hdf5::expected<uint64_t> HyperslabIterator::GetTotalElements() const {
     uint64_t total_elements = 1;
 
     for (size_t dim = 0; dim < count_.size(); ++dim) {
-        if (total_elements > std::numeric_limits<uint64_t>::max() / (count_[dim] * block_[dim])) {
+        // TODO: windows defines max as a macro :(
+        if (total_elements > static_cast<uint64_t>(-1) / (count_[dim] * block_[dim])) {
             return hdf5::error(hdf5::HDF5ErrorCode::SelectionOverflow, "Hyperslab selection too large");
         }
 
@@ -121,6 +155,7 @@ hdf5::expected<uint64_t> HyperslabIterator::GetTotalElements() const {
     return total_elements;
 }
 
+__device__
 void HyperslabIterator::Reset() {
     at_end_ = false;
 
@@ -130,6 +165,7 @@ void HyperslabIterator::Reset() {
     current_coord_ = start_;
 }
 
+__device__
 cstd::optional<hdf5::HDF5Error> HyperslabIterator::ValidateParams(
     const coord_t& start,
     const coord_t& count,
