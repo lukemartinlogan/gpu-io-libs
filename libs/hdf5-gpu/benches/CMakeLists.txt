@@ -38,15 +38,15 @@ file(GLOB_RECURSE BENCH_SOURCES
 
 # Collect HDF5 library sources (need to compile with benchmark)
 file(GLOB_RECURSE HDF5_SOURCES
-    ${CMAKE_SOURCE_DIR}/src/hdf5/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/hdf5/*.cpp
 )
 
 # Create benchmark executable
 add_executable(hdf5_benchmarks
     ${BENCH_SOURCES}
     ${HDF5_SOURCES}
-    ${CMAKE_SOURCE_DIR}/src/iowarp/gpu_posix.cu
-    ${CMAKE_SOURCE_DIR}/src/iowarp/cpu_polling.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/iowarp/gpu_posix.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/iowarp/cpu_polling.cpp
 )
 
 # Set HDF5 cpp files to compile as CUDA
@@ -54,7 +54,7 @@ set_source_files_properties(${HDF5_SOURCES} PROPERTIES LANGUAGE CUDA)
 set_source_files_properties(${CMAKE_SOURCE_DIR}/src/iowarp/cpu_polling.cpp PROPERTIES LANGUAGE CUDA)
 
 target_include_directories(hdf5_benchmarks PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
     ${CMAKE_CURRENT_SOURCE_DIR}/common
     ${cccl_SOURCE_DIR}/libcudacxx/include
     ${cccl_SOURCE_DIR}/thrust

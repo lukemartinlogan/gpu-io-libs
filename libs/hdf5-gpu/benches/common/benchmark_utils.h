@@ -17,9 +17,9 @@
 
 namespace bench_utils {
 
-inline const char* DATA_DIR = "benches/data/";
-inline const char* BENCH_DATA_FILE = "benches/data/bench_data.h5";
-inline const char* BENCH_INDICES_FILE = "benches/data/bench_indices.h5";
+inline const char* DATA_DIR = "libs/hdf5-gpu/benches/data/";
+inline const char* BENCH_DATA_FILE = "libs/hdf5-gpu/benches/data/bench_data.h5";
+inline const char* BENCH_INDICES_FILE = "libs/hdf5-gpu/benches/data/bench_indices.h5";
 
 // matches generate_data.py
 inline constexpr size_t SIZE_1D = 10000;

@@ -125,4 +125,4 @@ message(STATUS "Building with CUDA and libcu++ support")
 
 # Add subdirectories
 add_subdirectory(test)
-add_subdirectory(benchmarks)
+add_subdirectory(benches)
