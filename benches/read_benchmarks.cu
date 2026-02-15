@@ -697,6 +697,184 @@ BENCHMARK(BM_GPU_HyperslabRead_Int32)
     ->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)
     ->Unit(benchmark::kMillisecond);
 
+// ============================================================================
+// Warm Cache Benchmarks - Measure only data transfer, not file/dataset open
+// ============================================================================
+
+static void BM_GPU_SequentialRead_Double_WarmCache(benchmark::State& state) {
+    const size_t count = state.range(0);
+
+    // Setup buffers
+    double* d_output;
+    bool* h_success;
+    bool* d_success;
+    cudaMalloc(&d_output, count * sizeof(double));
+    cudaHostAlloc(&h_success, sizeof(bool), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_success, h_success, 0);
+
+    char* h_dsname;
+    char* d_dsname;
+    cudaHostAlloc(&h_dsname, 64, cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_dsname, h_dsname, 0);
+    strcpy(h_dsname, "data_1d_double");
+
+    Dataset** h_ds_ptr;
+    Dataset** d_ds_ptr;
+    cudaHostAlloc(&h_ds_ptr, sizeof(Dataset*), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_ds_ptr, h_ds_ptr, 0);
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    double total_kernel_ms = 0;
+    int iterations = 0;
+
+    // Benchmark loop - Reset and reopen each time, but only time the read
+    for (auto _ : state) {
+        // Reset arena (not timed)
+        g_gpu_ctx->builder.HostContext()->allocator_->Reset();
+
+        // Open file and dataset (not timed)
+        setup_dataset_kernel<double><<<1, 1>>>(
+            g_gpu_ctx->device_ctx(),
+            g_gpu_ctx->device_filepath(),
+            d_dsname,
+            d_ds_ptr,
+            d_success
+        );
+        cudaDeviceSynchronize();
+
+        if (!*h_success) {
+            state.SkipWithError("Failed to open file/dataset");
+            break;
+        }
+
+        // Time only the read operation
+        cudaEventRecord(start);
+        sequential_read_only_kernel<double><<<1, 1>>>(
+            *h_ds_ptr,
+            0,
+            count,
+            d_output,
+            d_success
+        );
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+
+        if (!*h_success) {
+            state.SkipWithError("GPU read operation failed");
+            break;
+        }
+
+        float kernel_ms;
+        cudaEventElapsedTime(&kernel_ms, start, stop);
+        total_kernel_ms += kernel_ms;
+        iterations++;
+    }
+
+    state.SetItemsProcessed(state.iterations() * count);
+    state.SetBytesProcessed(state.iterations() * count * sizeof(double));
+    state.counters["kernel_ms"] = total_kernel_ms / iterations;
+
+    // Cleanup
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    cudaFree(d_output);
+    cudaFreeHost(h_success);
+    cudaFreeHost(h_dsname);
+    cudaFreeHost(h_ds_ptr);
+}
+BENCHMARK(BM_GPU_SequentialRead_Double_WarmCache)
+    ->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)
+    ->Unit(benchmark::kMillisecond);
+
+static void BM_GPU_SequentialRead_Int32_WarmCache(benchmark::State& state) {
+    const size_t count = state.range(0);
+
+    // Setup buffers
+    int32_t* d_output;
+    bool* h_success;
+    bool* d_success;
+    cudaMalloc(&d_output, count * sizeof(int32_t));
+    cudaHostAlloc(&h_success, sizeof(bool), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_success, h_success, 0);
+
+    char* h_dsname;
+    char* d_dsname;
+    cudaHostAlloc(&h_dsname, 64, cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_dsname, h_dsname, 0);
+    strcpy(h_dsname, "data_1d_int32");
+
+    Dataset** h_ds_ptr;
+    Dataset** d_ds_ptr;
+    cudaHostAlloc(&h_ds_ptr, sizeof(Dataset*), cudaHostAllocMapped);
+    cudaHostGetDevicePointer(&d_ds_ptr, h_ds_ptr, 0);
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    double total_kernel_ms = 0;
+    int iterations = 0;
+
+    // Benchmark loop - Reset and reopen each time, but only time the read
+    for (auto _ : state) {
+        // Reset arena (not timed)
+        g_gpu_ctx->builder.HostContext()->allocator_->Reset();
+
+        // Open file and dataset (not timed)
+        setup_dataset_kernel<int32_t><<<1, 1>>>(
+            g_gpu_ctx->device_ctx(),
+            g_gpu_ctx->device_filepath(),
+            d_dsname,
+            d_ds_ptr,
+            d_success
+        );
+        cudaDeviceSynchronize();
+
+        if (!*h_success) {
+            state.SkipWithError("Failed to open file/dataset");
+            break;
+        }
+
+        // Time only the read operation
+        cudaEventRecord(start);
+        sequential_read_only_kernel<int32_t><<<1, 1>>>(
+            *h_ds_ptr,
+            0,
+            count,
+            d_output,
+            d_success
+        );
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+
+        if (!*h_success) {
+            state.SkipWithError("GPU read operation failed");
+            break;
+        }
+
+        float kernel_ms;
+        cudaEventElapsedTime(&kernel_ms, start, stop);
+        total_kernel_ms += kernel_ms;
+        iterations++;
+    }
+
+    state.SetItemsProcessed(state.iterations() * count);
+    state.SetBytesProcessed(state.iterations() * count * sizeof(int32_t));
+    state.counters["kernel_ms"] = total_kernel_ms / iterations;
+
+    // Cleanup
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    cudaFree(d_output);
+    cudaFreeHost(h_success);
+    cudaFreeHost(h_dsname);
+    cudaFreeHost(h_ds_ptr);
+}
+BENCHMARK(BM_GPU_SequentialRead_Int32_WarmCache)
+    ->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)
+    ->Unit(benchmark::kMillisecond);
+
 static void BM_GPU_SequentialWrite_Double(benchmark::State& state) {
     const size_t count = state.range(0);
 
@@ -1196,6 +1374,49 @@ static void BM_CPU_SequentialRead_Int32(benchmark::State& state) {
     state.SetBytesProcessed(state.iterations() * count * sizeof(int32_t));
 }
 BENCHMARK(BM_CPU_SequentialRead_Int32)
+    ->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)
+    ->Unit(benchmark::kMillisecond);
+
+// CPU Warm Cache - Open file/dataset once, only time the read
+static void BM_CPU_SequentialRead_Double_WarmCache(benchmark::State& state) {
+    const size_t count = state.range(0);
+    std::vector<double> buffer(count);
+    std::string filepath = bench_utils::BENCH_DATA_FILE;
+
+    // Open file and dataset once before the loop
+    hdf5_ref::File file(filepath);
+    hdf5_ref::Dataset dataset(file.id(), "data_1d_double");
+
+    for (auto _ : state) {
+        dataset.read_sequential<double>(buffer.data(), 0, count);
+        benchmark::DoNotOptimize(buffer.data());
+    }
+
+    state.SetItemsProcessed(state.iterations() * count);
+    state.SetBytesProcessed(state.iterations() * count * sizeof(double));
+}
+BENCHMARK(BM_CPU_SequentialRead_Double_WarmCache)
+    ->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)
+    ->Unit(benchmark::kMillisecond);
+
+static void BM_CPU_SequentialRead_Int32_WarmCache(benchmark::State& state) {
+    const size_t count = state.range(0);
+    std::vector<int32_t> buffer(count);
+    std::string filepath = bench_utils::BENCH_DATA_FILE;
+
+    // Open file and dataset once before the loop
+    hdf5_ref::File file(filepath);
+    hdf5_ref::Dataset dataset(file.id(), "data_1d_int32");
+
+    for (auto _ : state) {
+        dataset.read_sequential<int32_t>(buffer.data(), 0, count);
+        benchmark::DoNotOptimize(buffer.data());
+    }
+
+    state.SetItemsProcessed(state.iterations() * count);
+    state.SetBytesProcessed(state.iterations() * count * sizeof(int32_t));
+}
+BENCHMARK(BM_CPU_SequentialRead_Int32_WarmCache)
     ->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)
     ->Unit(benchmark::kMillisecond);
 
