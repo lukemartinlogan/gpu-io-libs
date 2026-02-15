@@ -107,6 +107,7 @@ if(CMAKE_CUDA_COMPILER)
     set_target_properties(hdf5_lib PROPERTIES
         CUDA_SEPARABLE_COMPILATION ON
         CUDA_RESOLVE_DEVICE_SYMBOLS OFF
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
     )
     # Suppress NVCC warnings like iowarp does
     target_compile_options(hdf5_lib PUBLIC
