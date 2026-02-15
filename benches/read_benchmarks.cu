@@ -16,7 +16,7 @@
 static bench_utils::GpuBenchContext* g_gpu_ctx = nullptr;
 
 // Path to working copy for write tests
-static const char* WRITE_TEST_FILE = "../benches/data/bench_write_copy.h5";
+static const char* WRITE_TEST_FILE = "benches/data/bench_write_copy.h5";
 static char* g_d_write_filepath = nullptr;
 static char* g_h_write_filepath = nullptr;
 
@@ -1627,7 +1627,7 @@ void debug_create_group() {
     // Copy benchmark file for write test
     std::filesystem::copy_file(
         bench_utils::BENCH_DATA_FILE,
-        "../benches/data/create_group_test.h5",
+        "benches/data/create_group_test.h5",
         std::filesystem::copy_options::overwrite_existing
     );
 
@@ -1646,7 +1646,7 @@ void debug_create_group() {
     cudaHostAlloc(&h_result, sizeof(int), cudaHostAllocMapped);
     cudaHostGetDevicePointer(&d_result, h_result, 0);
 
-    strcpy(h_filepath, "../benches/data/create_group_test.h5");
+    strcpy(h_filepath, "benches/data/create_group_test.h5");
     strcpy(h_groupname, "new_test_group");
 
     printf("Testing CreateGroup on: %s\n", h_filepath);
