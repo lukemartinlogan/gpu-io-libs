@@ -93,7 +93,7 @@ __device__
 void test_read_groups(iowarp::GpuContext* ctx) {
     printf("\n=== Test: Read Groups ===\n");
 
-    auto file_result = File::New("../../data/test_groups.h5", ctx);
+    auto file_result = File::New("data/test_groups.h5", ctx);
     CHECK_EXPECTED(file_result, "Open test_groups.h5");
     File file = cstd::move(*file_result);
 
@@ -172,7 +172,7 @@ __device__
 void test_read_datatypes(iowarp::GpuContext* ctx) {
     printf("\n=== Test: Read Various Datatypes ===\n");
 
-    auto file_result = File::New("../../data/test_datatypes.h5", ctx);
+    auto file_result = File::New("data/test_datatypes.h5", ctx);
     CHECK_EXPECTED(file_result, "Open test_datatypes.h5");
     File file = cstd::move(*file_result);
 
@@ -216,7 +216,7 @@ __device__
 void test_write_operations(iowarp::GpuContext* ctx) {
     printf("\n=== Test: Write Operations ===\n");
 
-    auto file_result = File::New("../../data/test_write_target.h5", ctx);
+    auto file_result = File::New("data/test_write_target.h5", ctx);
     CHECK_EXPECTED(file_result, "Open test_write_target.h5");
     File file = cstd::move(*file_result);
 
@@ -250,7 +250,7 @@ void test_create_file(iowarp::GpuContext* ctx) {
 
     // Create a new file
     printf("  Creating new file...\n");
-    auto file_result = File::New("../../data/test_created.h5", ctx);
+    auto file_result = File::New("data/test_created.h5", ctx);
     CHECK_EXPECTED(file_result, "Create test_created.h5");
     File file = cstd::move(*file_result);
 
@@ -486,7 +486,7 @@ int main() {
         return 1;
     }
     cudaHostGetDevicePointer(&d_test_basic_path, h_test_basic_path, 0);
-    strcpy(h_test_basic_path, "/IdeaProjects/gpu-io-libs/data/test_basic.h5");
+    strcpy(h_test_basic_path, "data/test_basic.h5");
 
     printf("Running GPU tests...\n\n");
 
