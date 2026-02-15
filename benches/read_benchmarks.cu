@@ -240,6 +240,65 @@ __global__ void sequential_read_kernel(
     }
 }
 
+// Setup kernel - opens file and dataset, stores persistent Dataset pointer
+template<typename T>
+__global__ void setup_dataset_kernel(
+    iowarp::GpuContext* ctx,
+    const char* filepath,
+    const char* dataset_name,
+    Dataset** ds_out,
+    bool* success
+) {
+    if (threadIdx.x == 0 && blockIdx.x == 0) {
+        *success = false;
+
+        auto file_result = File::New(filepath, ctx);
+        if (!file_result) return;
+        File file = cstd::move(*file_result);
+
+        Group root = file.RootGroup();
+
+        auto ds_result = root.OpenDataset(dataset_name);
+        if (!ds_result) return;
+
+        // Allocate Dataset in arena memory (will persist)
+        auto ds_ptr = ctx->allocator_->Allocate<Dataset>(1);
+
+        // Move-construct the dataset at the allocated location
+        Dataset* raw_ptr = &(*ds_ptr);
+        new (raw_ptr) Dataset(cstd::move(*ds_result));
+        *ds_out = raw_ptr;
+
+        *success = true;
+    }
+}
+
+// Kernel that only performs the read, with pre-opened dataset
+// Measures pure data transfer performance without file/dataset open overhead
+template<typename T>
+__global__ void sequential_read_only_kernel(
+    Dataset* ds,
+    size_t offset,
+    size_t count,
+    T* output,
+    bool* success
+) {
+    if (threadIdx.x == 0 && blockIdx.x == 0) {
+        *success = false;
+
+        // Use bulk Read (single I/O call for all elements)
+        cstd::span<byte_t> buffer(
+            reinterpret_cast<byte_t*>(output),
+            count * sizeof(T)
+        );
+
+        auto read_result = ds->Read(buffer, offset, count);
+        if (!read_result) return;
+
+        *success = true;
+    }
+}
+
 // Kernel using Dataset::ReadHyperslab() - tests our GetNextContiguousRun optimization
 template<typename T>
 __global__ void hyperslab_read_kernel(
@@ -274,6 +333,34 @@ __global__ void hyperslab_read_kernel(
         );
 
         auto read_result = ds.ReadHyperslab(buffer, start_vec, count_vec);
+        if (!read_result) return;
+
+        *success = true;
+    }
+}
+
+// Kernel that only performs hyperslab read, with pre-opened dataset
+template<typename T>
+__global__ void hyperslab_read_only_kernel(
+    Dataset* ds,
+    size_t offset,
+    size_t count,
+    T* output,
+    bool* success
+) {
+    if (threadIdx.x == 0 && blockIdx.x == 0) {
+        *success = false;
+
+        // Use ReadHyperslab (tests our contiguous run optimization)
+        hdf5::dim_vector<uint64_t> start_vec(1, offset);
+        hdf5::dim_vector<uint64_t> count_vec(1, count);
+
+        cstd::span<byte_t> buffer(
+            reinterpret_cast<byte_t*>(output),
+            count * sizeof(T)
+        );
+
+        auto read_result = ds->ReadHyperslab(buffer, start_vec, count_vec);
         if (!read_result) return;
 
         *success = true;
