@@ -16,4 +16,10 @@ CROSS_FUN void copy(cstd::span<const T> src, cstd::span<T> dst) {
     }
 }
 
+// Overload for non-const source (delegates to const version)
+template<typename T>
+CROSS_FUN void copy(cstd::span<T> src, cstd::span<T> dst) {
+    copy(cstd::span<const T>(src.data(), src.size()), dst);
+}
+
 } // namespace algorithms
