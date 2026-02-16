@@ -16,12 +16,14 @@ add_executable(kvhdf5_tests
     types_test.cpp
     datatype_test.cpp
     context_test.cpp
+    metadata_test.cpp
     integration/iowarp/vector_test.cpp
 )
 
 # Compile iowarp-related tests as CUDA (they use hermes_shm atomics)
 set_source_files_properties(
     context_test.cpp
+    metadata_test.cpp
     integration/iowarp/vector_test.cpp
     PROPERTIES LANGUAGE CUDA
 )
