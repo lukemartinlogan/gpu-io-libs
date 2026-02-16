@@ -14,6 +14,7 @@ add_executable(kvhdf5_tests
     gpu_string_test.cpp
     serde_test.cpp
     types_test.cpp
+    datatype_test.cpp
 )
 
 target_link_libraries(kvhdf5_tests PRIVATE
