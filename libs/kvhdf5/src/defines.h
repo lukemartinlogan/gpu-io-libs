@@ -11,6 +11,8 @@
 
 namespace cstd = cuda::std;
 
+using cstd::size_t;
+
 namespace kvhdf5 {
 
 using byte_t = cstd::byte;
