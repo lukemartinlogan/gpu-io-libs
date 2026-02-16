@@ -3,6 +3,8 @@
 #include "defines.h"
 #include <cuda/std/span>
 #include <cuda/std/type_traits>
+#include <cuda/std/array>
+#include <cuda/std/bit>
 
 namespace serde {
 
@@ -35,9 +37,9 @@ CROSS_FUN void Write(S&& s, const T& data) {
 
 template<typename T, Deserializer D> requires (SerializePOD<T>::value && IsPOD<T>)
 CROSS_FUN T Read(D&& d) {
-    T out;
-    d.ReadBuffer(cstd::as_writable_bytes(cstd::span(&out, 1)));
-    return out;
+    alignas(T) cstd::array<kvhdf5::byte_t, sizeof(T)> storage;
+    d.ReadBuffer(cstd::span(storage.data(), storage.size()));
+    return cstd::bit_cast<T>(storage);
 }
 
 template<Seekable S>
