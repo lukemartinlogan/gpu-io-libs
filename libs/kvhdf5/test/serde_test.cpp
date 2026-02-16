@@ -27,7 +27,7 @@ TEST_CASE("Serde - Primitive types round-trip", "[serde]") {
         uint8_t val = 42;
         serde::Write(rw, val);
         rw.SetPosition(0);
-        uint8_t result = serde::Read<uint8_t>(rw);
+        auto result = serde::Read<uint8_t>(rw);
         CHECK(result == val);
     }
 
@@ -35,7 +35,7 @@ TEST_CASE("Serde - Primitive types round-trip", "[serde]") {
         uint16_t val = 12345;
         serde::Write(rw, val);
         rw.SetPosition(0);
-        uint16_t result = serde::Read<uint16_t>(rw);
+        auto result = serde::Read<uint16_t>(rw);
         CHECK(result == val);
     }
 
@@ -43,7 +43,7 @@ TEST_CASE("Serde - Primitive types round-trip", "[serde]") {
         uint32_t val = 0xDEADBEEF;
         serde::Write(rw, val);
         rw.SetPosition(0);
-        uint32_t result = serde::Read<uint32_t>(rw);
+        auto result = serde::Read<uint32_t>(rw);
         CHECK(result == val);
     }
 
@@ -51,7 +51,7 @@ TEST_CASE("Serde - Primitive types round-trip", "[serde]") {
         uint64_t val = 0xCAFEBABEDEADBEEF;
         serde::Write(rw, val);
         rw.SetPosition(0);
-        uint64_t result = serde::Read<uint64_t>(rw);
+        auto result = serde::Read<uint64_t>(rw);
         CHECK(result == val);
     }
 
@@ -59,7 +59,7 @@ TEST_CASE("Serde - Primitive types round-trip", "[serde]") {
         float val = 3.14159f;
         serde::Write(rw, val);
         rw.SetPosition(0);
-        float result = serde::Read<float>(rw);
+        auto result = serde::Read<float>(rw);
         CHECK(result == val);
     }
 
@@ -67,7 +67,7 @@ TEST_CASE("Serde - Primitive types round-trip", "[serde]") {
         double val = 2.718281828;
         serde::Write(rw, val);
         rw.SetPosition(0);
-        double result = serde::Read<double>(rw);
+        auto result = serde::Read<double>(rw);
         CHECK(result == val);
     }
 
@@ -77,8 +77,8 @@ TEST_CASE("Serde - Primitive types round-trip", "[serde]") {
         serde::Write(rw, val_true);
         serde::Write(rw, val_false);
         rw.SetPosition(0);
-        bool result_true = serde::Read<bool>(rw);
-        bool result_false = serde::Read<bool>(rw);
+        auto result_true = serde::Read<bool>(rw);
+        auto result_false = serde::Read<bool>(rw);
         CHECK(result_true == true);
         CHECK(result_false == false);
     }
@@ -92,7 +92,7 @@ TEST_CASE("Serde - Custom POD struct round-trip", "[serde]") {
     Write(rw, original);
 
     rw.SetPosition(0);
-    TestPOD result = serde::Read<TestPOD>(rw);
+    auto result = serde::Read<TestPOD>(rw);
 
     CHECK(result == original);
     CHECK(result.a == 123);
@@ -271,6 +271,6 @@ TEST_CASE("Serde - Endianness consistency", "[serde]") {
 
     // Read back - should match regardless of byte order
     rw.SetPosition(0);
-    uint32_t result = serde::Read<uint32_t>(rw);
+    auto result = serde::Read<uint32_t>(rw);
     CHECK(result == val);
 }
