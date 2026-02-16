@@ -1,7 +1,9 @@
 #pragma once
 
 #include "../defines.h"
+#include "../serde.h"
 #include <cuda/std/array>
+#include <cuda/std/span>
 
 namespace kvhdf5 {
 
@@ -68,6 +70,13 @@ struct gpu_string_view {
         if (count == size_t(-1) || pos + count > length_)
             actual = length_ - pos;
         return {data_ + pos, actual};
+    }
+
+    template<serde::Serializer S>
+    CROSS_FUN void Serialize(S& s) const {
+        // Write length, then characters (no null terminator)
+        serde::Write(s, static_cast<uint32_t>(length_));
+        s.WriteBuffer(cstd::span(reinterpret_cast<const byte_t*>(data_), length_));
     }
 };
 
@@ -143,6 +152,25 @@ struct gpu_string {
     CROSS_FUN void clear() {
         length_ = 0;
         data_[0] = '\0';
+    }
+
+    // Serialization support - delegates to gpu_string_view
+    template<serde::Serializer S>
+    CROSS_FUN void Serialize(S& s) const {
+        gpu_string_view(*this).Serialize(s);
+    }
+
+    template<serde::Deserializer D>
+    CROSS_FUN static gpu_string Deserialize(D& d) {
+        uint32_t len = serde::Read<uint32_t>(d);
+        KVHDF5_ASSERT(len <= MaxLen, "Deserialized string exceeds capacity");
+
+        gpu_string result;
+        result.length_ = len;
+        d.ReadBuffer(cstd::span(reinterpret_cast<byte_t*>(result.data_.data()), len));
+        result.data_[len] = '\0';
+
+        return result;
     }
 };
 
