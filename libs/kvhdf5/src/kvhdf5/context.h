@@ -1,6 +1,6 @@
 #pragma once
 
-#include "defines.h"
+#include "../defines.h"
 #include "allocator.h"
 #include "hermes_shm/data_structures/priv/vector.h"
 
