@@ -11,19 +11,19 @@ list(APPEND CMAKE_MODULE_PATH ${Catch2_SOURCE_DIR}/extras)
 include(Catch)
 
 add_executable(kvhdf5_tests
-    gpu_string_test.cpp
-    serde_test.cpp
-    types_test.cpp
-    datatype_test.cpp
-    context_test.cpp
-    metadata_test.cpp
+    unit/gpu_string_test.cpp
+    unit/serde_test.cpp
+    unit/types_test.cpp
+    unit/datatype_test.cpp
+    unit/context_test.cpp
+    unit/metadata_test.cpp
     integration/iowarp/vector_test.cpp
 )
 
 # Compile iowarp-related tests as CUDA (they use hermes_shm atomics)
 set_source_files_properties(
-    context_test.cpp
-    metadata_test.cpp
+    unit/context_test.cpp
+    unit/metadata_test.cpp
     integration/iowarp/vector_test.cpp
     PROPERTIES LANGUAGE CUDA
 )
