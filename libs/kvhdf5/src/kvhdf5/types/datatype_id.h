@@ -11,6 +11,7 @@ struct DatatypeId {
     CROSS_FUN constexpr explicit DatatypeId(ObjectId oid) : id(oid) {}
     CROSS_FUN constexpr explicit DatatypeId(uint64_t raw) : id(raw) {}
 
+    CROSS_FUN constexpr uint64_t Id() const { return id.id; }
     CROSS_FUN constexpr bool IsValid() const { return id.IsValid(); }
     CROSS_FUN constexpr auto operator<=>(const DatatypeId&) const = default;
     CROSS_FUN constexpr bool operator==(const DatatypeId&) const = default;
