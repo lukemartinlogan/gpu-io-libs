@@ -20,7 +20,7 @@ if(CMAKE_CUDA_COMPILER)
 
     # Add subdirectories
     add_subdirectory(libs/hdf5-gpu)
-    # add_subdirectory(libs/kvhdf5)  # Future library
+    add_subdirectory(libs/kvhdf5)
 else()
     message(WARNING "CUDA not available - GPU libraries require CUDA")
 endif()
