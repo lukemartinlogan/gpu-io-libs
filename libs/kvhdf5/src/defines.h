@@ -8,6 +8,7 @@
 
 #include <cuda/std/cstdint>
 #include <cuda/std/cstddef>
+#include <cuda/std/cassert>
 
 namespace cstd = cuda::std;
 
