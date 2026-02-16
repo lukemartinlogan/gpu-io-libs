@@ -18,6 +18,9 @@ namespace kvhdf5 {
 
 using byte_t = cstd::byte;
 
+// Maximum number of dimensions supported for datasets/chunks
+constexpr size_t MAX_DIMS = 8;
+
 } // namespace kvhdf5
 
 #define KVHDF5_ASSERT(cond, msg) assert((cond) && (msg))
