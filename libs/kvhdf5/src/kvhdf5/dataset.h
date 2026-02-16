@@ -122,15 +122,7 @@ struct Attribute {
         return attr;
     }
 
-    CROSS_FUN bool operator==(const Attribute& other) const {
-        if (name != other.name) return false;
-        if (datatype != other.datatype) return false;
-        if (value.size() != other.value.size()) return false;
-        for (size_t i = 0; i < value.size(); ++i) {
-            if (value[i] != other.value[i]) return false;
-        }
-        return true;
-    }
+    CROSS_FUN constexpr bool operator==(const Attribute&) const = default;
 };
 
 struct DatasetMetadata {
