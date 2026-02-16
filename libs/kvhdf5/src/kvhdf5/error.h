@@ -7,7 +7,8 @@
 namespace kvhdf5 {
 
 enum class ErrorCode : uint8_t {
-    // Add error codes as needed during implementation
+    InvalidArgument,
+    // Add more error codes as needed during implementation
 };
 
 struct Error {
