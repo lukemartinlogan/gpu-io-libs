@@ -15,3 +15,6 @@ cmake/
 # CMake cache
 CMakeCache.txt
 CMakeFiles/
+
+# clangd cache
+.cache/clangd
