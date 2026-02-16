@@ -80,6 +80,10 @@ public:
         cursor_ = offset;
     }
 
+    CROSS_FUN void Reset() {
+        cursor_ = 0;
+    }
+
     CROSS_FUN cstd::span<kvhdf5::byte_t> GetWritten() const {
         return buf_.subspan(0, cursor_);
     }
