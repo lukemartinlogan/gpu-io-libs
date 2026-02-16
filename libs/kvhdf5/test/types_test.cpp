@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <kvhdf5/types.h>
 #include <utils/buffer.h>
+#include <cuda/std/array>
 
 using namespace kvhdf5;
 using serde::BufferReaderWriter;
@@ -196,7 +197,7 @@ TEST_CASE("ChunkKey multi-dimensional coordinate ordering", "[types]") {
 }
 
 TEST_CASE("ObjectId serialization", "[types]") {
-    byte_t buffer[256];
+    cstd::array<byte_t, 256> buffer;
     BufferReaderWriter rw(buffer);
 
     SECTION("Serialize and deserialize ObjectId") {
@@ -211,7 +212,7 @@ TEST_CASE("ObjectId serialization", "[types]") {
 }
 
 TEST_CASE("GroupId serialization", "[types]") {
-    byte_t buffer[256];
+    cstd::array<byte_t, 256> buffer;
     BufferReaderWriter rw(buffer);
 
     SECTION("Serialize and deserialize GroupId") {
@@ -226,7 +227,7 @@ TEST_CASE("GroupId serialization", "[types]") {
 }
 
 TEST_CASE("DatasetId serialization", "[types]") {
-    byte_t buffer[256];
+    cstd::array<byte_t, 256> buffer;
     BufferReaderWriter rw(buffer);
 
     SECTION("Serialize and deserialize DatasetId") {
@@ -241,7 +242,7 @@ TEST_CASE("DatasetId serialization", "[types]") {
 }
 
 TEST_CASE("DatatypeId serialization", "[types]") {
-    byte_t buffer[256];
+    cstd::array<byte_t, 256> buffer;
     BufferReaderWriter rw(buffer);
 
     SECTION("Serialize and deserialize DatatypeId") {
@@ -256,7 +257,7 @@ TEST_CASE("DatatypeId serialization", "[types]") {
 }
 
 TEST_CASE("ChunkKey serialization", "[types]") {
-    byte_t buffer[256];
+    cstd::array<byte_t, 256> buffer;
     BufferReaderWriter rw(buffer);
 
     SECTION("Serialize and deserialize ChunkKey") {
