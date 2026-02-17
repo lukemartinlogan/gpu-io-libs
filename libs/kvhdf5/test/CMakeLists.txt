@@ -17,6 +17,7 @@ add_executable(kvhdf5_tests
     unit/datatype_test.cpp
     unit/context_test.cpp
     unit/metadata_test.cpp
+    unit/blob_store_test.cpp
     integration/iowarp/vector_test.cpp
 )
 
@@ -24,6 +25,7 @@ add_executable(kvhdf5_tests
 set_source_files_properties(
     unit/context_test.cpp
     unit/metadata_test.cpp
+    unit/blob_store_test.cpp
     integration/iowarp/vector_test.cpp
     PROPERTIES LANGUAGE CUDA
 )
