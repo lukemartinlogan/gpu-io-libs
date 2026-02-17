@@ -19,11 +19,31 @@ struct GroupEntry {
     ObjectId object_id;
     gpu_string<255> name;
 
+    // Constructor for group child
+    CROSS_FUN static GroupEntry NewGroup(GroupId id, gpu_string_view n) {
+        GroupEntry entry;
+        entry.kind = ChildKind::Group;
+        entry.object_id = id.id;
+        entry.name = gpu_string<255>(n);
+        return entry;
+    }
+
+    // Constructor for dataset child
+    CROSS_FUN static GroupEntry NewDataset(DatasetId id, gpu_string_view n) {
+        GroupEntry entry;
+        entry.kind = ChildKind::Dataset;
+        entry.object_id = id.id;
+        entry.name = gpu_string<255>(n);
+        return entry;
+    }
+
+private:
     CROSS_FUN GroupEntry() : kind(ChildKind::Group), object_id(), name() {}
 
     CROSS_FUN GroupEntry(ChildKind k, ObjectId oid, const gpu_string<255>& n)
         : kind(k), object_id(oid), name(n) {}
 
+public:
     template<serde::Serializer S>
     CROSS_FUN void Serialize(S& s) const {
         serde::Write(s, kind);
