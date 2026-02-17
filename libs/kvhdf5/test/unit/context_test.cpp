@@ -1,34 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <kvhdf5/context.h>
-#include "hermes_shm/memory/backend/array_backend.h"
-#include <cuda/std/cstring>
+#include "../common/allocator_fixture.h"
 
 using namespace kvhdf5;
-
-struct AllocatorFixture {
-    static constexpr size_t kHeapSize = 64 * 1024;  // 64KB
-    char* memory = nullptr;
-    hshm::ipc::ArrayBackend backend;
-    AllocatorImpl* allocator = nullptr;
-
-    AllocatorFixture() {
-        size_t alloc_size = kHeapSize + 3 * hshm::ipc::kBackendHeaderSize;
-        memory = new char[alloc_size];
-        cstd::memset(memory, 0, alloc_size);
-
-        if (backend.shm_init(hshm::ipc::MemoryBackendId::GetRoot(), alloc_size, memory)) {
-            allocator = backend.MakeAlloc<AllocatorImpl>();
-        }
-    }
-
-    ~AllocatorFixture() {
-        if (memory) {
-            delete[] memory;
-        }
-    }
-
-    bool IsValid() const { return allocator != nullptr; }
-};
+using AllocatorFixture = test::AllocatorFixture<AllocatorImpl>;
 
 TEST_CASE("Context construction", "[context]") {
     AllocatorFixture fixture;

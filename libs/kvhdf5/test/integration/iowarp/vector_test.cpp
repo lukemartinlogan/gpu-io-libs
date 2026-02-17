@@ -1,42 +1,14 @@
 #include <catch2/catch_test_macros.hpp>
 #include "hermes_shm/memory/allocator/arena_allocator.h"
-#include "hermes_shm/memory/backend/array_backend.h"
 #include "hermes_shm/data_structures/priv/vector.h"
-#include <cuda/std/cstring>
+#include "../../common/allocator_fixture.h"
 
 using Allocator = hshm::ipc::ArenaAllocator<false>;
 
 template<typename T>
 using vector = hshm::priv::vector<T, Allocator>;
 
-struct AllocatorFixture {
-    static constexpr size_t kHeapSize = 1024 * 1024;  // 1MB
-    char* memory = nullptr;
-    hshm::ipc::ArrayBackend backend;
-    Allocator* allocator = nullptr;
-
-    AllocatorFixture() {
-        size_t alloc_size = kHeapSize + 3 * hshm::ipc::kBackendHeaderSize;
-        memory = new char[alloc_size];
-        cuda::std::memset(memory, 0, alloc_size);
-
-        if (!backend.shm_init(hshm::ipc::MemoryBackendId::GetRoot(), alloc_size, memory)) {
-            delete[] memory;
-            memory = nullptr;
-            return;
-        }
-
-        allocator = backend.MakeAlloc<Allocator>();
-    }
-
-    ~AllocatorFixture() {
-        if (memory) {
-            delete[] memory;
-        }
-    }
-
-    bool IsValid() const { return allocator != nullptr; }
-};
+using AllocatorFixture = test::AllocatorFixture<Allocator>;
 
 TEST_CASE("iowarp vector basic construction", "[integration][iowarp]") {
     AllocatorFixture fixture;
