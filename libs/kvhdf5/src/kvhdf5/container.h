@@ -3,6 +3,7 @@
 #include "../defines.h"
 #include "blob_store.h"
 #include "context.h"
+#include "allocator.h"
 #include "types.h"
 #include "group.h"
 #include "dataset.h"
@@ -196,6 +197,17 @@ public:
 
     CROSS_FUN const Context& GetContext() const {
         return context_;
+    }
+
+    /**
+     * Get the allocator (convenience method for ProvidesAllocator concept).
+     */
+    CROSS_FUN AllocatorImpl& GetAllocator() {
+        return context_.GetAllocator();
+    }
+
+    CROSS_FUN const AllocatorImpl& GetAllocator() const {
+        return context_.GetAllocator();
     }
 
     /**
