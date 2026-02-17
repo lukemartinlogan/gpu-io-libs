@@ -96,8 +96,13 @@ struct Attribute {
     // For Phase 1: store small inline values (up to kMaxValueSize bytes)
     // Future: use CTE blob storage for large attributes
     cstd::inplace_vector<byte_t, kMaxValueSize> value;
-
-    CROSS_FUN Attribute() : name(), datatype(PrimitiveType::Kind::Int8), value() {}
+    
+    CROSS_FUN Attribute(gpu_string_view n, DatatypeRef dt, cstd::span<const byte_t> val)
+        : name(n), datatype(dt), value()
+    {
+        KVHDF5_ASSERT(val.size() <= kMaxValueSize, "Attribute value too large (max 128 bytes)");
+        value.insert(value.end(), val.begin(), val.end());
+    }
 
     template<serde::Serializer S>
     CROSS_FUN void Serialize(S& s) const {
@@ -110,16 +115,16 @@ struct Attribute {
 
     template<serde::Deserializer D>
     CROSS_FUN static Attribute Deserialize(D& d) {
-        Attribute attr;
-        attr.name = gpu_string<255>::Deserialize(d);
-        attr.datatype = DatatypeRef::Deserialize(d);
+        gpu_string<255> n = gpu_string<255>::Deserialize(d);
+        DatatypeRef dt = DatatypeRef::Deserialize(d);
         uint32_t size = serde::Read<uint32_t>(d);
 
         KVHDF5_ASSERT(size <= kMaxValueSize, "Attribute value too large");
-        attr.value.resize(size);
-        d.ReadBuffer(cstd::span(attr.value.data(), size));
 
-        return attr;
+        cstd::array<byte_t, kMaxValueSize> temp_buffer;
+        d.ReadBuffer(cstd::span(temp_buffer.data(), size));
+
+        return Attribute(n, dt, cstd::span<const byte_t>(temp_buffer.data(), size));
     }
 
     CROSS_FUN constexpr bool operator==(const Attribute&) const = default;
