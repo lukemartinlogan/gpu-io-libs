@@ -161,11 +161,11 @@ TEST_CASE("InMemoryBlobStore - Raw API", "[blob_store]") {
     }
 }
 
-TEST_CASE("TypedBlobStore - POD types", "[blob_store][typed]") {
+TEST_CASE("BlobStore - POD types", "[blob_store][typed]") {
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
     InMemoryBlobStore raw_store(fixture.allocator);
-    TypedBlobStore<InMemoryBlobStore> store(&raw_store);
+    BlobStore<InMemoryBlobStore> store(&raw_store);
 
     SECTION("Put and get POD key-value") {
         ObjectId key(42);
@@ -241,11 +241,11 @@ TEST_CASE("TypedBlobStore - POD types", "[blob_store][typed]") {
     }
 }
 
-TEST_CASE("TypedBlobStore - Custom value serialization", "[blob_store][typed]") {
+TEST_CASE("BlobStore - Custom value serialization", "[blob_store][typed]") {
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
     InMemoryBlobStore raw_store(fixture.allocator);
-    TypedBlobStore<InMemoryBlobStore> store(&raw_store);
+    BlobStore<InMemoryBlobStore> store(&raw_store);
     Context ctx(fixture.allocator);
 
     SECTION("Put and get GroupMetadata") {
@@ -337,11 +337,11 @@ TEST_CASE("TypedBlobStore - Custom value serialization", "[blob_store][typed]") 
 
 }
 
-TEST_CASE("TypedBlobStore - ChunkKey with POD value", "[blob_store][typed]") {
+TEST_CASE("BlobStore - ChunkKey with POD value", "[blob_store][typed]") {
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
     InMemoryBlobStore raw_store(fixture.allocator);
-    TypedBlobStore<InMemoryBlobStore> store(&raw_store);
+    BlobStore<InMemoryBlobStore> store(&raw_store);
 
     SECTION("Put and get with ChunkKey") {
         DatasetId dataset(1);

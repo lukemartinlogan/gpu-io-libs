@@ -40,13 +40,13 @@ concept ValueDeserializer = requires(Fn fn, serde::BufferDeserializer& reader) {
 };
 
 template<RawBlobStore BlobStoreImpl>
-class TypedBlobStore {
+class BlobStore {
     BlobStoreImpl* store_;
 
 public:
     static constexpr size_t DefaultMaxValueSize = 1024;
 
-    CROSS_FUN explicit TypedBlobStore(BlobStoreImpl* store) : store_(store) {}
+    CROSS_FUN explicit BlobStore(BlobStoreImpl* store) : store_(store) {}
 
     template<typename K, typename V>
         requires (serde::SerializePOD<K>::value && serde::SerializePOD<V>::value)
