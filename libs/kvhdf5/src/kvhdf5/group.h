@@ -19,7 +19,6 @@ struct GroupEntry {
     ObjectId object_id;
     gpu_string<255> name;
 
-    // Constructor for group child
     CROSS_FUN static GroupEntry NewGroup(GroupId id, gpu_string_view n) {
         GroupEntry entry;
         entry.kind = ChildKind::Group;
@@ -28,7 +27,6 @@ struct GroupEntry {
         return entry;
     }
 
-    // Constructor for dataset child
     CROSS_FUN static GroupEntry NewDataset(DatasetId id, gpu_string_view n) {
         GroupEntry entry;
         entry.kind = ChildKind::Dataset;
