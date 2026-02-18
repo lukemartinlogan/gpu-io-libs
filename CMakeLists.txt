@@ -13,6 +13,7 @@ endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Options to control which libraries to build
 option(BUILD_HDF5_GPU "Build hdf5-gpu library" ON)
