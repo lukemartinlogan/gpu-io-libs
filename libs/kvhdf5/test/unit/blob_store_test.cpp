@@ -253,8 +253,7 @@ TEST_CASE("BlobStore - Custom value serialization", "[blob_store][typed]") {
         GroupMetadata metadata{key, vector<GroupEntry>(fixture.allocator), vector<Attribute>(fixture.allocator)};
 
         // Add a child
-        GroupEntry child(ChildKind::Dataset, ObjectId(10), "test_dataset");
-        metadata.children.push_back(child);
+        metadata.children.push_back(GroupEntry::NewDataset(DatasetId(ObjectId(10)), "test_dataset"));
 
         // Put with custom serialization
         bool put_result = store.PutBlob(
@@ -283,10 +282,10 @@ TEST_CASE("BlobStore - Custom value serialization", "[blob_store][typed]") {
         GroupId key2(2);
 
         GroupMetadata meta1{key1, vector<GroupEntry>(fixture.allocator), vector<Attribute>(fixture.allocator)};
-        meta1.children.push_back(GroupEntry(ChildKind::Group, ObjectId(100), "child1"));
+        meta1.children.push_back(GroupEntry::NewGroup(GroupId(ObjectId(100)), "child1"));
 
         GroupMetadata meta2{key2, vector<GroupEntry>(fixture.allocator), vector<Attribute>(fixture.allocator)};
-        meta2.children.push_back(GroupEntry(ChildKind::Dataset, ObjectId(200), "child2"));
+        meta2.children.push_back(GroupEntry::NewDataset(DatasetId(ObjectId(200)), "child2"));
 
         // Put both
         store.PutBlob(key1, meta1, [](auto& s, const auto& v) { v.Serialize(s); });
@@ -311,11 +310,11 @@ TEST_CASE("BlobStore - Custom value serialization", "[blob_store][typed]") {
 
         // First metadata
         GroupMetadata meta1{key, vector<GroupEntry>(fixture.allocator), vector<Attribute>(fixture.allocator)};
-        meta1.children.push_back(GroupEntry(ChildKind::Group, ObjectId(10), "old"));
+        meta1.children.push_back(GroupEntry::NewGroup(GroupId(ObjectId(10)), "old"));
 
         // Second metadata
         GroupMetadata meta2{key, vector<GroupEntry>(fixture.allocator), vector<Attribute>(fixture.allocator)};
-        meta2.children.push_back(GroupEntry(ChildKind::Dataset, ObjectId(20), "new"));
+        meta2.children.push_back(GroupEntry::NewDataset(DatasetId(ObjectId(20)), "new"));
 
         // Put first
         store.PutBlob(key, meta1, [](auto& s, const auto& v) { v.Serialize(s); });

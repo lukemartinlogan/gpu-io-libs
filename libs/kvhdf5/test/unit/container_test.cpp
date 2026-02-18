@@ -138,11 +138,8 @@ TEST_CASE("Container - Group Operations", "[container]") {
             vector<Attribute>(fixture.allocator)
         };
 
-        GroupEntry child_entry;
-        child_entry.kind = ChildKind::Group;
-        child_entry.object_id = ObjectId(container.AllocateId());
-        child_entry.name = gpu_string<255>("child_group");
-        metadata2.children.push_back(child_entry);
+        GroupId child_id(ObjectId(container.AllocateId()));
+        metadata2.children.push_back(GroupEntry::NewGroup(child_id, "child_group"));
 
         // Overwrite
         REQUIRE(container.PutGroup(group_id, metadata2));
@@ -300,11 +297,7 @@ TEST_CASE("Container - Multiple Containers", "[container]") {
         };
 
         // Add a child to metadata2 to differentiate it
-        GroupEntry child_entry;
-        child_entry.kind = ChildKind::Group;
-        child_entry.object_id = ObjectId(1000);
-        child_entry.name = gpu_string<255>("child");
-        metadata2.children.push_back(child_entry);
+        metadata2.children.push_back(GroupEntry::NewGroup(GroupId(ObjectId(1000)), "child"));
 
         REQUIRE(container1.PutGroup(shared_id, metadata1));
         REQUIRE(container2.PutGroup(shared_id, metadata2));

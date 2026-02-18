@@ -150,13 +150,12 @@ TEST_CASE("Attribute construction and serialization", "[metadata]") {
     BufferReaderWriter rw(buffer);
 
     SECTION("Serialize and deserialize Attribute") {
-        Attribute original;
-        original.name = gpu_string<255>("test_attr");
-        original.datatype = DatatypeRef(PrimitiveType::Kind::Float32);
-        original.value.push_back(byte_t{0x01});
-        original.value.push_back(byte_t{0x02});
-        original.value.push_back(byte_t{0x03});
-        original.value.push_back(byte_t{0x04});
+        float test_value = 1.5f;
+        Attribute original(
+            "test_attr",
+            DatatypeRef(PrimitiveType::Kind::Float32),
+            test_value
+        );
 
         original.Serialize(rw);
 
@@ -167,6 +166,38 @@ TEST_CASE("Attribute construction and serialization", "[metadata]") {
         REQUIRE(result.name == original.name);
         REQUIRE(result.datatype == original.datatype);
         REQUIRE(result.value.size() == 4);
+    }
+
+    SECTION("POD constructor and Get method") {
+        // Test with int32_t
+        int32_t int_value = 42;
+        Attribute int_attr("int_attr", DatatypeRef(PrimitiveType::Kind::Int32), int_value);
+        REQUIRE(int_attr.value.size() == sizeof(int32_t));
+        REQUIRE(int_attr.Get<int32_t>() == 42);
+
+        // Test with float
+        float float_value = 3.14f;
+        Attribute float_attr("float_attr", DatatypeRef(PrimitiveType::Kind::Float32), float_value);
+        REQUIRE(float_attr.value.size() == sizeof(float));
+        REQUIRE(float_attr.Get<float>() == 3.14f);
+
+        // Test with double
+        double double_value = 2.71828;
+        Attribute double_attr("double_attr", DatatypeRef(PrimitiveType::Kind::Float64), double_value);
+        REQUIRE(double_attr.value.size() == sizeof(double));
+        REQUIRE(double_attr.Get<double>() == 2.71828);
+
+        // Test with uint8_t
+        uint8_t uint8_value = 255;
+        Attribute uint8_attr("uint8_attr", DatatypeRef(PrimitiveType::Kind::Uint8), uint8_value);
+        REQUIRE(uint8_attr.value.size() == sizeof(uint8_t));
+        REQUIRE(uint8_attr.Get<uint8_t>() == 255);
+
+        // Test serialization round-trip with POD constructor
+        int_attr.Serialize(rw);
+        rw.Reset();
+        auto deserialized = Attribute::Deserialize(rw);
+        REQUIRE(deserialized.Get<int32_t>() == 42);
     }
 }
 
@@ -182,23 +213,22 @@ TEST_CASE("DatasetMetadata with allocator", "[metadata]") {
         auto shape_result = DatasetShape::Create({100, 200}, {10, 20});
         REQUIRE(shape_result.has_value());
 
-        DatasetMetadata original{
-            .id = DatasetId(42),
-            .datatype = DatatypeRef(PrimitiveType::Kind::Int32),
-            .shape = shape_result.value(),
-            .attributes = vector<Attribute>(fixture.allocator),
-        };
+        DatasetMetadata original(
+            DatasetId(42),
+            DatatypeRef(PrimitiveType::Kind::Int32),
+            shape_result.value(),
+            vector<Attribute>(fixture.allocator)
+        );
 
         // Add attributes
         original.attributes = vector<Attribute>(fixture.allocator);
 
-        Attribute attr1;
-        attr1.name = gpu_string<255>("attr1");
-        attr1.datatype = DatatypeRef(PrimitiveType::Kind::Float64);
-        // Add 8 bytes of dummy data
-        for (int i = 0; i < 8; ++i) {
-            attr1.value.push_back(byte_t{0});
-        }
+        double test_value = 3.14159;
+        Attribute attr1(
+            "attr1",
+            DatatypeRef(PrimitiveType::Kind::Float64),
+            test_value
+        );
         original.attributes.push_back(attr1);
 
         original.Serialize(rw);
@@ -217,12 +247,12 @@ TEST_CASE("DatasetMetadata with allocator", "[metadata]") {
         auto shape_result = DatasetShape::Create({1000}, {100});
         REQUIRE(shape_result.has_value());
 
-        DatasetMetadata original{
-            .id = DatasetId(100),
-            .datatype = DatatypeRef(PrimitiveType::Kind::Uint64),
-            .shape = shape_result.value(),
-            .attributes = vector<Attribute>(fixture.allocator),
-        };
+        DatasetMetadata original(
+            DatasetId(100),
+            DatatypeRef(PrimitiveType::Kind::Uint64),
+            shape_result.value(),
+            vector<Attribute>(fixture.allocator)
+        );
 
         original.Serialize(rw);
 
@@ -239,7 +269,7 @@ TEST_CASE("GroupEntry construction and serialization", "[metadata]") {
     BufferReaderWriter rw(buffer);
 
     SECTION("Serialize and deserialize GroupEntry") {
-        GroupEntry original(ChildKind::Dataset, ObjectId(123), gpu_string<255>("child_dataset"));
+        GroupEntry original = GroupEntry::NewDataset(DatasetId(ObjectId(123)), "child_dataset");
 
         original.Serialize(rw);
 
@@ -253,7 +283,7 @@ TEST_CASE("GroupEntry construction and serialization", "[metadata]") {
     }
 
     SECTION("GroupEntry with Group kind") {
-        GroupEntry original(ChildKind::Group, ObjectId(456), gpu_string<255>("child_group"));
+        GroupEntry original = GroupEntry::NewGroup(GroupId(ObjectId(456)), "child_group");
 
         original.Serialize(rw);
 
@@ -274,15 +304,15 @@ TEST_CASE("GroupMetadata with allocator", "[metadata]") {
     BufferReaderWriter rw(buffer);
 
     SECTION("Serialize and deserialize GroupMetadata with children") {
-        GroupMetadata original{
-            .id = GroupId(1),
-            .children = vector<GroupEntry>(fixture.allocator),
-            .attributes = vector<Attribute>(fixture.allocator),
-        };
+        GroupMetadata original(
+            GroupId(1),
+            vector<GroupEntry>(fixture.allocator),
+            vector<Attribute>(fixture.allocator)
+        );
 
         // Add children
-        original.children.push_back(GroupEntry(ChildKind::Group, ObjectId(10), gpu_string<255>("subgroup1")));
-        original.children.push_back(GroupEntry(ChildKind::Dataset, ObjectId(20), gpu_string<255>("dataset1")));
+        original.children.push_back(GroupEntry::NewGroup(GroupId(ObjectId(10)), "subgroup1"));
+        original.children.push_back(GroupEntry::NewDataset(DatasetId(ObjectId(20)), "dataset1"));
 
         original.Serialize(rw);
 
@@ -296,16 +326,18 @@ TEST_CASE("GroupMetadata with allocator", "[metadata]") {
     }
 
     SECTION("GroupMetadata with attributes") {
-        GroupMetadata original{
-            .id = GroupId(2),
-            .children = vector<GroupEntry>(fixture.allocator),
-            .attributes = vector<Attribute>(fixture.allocator),
-        };
+        GroupMetadata original(
+            GroupId(2),
+            vector<GroupEntry>(fixture.allocator),
+            vector<Attribute>(fixture.allocator)
+        );
 
-        Attribute attr;
-        attr.name = gpu_string<255>("group_attr");
-        attr.datatype = DatatypeRef(PrimitiveType::Kind::Int8);
-        attr.value.push_back(byte_t{42});
+        int8_t attr_value = 42;
+        Attribute attr(
+            "group_attr",
+            DatatypeRef(PrimitiveType::Kind::Int8),
+            attr_value
+        );
         original.attributes.push_back(attr);
 
         original.Serialize(rw);
@@ -319,11 +351,11 @@ TEST_CASE("GroupMetadata with allocator", "[metadata]") {
     }
 
     SECTION("Empty GroupMetadata") {
-        GroupMetadata original{
-            .id = GroupId(3),
-            .children = vector<GroupEntry>(fixture.allocator),
-            .attributes = vector<Attribute>(fixture.allocator),
-        };
+        GroupMetadata original(
+            GroupId(3),
+            vector<GroupEntry>(fixture.allocator),
+            vector<Attribute>(fixture.allocator)
+        );
 
         original.Serialize(rw);
 
