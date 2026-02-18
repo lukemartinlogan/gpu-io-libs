@@ -70,6 +70,19 @@ struct GroupMetadata {
     vector<GroupEntry> children;
     vector<Attribute> attributes;
 
+    template<Allocator A>
+    CROSS_FUN GroupMetadata(GroupId id_, A& alloc)
+        : id(id_),
+          children(&alloc),
+          attributes(&alloc)
+    {}
+    
+    CROSS_FUN GroupMetadata(GroupId id_, vector<GroupEntry> children_, vector<Attribute> attributes_)
+        : id(id_),
+          children(cstd::move(children_)),
+          attributes(cstd::move(attributes_))
+    {}
+
     template<serde::Serializer S>
     CROSS_FUN void Serialize(S& s) const {
         serde::Write(s, id);
