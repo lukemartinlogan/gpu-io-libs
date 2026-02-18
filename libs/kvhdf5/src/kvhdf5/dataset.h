@@ -136,6 +136,21 @@ struct DatasetMetadata {
     DatasetShape shape;
     vector<Attribute> attributes;
 
+    template<Allocator A>
+    CROSS_FUN DatasetMetadata(DatasetId id_, DatatypeRef dt, DatasetShape s, A& alloc)
+        : id(id_),
+          datatype(dt),
+          shape(s),
+          attributes(&alloc)
+    {}
+    
+    CROSS_FUN DatasetMetadata(DatasetId id_, DatatypeRef dt, DatasetShape s, vector<Attribute> attributes_)
+        : id(id_),
+          datatype(dt),
+          shape(s),
+          attributes(cstd::move(attributes_))
+    {}
+
     template<serde::Serializer S>
     CROSS_FUN void Serialize(S& s) const {
         serde::Write(s, id);
