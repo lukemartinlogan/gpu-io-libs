@@ -7,6 +7,7 @@
 #include "context.h"
 #include "error.h"
 #include <utils/gpu_string.h>
+#include <utils/buffer.h>
 #include <cuda/std/span>
 #include <cuda/std/inplace_vector>
 #include <cuda/std/initializer_list>
@@ -102,6 +103,29 @@ struct Attribute {
     {
         KVHDF5_ASSERT(val.size() <= kMaxValueSize, "Attribute value too large (max 128 bytes)");
         value.insert(value.end(), val.begin(), val.end());
+    }
+
+    template<typename T>
+        requires (serde::IsPOD<T> && serde::SerializePOD<T>::value)
+    CROSS_FUN Attribute(gpu_string_view n, DatatypeRef dt, const T& val)
+        : name(n), datatype(dt), value()
+    {
+        static_assert(sizeof(T) <= kMaxValueSize, "POD type too large for Attribute storage");
+
+        cstd::array<byte_t, sizeof(T)> temp_buffer;
+        serde::BufferReaderWriter writer(temp_buffer);
+        serde::Write(writer, val);
+
+        auto written = writer.GetWritten();
+        value.insert(value.end(), written.begin(), written.end());
+    }
+    
+    template<typename T>
+        requires (serde::IsPOD<T> && serde::SerializePOD<T>::value)
+    CROSS_FUN T Get() const {
+        KVHDF5_ASSERT(value.size() == sizeof(T), "Size mismatch when reading attribute value");
+        serde::BufferDeserializer reader(cstd::span<const byte_t>(value.data(), value.size()));
+        return serde::Read<T>(reader);
     }
 
     template<serde::Serializer S>
