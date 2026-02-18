@@ -72,3 +72,14 @@ KVHDF5_AUTO_SERDE(float);
 KVHDF5_AUTO_SERDE(double);
 KVHDF5_AUTO_SERDE(bool);
 KVHDF5_AUTO_SERDE(char);
+
+// opt in for cstd::array<T, N> where T is also opted into SerializePOD
+// NOTE: Can't use KVHDF5_AUTO_SERDE(cstd::array<T, N>) because the macro creates
+// a full specialization (template<>) but we need a partial specialization (template<typename T, size_t N>)
+namespace serde {
+    template<typename T, size_t N>
+        requires SerializePOD<T>::value
+    struct SerializePOD<cstd::array<T, N>> : cstd::true_type {};
+}
+static_assert(serde::IsPOD<cstd::array<char, 10>>, "cstd::array<char, N> must be POD");
+static_assert(serde::IsPOD<cstd::array<int32_t, 5>>, "cstd::array<int32_t, N> must be POD");
