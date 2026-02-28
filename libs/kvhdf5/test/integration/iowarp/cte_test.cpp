@@ -345,7 +345,7 @@ TEST_CASE("CTE zero-length data", "[integration][iowarp][cte]") {
     wrp_cte::core::Tag tag("test_tag_zero_len");
 
     SECTION("PutBlob with zero-length data") {
-        // CTE GetBlob validates data_size > 0, but what about PutBlob?
+        // CTE throws when PutBlob is called with size=0.
         bool put_threw = false;
         try {
             tag.PutBlob("zero_blob", "", 0);
@@ -353,12 +353,6 @@ TEST_CASE("CTE zero-length data", "[integration][iowarp][cte]") {
             put_threw = true;
         }
 
-        INFO("PutBlob with size=0 threw: " << put_threw);
-
-        if (!put_threw) {
-            chi::u64 size = tag.GetBlobSize("zero_blob");
-            INFO("GetBlobSize for zero-length blob: " << size);
-            CHECK(size == 0);
-        }
+        REQUIRE(put_threw);
     }
 }
