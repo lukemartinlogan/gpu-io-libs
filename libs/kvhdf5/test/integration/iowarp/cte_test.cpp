@@ -247,15 +247,8 @@ TEST_CASE("CTE overwrite with smaller data", "[integration][iowarp][cte]") {
         tag.PutBlob(blob_name, small_data, small_size, 0);
         chi::u64 size_after_small = tag.GetBlobSize(blob_name);
 
-        // Document whether CTE truncates or preserves the old size.
-        // If size_after_small == large_size, CTE does NOT truncate,
-        // meaning CteBlobStore must delete-then-put for overwrites.
-        INFO("Size after large write: " << size_after_large);
-        INFO("Size after small overwrite: " << size_after_small);
-
-        // We expect CTE does NOT truncate (size stays at large_size).
-        // If this FAILS, CTE truncates and CteBlobStore can skip delete-before-put.
-        CHECK(size_after_small >= large_size);
+        // CTE does NOT truncate: the size stays at the old (larger) value.
+        REQUIRE(size_after_small == size_after_large);
     }
 }
 
