@@ -190,6 +190,40 @@ public:
     }
 
     // ========================================================================
+    // Chunk Operations
+    // ========================================================================
+
+    /**
+     * Store raw chunk data by ChunkKey.
+     */
+    CROSS_FUN bool PutChunk(const ChunkKey& key, cstd::span<const byte_t> data) {
+        return store_.PutRawBlob(key, data);
+    }
+
+    /**
+     * Retrieve raw chunk data by ChunkKey into a writable buffer.
+     * Returns a span of the actual data written into 'out'.
+     */
+    CROSS_FUN cstd::expected<cstd::span<byte_t>, BlobStoreError> GetChunk(
+            const ChunkKey& key, cstd::span<byte_t> out) {
+        return store_.GetRawBlob(key, out);
+    }
+
+    /**
+     * Delete raw chunk data by ChunkKey.
+     */
+    CROSS_FUN bool DeleteChunk(const ChunkKey& key) {
+        return store_.DeleteRawBlob(key);
+    }
+
+    /**
+     * Check if a chunk exists by ChunkKey.
+     */
+    CROSS_FUN bool ChunkExists(const ChunkKey& key) {
+        return store_.RawBlobExists(key);
+    }
+
+    // ========================================================================
     // Accessors
     // ========================================================================
 
