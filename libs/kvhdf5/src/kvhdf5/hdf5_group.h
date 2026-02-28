@@ -9,8 +9,12 @@
 namespace kvhdf5 {
 
 // Forward declare Dataset<B> - will be defined in hdf5_dataset.h
-template<typename B>
+template<RawBlobStore B>
 class Dataset;
+
+// Forward declare AttributeHandle<B> - will be defined in hdf5_attribute.h
+template<RawBlobStore B>
+class AttributeHandle;
 
 struct DatasetCreateProps {
     cstd::inplace_vector<uint64_t, MAX_DIMS> chunk_dims{};
@@ -162,9 +166,8 @@ public:
         const Dataspace& space, const DatasetCreateProps& props = {});
     expected<Dataset<B>> OpenDataset(gpu_string_view name);
 
-    // expected<Dataset<B>> CreateDataset(const char* name, const Datatype& type,
-    //     const Dataspace& space, const DatasetCreateProps& props = {});
-    // expected<Dataset<B>> OpenDataset(const char* name);
+    // --- Attribute handle (declaration; defined in hdf5_attribute.h) ---
+    AttributeHandle<B> OpenAttribute(gpu_string_view name);
 };
 
 // Define File<B>::OpenRootGroup now that Group<B> is complete
