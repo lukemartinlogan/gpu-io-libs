@@ -4,16 +4,16 @@
 #include <cuda/std/array>
 
 using kvhdf5::byte_t;
+using kvhdf5::padding;
 
-// Test POD struct
+// Test POD struct — reordered by alignment to avoid implicit padding,
+// float replaced with padding<4> to satisfy has_unique_object_representations.
 struct TestPOD {
-    uint32_t a;
     uint64_t b;
-    float c;
+    uint32_t a;
+    padding<4> _pad;
 
-    constexpr bool operator==(const TestPOD& other) const {
-        return a == other.a && b == other.b && c == other.c;
-    }
+    constexpr bool operator==(const TestPOD&) const = default;
 };
 
 // Opt-in TestPOD for serialization
@@ -88,7 +88,7 @@ TEST_CASE("Serde - Custom POD struct round-trip", "[serde]") {
     cstd::array<byte_t, 1024> buffer{};
     serde::BufferReaderWriter rw(cstd::span(buffer.data(), buffer.size()));
 
-    TestPOD original{123, 456789, 3.14f};
+    TestPOD original{.b = 456789, .a = 123};
     Write(rw, original);
 
     rw.SetPosition(0);
@@ -97,7 +97,6 @@ TEST_CASE("Serde - Custom POD struct round-trip", "[serde]") {
     CHECK(result == original);
     CHECK(result.a == 123);
     CHECK(result.b == 456789);
-    CHECK(result.c == 3.14f);
 }
 
 TEST_CASE("Serde - Multiple values sequential", "[serde]") {
