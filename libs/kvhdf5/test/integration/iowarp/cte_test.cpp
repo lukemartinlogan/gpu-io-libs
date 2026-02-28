@@ -277,7 +277,7 @@ TEST_CASE("CTE empty blob name", "[integration][iowarp][cte]") {
     wrp_cte::core::Tag tag("test_tag_empty_name");
 
     SECTION("PutBlob/GetBlob with empty string blob name") {
-        // Does CTE accept "" as a blob name?
+        // CTE throws when PutBlob is called with an empty blob name.
         bool put_threw = false;
         try {
             const char* data = "test";
@@ -286,23 +286,7 @@ TEST_CASE("CTE empty blob name", "[integration][iowarp][cte]") {
             put_threw = true;
         }
 
-        INFO("PutBlob with empty name threw: " << put_threw);
-
-        if (!put_threw) {
-            // If put succeeded, can we read it back?
-            char buffer[4] = {0};
-            bool get_threw = false;
-            try {
-                tag.GetBlob("", buffer, 4);
-            } catch (const std::exception&) {
-                get_threw = true;
-            }
-
-            INFO("GetBlob with empty name threw: " << get_threw);
-            if (!get_threw) {
-                REQUIRE(strncmp(buffer, "test", 4) == 0);
-            }
-        }
+        REQUIRE(put_threw);
     }
 }
 
