@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cuda_compat.h"  // Must be included before CUDA headers for __nanosleep
 #include "hermes_shm/memory/backend/array_backend.h"
 #include "hermes_shm/memory/allocator/arena_allocator.h"
 #include <cuda/std/cstring>
