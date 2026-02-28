@@ -80,15 +80,16 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(cccl)
 
-# Header-only library for now; will become STATIC when .cpp files are added
-add_library(kvhdf5 INTERFACE)
+add_library(kvhdf5 STATIC
+    src/kvhdf5/cte_blob_store.cpp
+)
 
-target_include_directories(kvhdf5 INTERFACE
+target_include_directories(kvhdf5 PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 if(KVHDF5_HAS_CUDA)
-    target_link_libraries(kvhdf5 INTERFACE
+    target_link_libraries(kvhdf5 PUBLIC
         CUDA::cudart
         CCCL::CCCL
         hshm::cxx
@@ -98,12 +99,13 @@ if(KVHDF5_HAS_CUDA)
         chimaera_cxx
     )
 else()
-    # CPU-only mode: still link CCCL for cuda::std (works on CPU)
-    target_link_libraries(kvhdf5 INTERFACE
+    target_link_libraries(kvhdf5 PUBLIC
         CCCL::CCCL
         hshm::cxx
         hshm::serialize
         hshm::lightbeam
+        wrp_cte_core_runtime
+        chimaera_cxx
     )
 endif()
 
