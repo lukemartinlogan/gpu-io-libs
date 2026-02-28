@@ -324,3 +324,42 @@ TEST_CASE("Container - Multiple Containers", "[container]") {
         REQUIRE(id2.IsValid());
     }
 }
+
+TEST_CASE("Container - PutChunk and GetChunk", "[container][chunk]") {
+    AllocatorFixture fixture;
+    REQUIRE(fixture.IsValid());
+    Container<InMemoryBlobStore> c(InMemoryBlobStore(fixture.allocator), fixture.allocator);
+
+    auto did = DatasetId(c.AllocateId());
+    uint64_t coords[] = {0, 0};
+    ChunkKey key(did, cstd::span<const uint64_t>(coords, 2));
+
+    cstd::array<byte_t, 16> data{};
+    for (int i = 0; i < 16; i++) data[i] = byte_t(i);
+    REQUIRE(c.PutChunk(key, cstd::span<const byte_t>(data)));
+
+    cstd::array<byte_t, 16> out{};
+    auto result = c.GetChunk(key, cstd::span<byte_t>(out));
+    REQUIRE(result.has_value());
+    for (int i = 0; i < 16; i++) REQUIRE(out[i] == byte_t(i));
+}
+
+TEST_CASE("Container - ChunkExists and DeleteChunk", "[container][chunk]") {
+    AllocatorFixture fixture;
+    REQUIRE(fixture.IsValid());
+    Container<InMemoryBlobStore> c(InMemoryBlobStore(fixture.allocator), fixture.allocator);
+
+    auto did = DatasetId(c.AllocateId());
+    uint64_t coords[] = {1};
+    ChunkKey key(did, cstd::span<const uint64_t>(coords, 1));
+
+    REQUIRE(!c.ChunkExists(key));
+
+    cstd::array<byte_t, 8> data{};
+    for (int i = 0; i < 8; i++) data[i] = byte_t(i + 10);
+    REQUIRE(c.PutChunk(key, cstd::span<const byte_t>(data)));
+    REQUIRE(c.ChunkExists(key));
+
+    REQUIRE(c.DeleteChunk(key));
+    REQUIRE(!c.ChunkExists(key));
+}
