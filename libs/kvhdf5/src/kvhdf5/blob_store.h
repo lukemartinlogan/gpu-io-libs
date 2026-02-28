@@ -131,6 +131,47 @@ public:
         return store_->Exists(key_writer.GetWritten());
     }
 
+    // ========================================================================
+    // Raw blob operations (key serialized, value passed as raw bytes)
+    // ========================================================================
+
+    template<typename K>
+        requires serde::SerializePOD<K>::value
+    CROSS_FUN bool PutRawBlob(const K& key, cstd::span<const byte_t> value) {
+        cstd::array<byte_t, sizeof(K)> key_buf{};
+        serde::BufferReaderWriter writer(cstd::span<byte_t>(key_buf.data(), key_buf.size()));
+        serde::Write<K>(writer, key);
+        return store_->PutBlob(writer.GetWritten(), value);
+    }
+
+    template<typename K>
+        requires serde::SerializePOD<K>::value
+    CROSS_FUN cstd::expected<cstd::span<byte_t>, BlobStoreError> GetRawBlob(
+            const K& key, cstd::span<byte_t> value_out) {
+        cstd::array<byte_t, sizeof(K)> key_buf{};
+        serde::BufferReaderWriter writer(cstd::span<byte_t>(key_buf.data(), key_buf.size()));
+        serde::Write<K>(writer, key);
+        return store_->GetBlob(writer.GetWritten(), value_out);
+    }
+
+    template<typename K>
+        requires serde::SerializePOD<K>::value
+    CROSS_FUN bool DeleteRawBlob(const K& key) {
+        cstd::array<byte_t, sizeof(K)> key_buf{};
+        serde::BufferReaderWriter writer(cstd::span<byte_t>(key_buf.data(), key_buf.size()));
+        serde::Write<K>(writer, key);
+        return store_->DeleteBlob(writer.GetWritten());
+    }
+
+    template<typename K>
+        requires serde::SerializePOD<K>::value
+    CROSS_FUN bool RawBlobExists(const K& key) {
+        cstd::array<byte_t, sizeof(K)> key_buf{};
+        serde::BufferReaderWriter writer(cstd::span<byte_t>(key_buf.data(), key_buf.size()));
+        serde::Write<K>(writer, key);
+        return store_->Exists(writer.GetWritten());
+    }
+
     CROSS_FUN BlobStoreImpl* GetStore() { return store_; }
     CROSS_FUN const BlobStoreImpl* GetStore() const { return store_; }
 };
