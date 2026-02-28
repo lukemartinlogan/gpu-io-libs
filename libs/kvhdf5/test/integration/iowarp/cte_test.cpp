@@ -257,11 +257,7 @@ TEST_CASE("CTE GetBlobSize on non-existent blob", "[integration][iowarp][cte]") 
     wrp_cte::core::Tag tag("test_tag_nonexist_size");
 
     SECTION("GetBlobSize behavior for blob that was never created") {
-        // This informs our Exists() implementation.
-        // Possible outcomes:
-        //   - throws std::runtime_error → use try/catch for Exists
-        //   - returns 0 → check for 0
-        //   - returns some sentinel → check for sentinel
+        // CTE returns 0 and does NOT throw for a non-existent blob.
         bool threw = false;
         chi::u64 returned_size = 0;
 
@@ -271,11 +267,8 @@ TEST_CASE("CTE GetBlobSize on non-existent blob", "[integration][iowarp][cte]") 
             threw = true;
         }
 
-        INFO("Threw exception: " << threw);
-        INFO("Returned size: " << returned_size);
-
-        // Document the actual behavior — at least one of these should be true
-        CHECK((threw || returned_size == 0));
+        REQUIRE_FALSE(threw);
+        REQUIRE(returned_size == 0);
     }
 }
 
