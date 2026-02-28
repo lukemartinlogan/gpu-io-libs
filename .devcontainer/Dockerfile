@@ -17,6 +17,8 @@ RUN apt-get update && apt-get install -y \
     libelf-dev \
     libhdf5-dev \
     libcurl4-openssl-dev \
+    libaio-dev \
+    libmsgpack-dev \
     && rm -rf /var/lib/apt/lists/* \
     && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 \
     && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
