@@ -308,6 +308,7 @@ TEST_CASE("CTE delete blob via client", "[integration][iowarp][cte]") {
             tag.GetTagId(), blob_name);
         del_task.Wait();
 
+        // CTE returns 0 and does NOT throw after blob deletion.
         bool threw = false;
         chi::u64 size_after = 0;
         try {
@@ -316,10 +317,8 @@ TEST_CASE("CTE delete blob via client", "[integration][iowarp][cte]") {
             threw = true;
         }
 
-        INFO("GetBlobSize after delete threw: " << threw);
-        INFO("GetBlobSize after delete returned: " << size_after);
-
-        CHECK((threw || size_after == 0));
+        REQUIRE_FALSE(threw);
+        REQUIRE(size_after == 0);
     }
 
     SECTION("Can re-create blob after deletion") {
