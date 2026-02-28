@@ -30,6 +30,14 @@ add_executable(kvhdf5_tests
     unit/hdf5_group_test.cpp
     unit/hdf5_dataset_test.cpp
     unit/hdf5_attribute_test.cpp
+    unit/dataset_single_chunk_test.cpp
+    unit/dataset_multi_chunk_test.cpp
+    unit/dataset_hyperslab_test.cpp
+    unit/dataset_edge_test.cpp
+    unit/dataset_stress_test.cpp
+    unit/dataset_extent_test.cpp
+    unit/dataset_types_test.cpp
+    unit/dataset_chunk_iter_test.cpp
     unit/cte_blob_store_test.cpp
     integration/iowarp/vector_test.cpp
     integration/iowarp/cte_test.cpp
