@@ -49,7 +49,7 @@ public:
      * Open the root group.
      * Declared here; defined in hdf5_group.h after Group<B> is complete.
      */
-    // Group<B> OpenRootGroup();
+    Group<B> OpenRootGroup();
 
     /**
      * Get mutable access to the underlying Container.
