@@ -17,6 +17,7 @@ add_executable(kvhdf5_tests
     unit/gpu_string_test.cpp
     unit/ref_test.cpp
     unit/dataspace_test.cpp
+    unit/hdf5_datatype_test.cpp
     unit/serde_test.cpp
     unit/types_test.cpp
     unit/datatype_test.cpp
