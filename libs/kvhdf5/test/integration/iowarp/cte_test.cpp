@@ -3,6 +3,7 @@
 #include <cstring>
 #include <vector>
 #include <string>
+#include <stdexcept>
 
 TEST_CASE("CTE Tag creation and basic PutBlob/GetBlob", "[integration][iowarp][cte]") {
     EnsureCteRuntime();
@@ -253,5 +254,170 @@ TEST_CASE("CTE multiple tags", "[integration][iowarp][cte]") {
 
         REQUIRE(strcmp(buffer1, data1) == 0);
         REQUIRE(strcmp(buffer2, data2) == 0);
+    }
+}
+
+TEST_CASE("CTE overwrite with smaller data", "[integration][iowarp][cte]") {
+    EnsureCteRuntime();
+    wrp_cte::core::Tag tag("test_tag_overwrite_smaller");
+
+    SECTION("GetBlobSize after overwriting with smaller data") {
+        const char* blob_name = "shrink_blob";
+        const char* large_data = "This is a longer string!!";
+        const char* small_data = "Short";
+
+        size_t large_size = strlen(large_data) + 1;  // 26 bytes
+        size_t small_size = strlen(small_data) + 1;   // 6 bytes
+
+        tag.PutBlob(blob_name, large_data, large_size);
+        chi::u64 size_after_large = tag.GetBlobSize(blob_name);
+
+        tag.PutBlob(blob_name, small_data, small_size, 0);
+        chi::u64 size_after_small = tag.GetBlobSize(blob_name);
+
+        // Document whether CTE truncates or preserves the old size.
+        // If size_after_small == large_size, CTE does NOT truncate,
+        // meaning CteBlobStore must delete-then-put for overwrites.
+        INFO("Size after large write: " << size_after_large);
+        INFO("Size after small overwrite: " << size_after_small);
+
+        // We expect CTE does NOT truncate (size stays at large_size).
+        // If this FAILS, CTE truncates and CteBlobStore can skip delete-before-put.
+        CHECK(size_after_small >= large_size);
+    }
+}
+
+TEST_CASE("CTE GetBlobSize on non-existent blob", "[integration][iowarp][cte]") {
+    EnsureCteRuntime();
+    wrp_cte::core::Tag tag("test_tag_nonexist_size");
+
+    SECTION("GetBlobSize behavior for blob that was never created") {
+        // This informs our Exists() implementation.
+        // Possible outcomes:
+        //   - throws std::runtime_error → use try/catch for Exists
+        //   - returns 0 → check for 0
+        //   - returns some sentinel → check for sentinel
+        bool threw = false;
+        chi::u64 returned_size = 0;
+
+        try {
+            returned_size = tag.GetBlobSize("definitely_does_not_exist");
+        } catch (const std::exception&) {
+            threw = true;
+        }
+
+        INFO("Threw exception: " << threw);
+        INFO("Returned size: " << returned_size);
+
+        // Document the actual behavior — at least one of these should be true
+        CHECK((threw || returned_size == 0));
+    }
+}
+
+TEST_CASE("CTE empty blob name", "[integration][iowarp][cte]") {
+    EnsureCteRuntime();
+    wrp_cte::core::Tag tag("test_tag_empty_name");
+
+    SECTION("PutBlob/GetBlob with empty string blob name") {
+        // Does CTE accept "" as a blob name?
+        bool put_threw = false;
+        try {
+            const char* data = "test";
+            tag.PutBlob("", data, 4);
+        } catch (const std::exception&) {
+            put_threw = true;
+        }
+
+        INFO("PutBlob with empty name threw: " << put_threw);
+
+        if (!put_threw) {
+            // If put succeeded, can we read it back?
+            char buffer[4] = {0};
+            bool get_threw = false;
+            try {
+                tag.GetBlob("", buffer, 4);
+            } catch (const std::exception&) {
+                get_threw = true;
+            }
+
+            INFO("GetBlob with empty name threw: " << get_threw);
+            if (!get_threw) {
+                REQUIRE(strncmp(buffer, "test", 4) == 0);
+            }
+        }
+    }
+}
+
+TEST_CASE("CTE delete blob via client", "[integration][iowarp][cte]") {
+    EnsureCteRuntime();
+    wrp_cte::core::Tag tag("test_tag_delete");
+
+    SECTION("AsyncDelBlob removes blob and GetBlobSize reflects deletion") {
+        const char* blob_name = "deletable_blob";
+        const char* data = "delete me";
+        size_t data_size = strlen(data) + 1;
+
+        tag.PutBlob(blob_name, data, data_size);
+
+        chi::u64 size_before = tag.GetBlobSize(blob_name);
+        REQUIRE(size_before >= data_size);
+
+        auto del_task = WRP_CTE_CLIENT->AsyncDelBlob(
+            tag.GetTagId(), blob_name);
+        del_task.Wait();
+
+        bool threw = false;
+        chi::u64 size_after = 0;
+        try {
+            size_after = tag.GetBlobSize(blob_name);
+        } catch (const std::exception&) {
+            threw = true;
+        }
+
+        INFO("GetBlobSize after delete threw: " << threw);
+        INFO("GetBlobSize after delete returned: " << size_after);
+
+        CHECK((threw || size_after == 0));
+    }
+
+    SECTION("Can re-create blob after deletion") {
+        const char* blob_name = "reuse_blob";
+        const char* data1 = "first";
+        const char* data2 = "second";
+
+        tag.PutBlob(blob_name, data1, strlen(data1) + 1);
+
+        auto del_task = WRP_CTE_CLIENT->AsyncDelBlob(
+            tag.GetTagId(), blob_name);
+        del_task.Wait();
+
+        tag.PutBlob(blob_name, data2, strlen(data2) + 1);
+
+        char buffer[20] = {0};
+        tag.GetBlob(blob_name, buffer, strlen(data2) + 1);
+        REQUIRE(strcmp(buffer, data2) == 0);
+    }
+}
+
+TEST_CASE("CTE zero-length data", "[integration][iowarp][cte]") {
+    EnsureCteRuntime();
+    wrp_cte::core::Tag tag("test_tag_zero_len");
+
+    SECTION("PutBlob with zero-length data") {
+        // CTE GetBlob validates data_size > 0, but what about PutBlob?
+        bool put_threw = false;
+        try {
+            tag.PutBlob("zero_blob", "", 0);
+        } catch (const std::exception&) {
+            put_threw = true;
+        }
+
+        INFO("PutBlob with size=0 threw: " << put_threw);
+
+        if (!put_threw) {
+            chi::u64 size = tag.GetBlobSize("zero_blob");
+            INFO("GetBlobSize for zero-length blob: " << size);
+            CHECK(size == 0);
+        }
     }
 }
