@@ -23,6 +23,7 @@ add_executable(kvhdf5_tests
     unit/blob_store_test.cpp
     unit/container_test.cpp
     unit/container_complex_test.cpp
+    unit/cte_blob_store_test.cpp
     integration/iowarp/vector_test.cpp
     integration/iowarp/cte_test.cpp
 )
@@ -39,6 +40,7 @@ if(WRP_CORE_ENABLE_CUDA)
         unit/blob_store_test.cpp
         unit/container_test.cpp
         unit/container_complex_test.cpp
+        unit/cte_blob_store_test.cpp
         integration/iowarp/vector_test.cpp
         integration/iowarp/cte_test.cpp
         PROPERTIES LANGUAGE CUDA
