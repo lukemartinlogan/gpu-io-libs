@@ -24,6 +24,7 @@ class CteBlobStore {
     wrp_cte::core::Tag tag_;
 
 public:
+    explicit CteBlobStore(const char* tag_name) : CteBlobStore(std::string_view{tag_name}) {}
     explicit CteBlobStore(std::string_view tag_name);
     explicit CteBlobStore(gpu_string_view tag_name);
 
