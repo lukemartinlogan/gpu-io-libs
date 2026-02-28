@@ -208,17 +208,17 @@ TEST_CASE("DatatypeRef serialization with complex", "[datatype]") {
 
 TEST_CASE("ComplexDatatypeDescriptor construction", "[datatype]") {
     SECTION("Aggregate initialization") {
-        ComplexDatatypeDescriptor desc{ComplexDatatypeDescriptor::Kind::Array, 24};
+        ComplexDatatypeDescriptor desc{.kind = ComplexDatatypeDescriptor::Kind::Array, .element_size = 24};
         REQUIRE(desc.kind == ComplexDatatypeDescriptor::Kind::Array);
         REQUIRE(desc.element_size == 24);
     }
 }
 
 TEST_CASE("ComplexDatatypeDescriptor equality", "[datatype]") {
-    ComplexDatatypeDescriptor desc1{ComplexDatatypeDescriptor::Kind::Compound, 16};
-    ComplexDatatypeDescriptor desc2{ComplexDatatypeDescriptor::Kind::Compound, 16};
-    ComplexDatatypeDescriptor desc3{ComplexDatatypeDescriptor::Kind::Array, 16};
-    ComplexDatatypeDescriptor desc4{ComplexDatatypeDescriptor::Kind::Compound, 32};
+    ComplexDatatypeDescriptor desc1{.kind = ComplexDatatypeDescriptor::Kind::Compound, .element_size = 16};
+    ComplexDatatypeDescriptor desc2{.kind = ComplexDatatypeDescriptor::Kind::Compound, .element_size = 16};
+    ComplexDatatypeDescriptor desc3{.kind = ComplexDatatypeDescriptor::Kind::Array, .element_size = 16};
+    ComplexDatatypeDescriptor desc4{.kind = ComplexDatatypeDescriptor::Kind::Compound, .element_size = 32};
 
     SECTION("Same kind and size are equal") {
         REQUIRE(desc1 == desc2);
@@ -238,7 +238,7 @@ TEST_CASE("ComplexDatatypeDescriptor serialization", "[datatype]") {
     BufferReaderWriter rw(buffer);
 
     SECTION("Serialize and deserialize descriptor") {
-        ComplexDatatypeDescriptor original{ComplexDatatypeDescriptor::Kind::Array, 128};
+        ComplexDatatypeDescriptor original{.kind = ComplexDatatypeDescriptor::Kind::Array, .element_size = 128};
 
         serde::Write(rw, original);
 
