@@ -156,8 +156,11 @@ public:
         return GroupInfo{meta.children.size(), meta.attributes.size()};
     }
 
-    // --- Datasets (declared here, defined after Dataset<B> exists) ---
-    // These will be implemented in Task 7
+    // --- Datasets (declarations; defined in hdf5_dataset.h after Dataset<B>) ---
+    expected<Dataset<B>> CreateDataset(
+        gpu_string_view name, const Datatype& type,
+        const Dataspace& space, const DatasetCreateProps& props = {});
+    expected<Dataset<B>> OpenDataset(gpu_string_view name);
 
     // expected<Dataset<B>> CreateDataset(const char* name, const Datatype& type,
     //     const Dataspace& space, const DatasetCreateProps& props = {});
