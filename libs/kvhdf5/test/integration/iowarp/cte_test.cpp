@@ -1,54 +1,20 @@
 #include <catch2/catch_test_macros.hpp>
-#include "chimaera/chimaera.h"
-#include "wrp_cte/core/core_client.h"
+#include "../../common/cte_runtime.h"
 #include <cstring>
 #include <vector>
 #include <string>
 #include <stdexcept>
 
-// Initialize the Chimaera runtime and CTE pool once per process, lazily on first test.
-// Static local ensures thread-safe single initialization.
-void EnsureRuntime() {
-    static bool initialized = []() {
-        // Step 1: Initialize Chimaera (starts runtime if not already running)
-        bool success = chi::CHIMAERA_INIT(chi::ChimaeraMode::kClient, true);
-        if (!success) {
-            throw std::runtime_error("Failed to initialize Chimaera");
-        }
-        // Step 2: Create the CTE pool and connect the global CTE client to it
-        bool cte_ok = wrp_cte::core::WRP_CTE_CLIENT_INIT();
-        if (!cte_ok) {
-            throw std::runtime_error("Failed to initialize CTE client pool");
-        }
-        // Step 3: Register a RAM storage target with the CTE pool
-        auto reg_task = WRP_CTE_CLIENT->AsyncRegisterTarget(
-            "ram_test_storage",
-            chimaera::bdev::BdevType::kRam,
-            256ULL * 1024 * 1024,  // 256 MB
-            chi::PoolQuery::Local(),
-            chi::PoolId(600, 0));
-        reg_task.Wait();
-        chi::u32 ret = reg_task->GetReturnCode();
-        if (ret != 0) {
-            throw std::runtime_error("Failed to register RAM storage target (code=" + std::to_string(ret) + ")");
-        }
-        return true;
-    }();
-    (void)initialized;
-}
-
 TEST_CASE("CTE Tag creation and basic PutBlob/GetBlob", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     SECTION("Can create a Tag and write/read simple data") {
         wrp_cte::core::Tag tag("test_tag_basic");
         const char* blob_name = "simple_blob";
         const char* data = "Hello, CTE!";
         size_t data_size = strlen(data) + 1;
 
-        // Write blob
         tag.PutBlob(blob_name, data, data_size);
 
-        // Read blob
         char buffer[100] = {0};
         tag.GetBlob(blob_name, buffer, data_size);
 
@@ -57,7 +23,7 @@ TEST_CASE("CTE Tag creation and basic PutBlob/GetBlob", "[integration][iowarp][c
 }
 
 TEST_CASE("CTE binary data operations", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     wrp_cte::core::Tag tag("test_tag_binary");
 
     SECTION("Can write and read binary data") {
@@ -65,10 +31,8 @@ TEST_CASE("CTE binary data operations", "[integration][iowarp][cte]") {
         uint64_t data[] = {0x1234567890ABCDEF, 0xFEDCBA0987654321, 0xAAAAAAAAAAAAAAAA};
         size_t data_size = sizeof(data);
 
-        // Write blob
         tag.PutBlob(blob_name, reinterpret_cast<const char*>(data), data_size);
 
-        // Read blob
         uint64_t buffer[3] = {0};
         tag.GetBlob(blob_name, reinterpret_cast<char*>(buffer), data_size);
 
@@ -79,7 +43,7 @@ TEST_CASE("CTE binary data operations", "[integration][iowarp][cte]") {
 }
 
 TEST_CASE("CTE blob overwriting", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     wrp_cte::core::Tag tag("test_tag_overwrite");
 
     SECTION("Can overwrite existing blob") {
@@ -90,13 +54,9 @@ TEST_CASE("CTE blob overwriting", "[integration][iowarp][cte]") {
         size_t size1 = strlen(data1) + 1;
         size_t size2 = strlen(data2) + 1;
 
-        // Write first version
         tag.PutBlob(blob_name, data1, size1);
-
-        // Overwrite with second version
         tag.PutBlob(blob_name, data2, size2);
 
-        // Read and verify
         char buffer[100] = {0};
         tag.GetBlob(blob_name, buffer, size2);
 
@@ -105,7 +65,7 @@ TEST_CASE("CTE blob overwriting", "[integration][iowarp][cte]") {
 }
 
 TEST_CASE("CTE offset-based operations", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     wrp_cte::core::Tag tag("test_tag_offset");
 
     SECTION("Can write to different offsets in same blob") {
@@ -116,16 +76,10 @@ TEST_CASE("CTE offset-based operations", "[integration][iowarp][cte]") {
 
         size_t part_size = 4;
 
-        // Write at offset 0
         tag.PutBlob(blob_name, part1, part_size, 0);
-
-        // Write at offset 4
         tag.PutBlob(blob_name, part2, part_size, 4);
-
-        // Write at offset 8
         tag.PutBlob(blob_name, part3, part_size, 8);
 
-        // Read entire blob
         char buffer[13] = {0};
         tag.GetBlob(blob_name, buffer, 12, 0);
 
@@ -134,7 +88,7 @@ TEST_CASE("CTE offset-based operations", "[integration][iowarp][cte]") {
 }
 
 TEST_CASE("CTE GetBlobSize operation", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     wrp_cte::core::Tag tag("test_tag_size");
 
     SECTION("GetBlobSize returns correct size for existing blob") {
@@ -152,12 +106,10 @@ TEST_CASE("CTE GetBlobSize operation", "[integration][iowarp][cte]") {
         const char* blob_name = "growing_blob";
         const char* data = "DATA";
 
-        // Write at offset 0
         tag.PutBlob(blob_name, data, 4, 0);
         chi::u64 size1 = tag.GetBlobSize(blob_name);
         REQUIRE(size1 >= 4);
 
-        // Write at offset 100 (creates gap)
         tag.PutBlob(blob_name, data, 4, 100);
         chi::u64 size2 = tag.GetBlobSize(blob_name);
         REQUIRE(size2 >= 104);
@@ -165,11 +117,10 @@ TEST_CASE("CTE GetBlobSize operation", "[integration][iowarp][cte]") {
 }
 
 TEST_CASE("CTE GetContainedBlobs operation", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     wrp_cte::core::Tag tag("test_tag_list");
 
     SECTION("GetContainedBlobs lists all blobs in tag") {
-        // Create several blobs
         const char* names[] = {"blob_a", "blob_b", "blob_c"};
         const char* data = "x";
 
@@ -177,12 +128,10 @@ TEST_CASE("CTE GetContainedBlobs operation", "[integration][iowarp][cte]") {
             tag.PutBlob(names[i], data, 1);
         }
 
-        // Get list of blobs
         std::vector<std::string> blob_list = tag.GetContainedBlobs();
 
         REQUIRE(blob_list.size() >= 3);
 
-        // Verify all our blobs are in the list
         bool found_a = false, found_b = false, found_c = false;
         for (const auto& name : blob_list) {
             if (name == "blob_a") found_a = true;
@@ -197,27 +146,23 @@ TEST_CASE("CTE GetContainedBlobs operation", "[integration][iowarp][cte]") {
 }
 
 TEST_CASE("CTE large blob operations", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     wrp_cte::core::Tag tag("test_tag_large");
 
     SECTION("Can write and read large blobs") {
         const char* blob_name = "large_blob";
         const size_t large_size = 1024 * 1024; // 1 MB
 
-        // Create large data buffer with pattern
         std::vector<uint8_t> data(large_size);
         for (size_t i = 0; i < large_size; i++) {
             data[i] = static_cast<uint8_t>(i % 256);
         }
 
-        // Write large blob
         tag.PutBlob(blob_name, reinterpret_cast<const char*>(data.data()), large_size);
 
-        // Read back
         std::vector<uint8_t> buffer(large_size);
         tag.GetBlob(blob_name, reinterpret_cast<char*>(buffer.data()), large_size);
 
-        // Verify data integrity
         bool data_matches = true;
         for (size_t i = 0; i < large_size; i++) {
             if (buffer[i] != data[i]) {
@@ -231,7 +176,7 @@ TEST_CASE("CTE large blob operations", "[integration][iowarp][cte]") {
 }
 
 TEST_CASE("CTE partial read operations", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     wrp_cte::core::Tag tag("test_tag_partial");
 
     SECTION("Can read partial blob data") {
@@ -239,10 +184,8 @@ TEST_CASE("CTE partial read operations", "[integration][iowarp][cte]") {
         const char* full_data = "0123456789ABCDEFGHIJ";
         size_t full_size = strlen(full_data);
 
-        // Write full data
         tag.PutBlob(blob_name, full_data, full_size);
 
-        // Read middle portion (offset 5, length 10)
         char buffer[11] = {0};
         tag.GetBlob(blob_name, buffer, 10, 5);
 
@@ -256,7 +199,6 @@ TEST_CASE("CTE partial read operations", "[integration][iowarp][cte]") {
 
         tag.PutBlob(blob_name, data, data_size);
 
-        // Read last 5 bytes
         char buffer[6] = {0};
         tag.GetBlob(blob_name, buffer, 5, 5);
 
@@ -265,7 +207,7 @@ TEST_CASE("CTE partial read operations", "[integration][iowarp][cte]") {
 }
 
 TEST_CASE("CTE multiple tags", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     SECTION("Different tags maintain separate blob namespaces") {
         wrp_cte::core::Tag tag1("test_tag_multi_1");
         wrp_cte::core::Tag tag2("test_tag_multi_2");
@@ -274,11 +216,9 @@ TEST_CASE("CTE multiple tags", "[integration][iowarp][cte]") {
         const char* data1 = "Tag 1 data";
         const char* data2 = "Tag 2 data";
 
-        // Write different data to same blob name in different tags
         tag1.PutBlob(blob_name, data1, strlen(data1) + 1);
         tag2.PutBlob(blob_name, data2, strlen(data2) + 1);
 
-        // Read from each tag
         char buffer1[20] = {0};
         char buffer2[20] = {0};
         tag1.GetBlob(blob_name, buffer1, strlen(data1) + 1);
@@ -286,5 +226,133 @@ TEST_CASE("CTE multiple tags", "[integration][iowarp][cte]") {
 
         REQUIRE(strcmp(buffer1, data1) == 0);
         REQUIRE(strcmp(buffer2, data2) == 0);
+    }
+}
+
+TEST_CASE("CTE overwrite with smaller data", "[integration][iowarp][cte]") {
+    EnsureCteRuntime();
+    wrp_cte::core::Tag tag("test_tag_overwrite_smaller");
+
+    SECTION("GetBlobSize after overwriting with smaller data") {
+        const char* blob_name = "shrink_blob";
+        const char* large_data = "This is a longer string!!";
+        const char* small_data = "Short";
+
+        size_t large_size = strlen(large_data) + 1;  // 26 bytes
+        size_t small_size = strlen(small_data) + 1;   // 6 bytes
+
+        tag.PutBlob(blob_name, large_data, large_size);
+        chi::u64 size_after_large = tag.GetBlobSize(blob_name);
+
+        tag.PutBlob(blob_name, small_data, small_size, 0);
+        chi::u64 size_after_small = tag.GetBlobSize(blob_name);
+
+        // CTE does NOT truncate: the size stays at the old (larger) value.
+        REQUIRE(size_after_small == size_after_large);
+    }
+}
+
+TEST_CASE("CTE GetBlobSize on non-existent blob", "[integration][iowarp][cte]") {
+    EnsureCteRuntime();
+    wrp_cte::core::Tag tag("test_tag_nonexist_size");
+
+    SECTION("GetBlobSize behavior for blob that was never created") {
+        // CTE returns 0 and does NOT throw for a non-existent blob.
+        bool threw = false;
+        chi::u64 returned_size = 0;
+
+        try {
+            returned_size = tag.GetBlobSize("definitely_does_not_exist");
+        } catch (const std::exception&) {
+            threw = true;
+        }
+
+        REQUIRE_FALSE(threw);
+        REQUIRE(returned_size == 0);
+    }
+}
+
+TEST_CASE("CTE empty blob name", "[integration][iowarp][cte]") {
+    EnsureCteRuntime();
+    wrp_cte::core::Tag tag("test_tag_empty_name");
+
+    SECTION("PutBlob/GetBlob with empty string blob name") {
+        // CTE throws when PutBlob is called with an empty blob name.
+        bool put_threw = false;
+        try {
+            const char* data = "test";
+            tag.PutBlob("", data, 4);
+        } catch (const std::exception&) {
+            put_threw = true;
+        }
+
+        REQUIRE(put_threw);
+    }
+}
+
+TEST_CASE("CTE delete blob via client", "[integration][iowarp][cte]") {
+    EnsureCteRuntime();
+    wrp_cte::core::Tag tag("test_tag_delete");
+
+    SECTION("AsyncDelBlob removes blob and GetBlobSize reflects deletion") {
+        const char* blob_name = "deletable_blob";
+        const char* data = "delete me";
+        size_t data_size = strlen(data) + 1;
+
+        tag.PutBlob(blob_name, data, data_size);
+
+        chi::u64 size_before = tag.GetBlobSize(blob_name);
+        REQUIRE(size_before >= data_size);
+
+        auto del_task = WRP_CTE_CLIENT->AsyncDelBlob(
+            tag.GetTagId(), blob_name);
+        del_task.Wait();
+
+        // CTE returns 0 and does NOT throw after blob deletion.
+        bool threw = false;
+        chi::u64 size_after = 0;
+        try {
+            size_after = tag.GetBlobSize(blob_name);
+        } catch (const std::exception&) {
+            threw = true;
+        }
+
+        REQUIRE_FALSE(threw);
+        REQUIRE(size_after == 0);
+    }
+
+    SECTION("Can re-create blob after deletion") {
+        const char* blob_name = "reuse_blob";
+        const char* data1 = "first";
+        const char* data2 = "second";
+
+        tag.PutBlob(blob_name, data1, strlen(data1) + 1);
+
+        auto del_task = WRP_CTE_CLIENT->AsyncDelBlob(
+            tag.GetTagId(), blob_name);
+        del_task.Wait();
+
+        tag.PutBlob(blob_name, data2, strlen(data2) + 1);
+
+        char buffer[20] = {0};
+        tag.GetBlob(blob_name, buffer, strlen(data2) + 1);
+        REQUIRE(strcmp(buffer, data2) == 0);
+    }
+}
+
+TEST_CASE("CTE zero-length data", "[integration][iowarp][cte]") {
+    EnsureCteRuntime();
+    wrp_cte::core::Tag tag("test_tag_zero_len");
+
+    SECTION("PutBlob with zero-length data") {
+        // CTE throws when PutBlob is called with size=0.
+        bool put_threw = false;
+        try {
+            tag.PutBlob("zero_blob", "", 0);
+        } catch (const std::exception&) {
+            put_threw = true;
+        }
+
+        REQUIRE(put_threw);
     }
 }
