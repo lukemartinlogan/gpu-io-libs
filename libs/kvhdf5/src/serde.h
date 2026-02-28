@@ -8,8 +8,15 @@
 
 namespace serde {
 
+/// A type is safe for raw-memcpy serde if it is trivially copyable,
+/// standard layout, and has no hidden padding bytes that could cause
+/// non-deterministic byte-level comparisons.  Floating-point types are
+/// exempted from the unique-representations check because IEEE 754
+/// NaN / ±0 representations don't imply padding.
 template<typename T>
-concept IsPOD = cstd::is_trivially_copyable_v<T> && cstd::is_standard_layout_v<T>;
+concept IsPOD = cstd::is_trivially_copyable_v<T>
+    && cstd::is_standard_layout_v<T>
+    && (cstd::has_unique_object_representations_v<T> || cstd::is_floating_point_v<T>);
 
 template<typename T>
 struct SerializePOD : cstd::false_type {};
