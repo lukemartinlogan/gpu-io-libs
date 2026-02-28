@@ -109,6 +109,7 @@ struct ComplexDatatypeDescriptor {
         Compound,
         Array,
     } kind;
+    padding<3> _pad{};
     uint32_t element_size;
 
     CROSS_FUN constexpr bool operator==(const ComplexDatatypeDescriptor&) const = default;

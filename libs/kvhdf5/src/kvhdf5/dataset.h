@@ -20,7 +20,7 @@ struct DatasetShape {
     cstd::array<uint64_t, MAX_DATASET_DIMS> dims;
     cstd::array<uint64_t, MAX_DATASET_DIMS> chunk_dims;
     uint8_t ndims_;
-    // 7 bytes padding to 8-byte boundary
+    padding<7> _pad;
 
     static expected<DatasetShape> Create(
         cstd::initializer_list<uint64_t> dims_list,
