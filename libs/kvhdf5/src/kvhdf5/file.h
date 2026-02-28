@@ -8,7 +8,7 @@
 namespace kvhdf5 {
 
 // Forward declaration - Group<B> will be defined in hdf5_group.h
-template<typename B>
+template<RawBlobStore B>
 class Group;
 
 /**
