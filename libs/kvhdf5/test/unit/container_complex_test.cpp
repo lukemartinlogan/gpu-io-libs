@@ -23,7 +23,7 @@ TEST_CASE("Integration - Complex Nested Hierarchy", "[integration][container]") 
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
 
-    Container<InMemoryBlobStore> container(fixture.allocator);
+    Container container(InMemoryBlobStore(fixture.allocator), fixture.allocator);
 
     /*
      * Build this hierarchy:
@@ -581,7 +581,7 @@ TEST_CASE("Integration - Hierarchy Modification", "[integration][container]") {
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
 
-    Container<InMemoryBlobStore> container(fixture.allocator);
+    Container container(InMemoryBlobStore(fixture.allocator), fixture.allocator);
     GroupId root = container.RootGroup();
 
     // Create initial structure

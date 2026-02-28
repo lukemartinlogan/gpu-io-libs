@@ -10,7 +10,7 @@ TEST_CASE("Container - Initialization", "[container]") {
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
 
-    Container<InMemoryBlobStore> container(fixture.allocator);
+    Container container(InMemoryBlobStore(fixture.allocator), fixture.allocator);
 
     SECTION("Root group is created and valid") {
         GroupId root = container.RootGroup();
@@ -36,7 +36,7 @@ TEST_CASE("Container - ID Allocation", "[container]") {
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
 
-    Container<InMemoryBlobStore> container(fixture.allocator);
+    Container container(InMemoryBlobStore(fixture.allocator), fixture.allocator);
 
     SECTION("AllocateId returns sequential IDs") {
         ObjectId id1 = container.AllocateId();
@@ -67,7 +67,7 @@ TEST_CASE("Container - Group Operations", "[container]") {
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
 
-    Container<InMemoryBlobStore> container(fixture.allocator);
+    Container container(InMemoryBlobStore(fixture.allocator), fixture.allocator);
 
     SECTION("Put and get group metadata") {
         GroupId group_id = GroupId(container.AllocateId());
@@ -156,7 +156,7 @@ TEST_CASE("Container - Dataset Operations", "[container]") {
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
 
-    Container<InMemoryBlobStore> container(fixture.allocator);
+    Container container(InMemoryBlobStore(fixture.allocator), fixture.allocator);
 
     SECTION("Put and get dataset metadata") {
         DatasetId dataset_id = DatasetId(container.AllocateId());
@@ -223,7 +223,7 @@ TEST_CASE("Container - Datatype Operations", "[container]") {
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
 
-    Container<InMemoryBlobStore> container(fixture.allocator);
+    Container container(InMemoryBlobStore(fixture.allocator), fixture.allocator);
 
     SECTION("Put and get complex datatype descriptor") {
         DatatypeId datatype_id = DatatypeId(container.AllocateId());
@@ -277,8 +277,8 @@ TEST_CASE("Container - Multiple Containers", "[container]") {
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
 
-    Container<InMemoryBlobStore> container1(fixture.allocator);
-    Container<InMemoryBlobStore> container2(fixture.allocator);
+    Container container1(InMemoryBlobStore(fixture.allocator), fixture.allocator);
+    Container container2(InMemoryBlobStore(fixture.allocator), fixture.allocator);
 
     SECTION("Containers have independent storage") {
         // Use the same ID in both containers to prove storage is separate
@@ -328,7 +328,7 @@ TEST_CASE("Container - Multiple Containers", "[container]") {
 TEST_CASE("Container - PutChunk and GetChunk", "[container][chunk]") {
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
-    Container<InMemoryBlobStore> c(InMemoryBlobStore(fixture.allocator), fixture.allocator);
+    Container c(InMemoryBlobStore(fixture.allocator), fixture.allocator);
 
     auto did = DatasetId(c.AllocateId());
     uint64_t coords[] = {0, 0};
@@ -347,7 +347,7 @@ TEST_CASE("Container - PutChunk and GetChunk", "[container][chunk]") {
 TEST_CASE("Container - ChunkExists and DeleteChunk", "[container][chunk]") {
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
-    Container<InMemoryBlobStore> c(InMemoryBlobStore(fixture.allocator), fixture.allocator);
+    Container c(InMemoryBlobStore(fixture.allocator), fixture.allocator);
 
     auto did = DatasetId(c.AllocateId());
     uint64_t coords[] = {1};
