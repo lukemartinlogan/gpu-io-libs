@@ -1,44 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
-#include "chimaera/chimaera.h"
-#include "wrp_cte/core/core_client.h"
+#include "../../common/cte_runtime.h"
 #include <cstring>
 #include <vector>
 #include <string>
-#include <stdexcept>
-
-// Initialize the Chimaera runtime and CTE pool once per process, lazily on first test.
-// Static local ensures thread-safe single initialization.
-void EnsureRuntime() {
-    static bool initialized = []() {
-        // Step 1: Initialize Chimaera (starts runtime if not already running)
-        bool success = chi::CHIMAERA_INIT(chi::ChimaeraMode::kClient, true);
-        if (!success) {
-            throw std::runtime_error("Failed to initialize Chimaera");
-        }
-        // Step 2: Create the CTE pool and connect the global CTE client to it
-        bool cte_ok = wrp_cte::core::WRP_CTE_CLIENT_INIT();
-        if (!cte_ok) {
-            throw std::runtime_error("Failed to initialize CTE client pool");
-        }
-        // Step 3: Register a RAM storage target with the CTE pool
-        auto reg_task = WRP_CTE_CLIENT->AsyncRegisterTarget(
-            "ram_test_storage",
-            chimaera::bdev::BdevType::kRam,
-            256ULL * 1024 * 1024,  // 256 MB
-            chi::PoolQuery::Local(),
-            chi::PoolId(600, 0));
-        reg_task.Wait();
-        chi::u32 ret = reg_task->GetReturnCode();
-        if (ret != 0) {
-            throw std::runtime_error("Failed to register RAM storage target (code=" + std::to_string(ret) + ")");
-        }
-        return true;
-    }();
-    (void)initialized;
-}
 
 TEST_CASE("CTE Tag creation and basic PutBlob/GetBlob", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     SECTION("Can create a Tag and write/read simple data") {
         wrp_cte::core::Tag tag("test_tag_basic");
         const char* blob_name = "simple_blob";
@@ -57,7 +24,7 @@ TEST_CASE("CTE Tag creation and basic PutBlob/GetBlob", "[integration][iowarp][c
 }
 
 TEST_CASE("CTE binary data operations", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     wrp_cte::core::Tag tag("test_tag_binary");
 
     SECTION("Can write and read binary data") {
@@ -79,7 +46,7 @@ TEST_CASE("CTE binary data operations", "[integration][iowarp][cte]") {
 }
 
 TEST_CASE("CTE blob overwriting", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     wrp_cte::core::Tag tag("test_tag_overwrite");
 
     SECTION("Can overwrite existing blob") {
@@ -105,7 +72,7 @@ TEST_CASE("CTE blob overwriting", "[integration][iowarp][cte]") {
 }
 
 TEST_CASE("CTE offset-based operations", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     wrp_cte::core::Tag tag("test_tag_offset");
 
     SECTION("Can write to different offsets in same blob") {
@@ -134,7 +101,7 @@ TEST_CASE("CTE offset-based operations", "[integration][iowarp][cte]") {
 }
 
 TEST_CASE("CTE GetBlobSize operation", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     wrp_cte::core::Tag tag("test_tag_size");
 
     SECTION("GetBlobSize returns correct size for existing blob") {
@@ -165,7 +132,7 @@ TEST_CASE("CTE GetBlobSize operation", "[integration][iowarp][cte]") {
 }
 
 TEST_CASE("CTE GetContainedBlobs operation", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     wrp_cte::core::Tag tag("test_tag_list");
 
     SECTION("GetContainedBlobs lists all blobs in tag") {
@@ -197,7 +164,7 @@ TEST_CASE("CTE GetContainedBlobs operation", "[integration][iowarp][cte]") {
 }
 
 TEST_CASE("CTE large blob operations", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     wrp_cte::core::Tag tag("test_tag_large");
 
     SECTION("Can write and read large blobs") {
@@ -231,7 +198,7 @@ TEST_CASE("CTE large blob operations", "[integration][iowarp][cte]") {
 }
 
 TEST_CASE("CTE partial read operations", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     wrp_cte::core::Tag tag("test_tag_partial");
 
     SECTION("Can read partial blob data") {
@@ -265,7 +232,7 @@ TEST_CASE("CTE partial read operations", "[integration][iowarp][cte]") {
 }
 
 TEST_CASE("CTE multiple tags", "[integration][iowarp][cte]") {
-    EnsureRuntime();
+    EnsureCteRuntime();
     SECTION("Different tags maintain separate blob namespaces") {
         wrp_cte::core::Tag tag1("test_tag_multi_1");
         wrp_cte::core::Tag tag2("test_tag_multi_2");
