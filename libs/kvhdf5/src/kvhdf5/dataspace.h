@@ -29,6 +29,34 @@ struct HyperslabSelection {
     cstd::array<uint64_t, MAX_DIMS> block{};
     uint8_t ndims{0};
 
+    CROSS_FUN cstd::span<const uint64_t> Start() const {
+        return cstd::span(start.data(), ndims);
+    }
+    CROSS_FUN cstd::span<uint64_t> Start() {
+        return cstd::span(start.data(), ndims);
+    }
+
+    CROSS_FUN cstd::span<const uint64_t> Stride() const {
+        return cstd::span(stride.data(), ndims);
+    }
+    CROSS_FUN cstd::span<uint64_t> Stride() {
+        return cstd::span(stride.data(), ndims);
+    }
+
+    CROSS_FUN cstd::span<const uint64_t> Count() const {
+        return cstd::span(count.data(), ndims);
+    }
+    CROSS_FUN cstd::span<uint64_t> Count() {
+        return cstd::span(count.data(), ndims);
+    }
+
+    CROSS_FUN cstd::span<const uint64_t> Block() const {
+        return cstd::span(block.data(), ndims);
+    }
+    CROSS_FUN cstd::span<uint64_t> Block() {
+        return cstd::span(block.data(), ndims);
+    }
+
     CROSS_FUN constexpr bool operator==(const HyperslabSelection&) const = default;
 };
 
