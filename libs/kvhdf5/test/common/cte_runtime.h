@@ -3,6 +3,7 @@
 #include "cuda_compat.h"
 #include "chimaera/chimaera.h"
 #include "wrp_cte/core/core_client.h"
+#include <cstdlib>
 #include <stdexcept>
 #include <string>
 
@@ -11,6 +12,7 @@
 // even when included from multiple translation units.
 inline void EnsureCteRuntime() {
     static bool initialized = []() {
+        setenv("CHI_IPC_MODE", "SHM", 1);
         bool success = chi::CHIMAERA_INIT(chi::ChimaeraMode::kClient, true);
         if (!success) {
             throw std::runtime_error("Failed to initialize Chimaera");
