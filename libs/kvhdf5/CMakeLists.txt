@@ -111,3 +111,6 @@ endif()
 
 # Tests
 add_subdirectory(test)
+
+# Benchmarks
+add_subdirectory(bench)
