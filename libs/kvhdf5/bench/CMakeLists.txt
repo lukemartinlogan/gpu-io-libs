@@ -13,7 +13,12 @@ FetchContent_MakeAvailable(benchmark)
 set(CMAKE_CUDA_ARCHITECTURES "89" CACHE STRING "CUDA architectures" FORCE)
 
 add_executable(kvhdf5_benchmarks
-    # none added yet
+    cte_raw_bench.cpp
+    container_bench.cpp
+    group_bench.cpp
+    attribute_bench.cpp
+    dataset_bench.cpp
+    lifecycle_bench.cpp
 )
 
 target_include_directories(kvhdf5_benchmarks PRIVATE
