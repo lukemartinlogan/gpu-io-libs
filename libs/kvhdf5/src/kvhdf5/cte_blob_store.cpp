@@ -77,6 +77,11 @@ bool CteBlobStore::Exists(cstd::span<const byte_t> key) {
     return tag_.GetBlobSize(blob_name) > 0;
 }
 
+void CteBlobStore::Destroy() {
+    auto task = WRP_CTE_CLIENT->AsyncDelTag(tag_.GetTagId());
+    task.Wait();
+}
+
 std::string CteBlobStore::KeyToHex(cstd::span<const byte_t> key) {
     if (key.empty()) {
         return "_";

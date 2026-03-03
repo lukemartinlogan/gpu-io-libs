@@ -37,6 +37,12 @@ public:
 
     bool Exists(cstd::span<const byte_t> key);
 
+    /**
+     * Destroy this store's CTE tag and free its resources (bdev pool, SHM).
+     * Blocks until deletion completes. Call once when done with this store.
+     */
+    void Destroy();
+
 private:
     static std::string KeyToHex(cstd::span<const byte_t> key);
 };
