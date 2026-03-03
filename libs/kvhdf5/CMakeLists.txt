@@ -52,7 +52,7 @@ set(WRP_CORE_ENABLE_DOCKER_CI  OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     iowarp_core
     GIT_REPOSITORY https://github.com/abscosmos/iowarp-core.git
-    GIT_TAG        1664d8dac364ae3da5c5da2a31e7a693c03c2b70  # Add nonatomic fallback (atomic.h fix)
+    GIT_TAG        7ee9ce12f1c07f7bebbed60df79500d52e9cd175
 )
 # FetchContent_Populate(<name>) is deprecated in CMake 3.30+ (CMP0169).
 # We need it here to interject the cmake file copy between fetch and
@@ -108,6 +108,8 @@ else()
         chimaera_cxx
     )
 endif()
+
+set(KVHDF5_CHIMAERA_CONF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/config/chimaera_ram.yaml")
 
 # Tests
 add_subdirectory(test)
