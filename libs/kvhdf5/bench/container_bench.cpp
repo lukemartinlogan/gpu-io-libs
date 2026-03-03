@@ -16,6 +16,7 @@ public:
         container_.emplace(CreateContainer());
     }
     void TearDown(benchmark::State& state) override {
+        if (container_) DestroyContainer(*container_);
         container_.reset();
         bench::CteFixture::TearDown(state);
     }
@@ -61,6 +62,7 @@ public:
     }
     void TearDown(benchmark::State& state) override {
         child_ids_.clear();
+        if (container_) DestroyContainer(*container_);
         container_.reset();
         bench::CteFixture::TearDown(state);
     }
@@ -118,6 +120,7 @@ public:
         container_->PutDataset(dataset_id_, meta);
     }
     void TearDown(benchmark::State& state) override {
+        if (container_) DestroyContainer(*container_);
         container_.reset();
         bench::CteFixture::TearDown(state);
     }
@@ -172,6 +175,7 @@ public:
         key_ = ChunkKey(dataset_id_, cstd::span<const uint64_t>(&coord, 1));
     }
     void TearDown(benchmark::State& state) override {
+        if (container_) DestroyContainer(*container_);
         container_.reset();
         bench::CteFixture::TearDown(state);
     }
@@ -237,6 +241,7 @@ public:
             cstd::span<const byte_t>(data, sizeof(data)));
     }
     void TearDown(benchmark::State& state) override {
+        if (container_) DestroyContainer(*container_);
         container_.reset();
         bench::CteFixture::TearDown(state);
     }

@@ -43,6 +43,9 @@ BENCHMARK_DEFINE_F(LifecycleFixture, BM_FullLifecycle)(benchmark::State& state) 
         // Read back
         ds.Read(type, mem_space, file_space, read_buf.data());
         benchmark::DoNotOptimize(read_buf.data());
+        state.PauseTiming();
+        DestroyFile(file);
+        state.ResumeTiming();
     }
     state.SetBytesProcessed(state.iterations() * elements * sizeof(double) * 2);
 }
@@ -82,6 +85,9 @@ BENCHMARK_DEFINE_F(LargeSeqFixture, BM_LargeSequentialWriteRead)(benchmark::Stat
         ds.Write(type, mem_space, file_space, data.data());
         ds.Read(type, mem_space, file_space, out.data());
         benchmark::DoNotOptimize(out.data());
+        state.PauseTiming();
+        DestroyFile(file);
+        state.ResumeTiming();
     }
     int64_t num_chunks = (total + chunk - 1) / chunk;
     state.SetBytesProcessed(state.iterations() * total * sizeof(double) * 2);
@@ -141,6 +147,7 @@ BENCHMARK_DEFINE_F(Strided2DFixture, BM_Strided2DHyperslab)(benchmark::State& st
         ds.Read(type, mem_space, file_space, out.data());
         benchmark::DoNotOptimize(out.data());
     }
+    DestroyFile(file);
     state.SetBytesProcessed(state.iterations() * selected * sizeof(double));
 }
 BENCHMARK_REGISTER_F(Strided2DFixture, BM_Strided2DHyperslab)
@@ -174,6 +181,7 @@ BENCHMARK_DEFINE_F(DeepTraversalFixture, BM_DeepHierarchyTraversal)(benchmark::S
         }
         benchmark::DoNotOptimize(g);
     }
+    DestroyFile(file);
     state.counters["groups/sec"] = benchmark::Counter(
         state.iterations() * depth, benchmark::Counter::kIsRate);
 }
@@ -210,6 +218,9 @@ BENCHMARK_DEFINE_F(ManySmallAttrsFixture, BM_ManySmallAttributes)(benchmark::Sta
             root.GetAttribute(gpu_string_view(name.c_str()), type, &out);
             benchmark::DoNotOptimize(out);
         }
+        state.PauseTiming();
+        DestroyFile(file);
+        state.ResumeTiming();
     }
     state.counters["attrs/sec"] = benchmark::Counter(
         state.iterations() * count * 2, benchmark::Counter::kIsRate);
@@ -276,6 +287,7 @@ BENCHMARK_DEFINE_F(SparseChunkFixture, BM_SparseChunkAccess)(benchmark::State& s
         ds.Read(type, full_space, full_space, out.data());
         benchmark::DoNotOptimize(out.data());
     }
+    DestroyFile(file);
     state.SetBytesProcessed(state.iterations() * total_elements * sizeof(double));
 }
 BENCHMARK_REGISTER_F(SparseChunkFixture, BM_SparseChunkAccess)

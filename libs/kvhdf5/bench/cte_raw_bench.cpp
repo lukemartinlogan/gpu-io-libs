@@ -25,6 +25,9 @@ public:
         tag_.emplace(tag_name_);
     }
     void TearDown(benchmark::State&) override {
+        if (tag_) {
+            WRP_CTE_CLIENT->AsyncDelTag(tag_->GetTagId()).Wait();
+        }
         tag_.reset();
     }
 protected:
@@ -70,6 +73,9 @@ public:
         tag_->PutBlob("blob", data_.data(), data_.size());
     }
     void TearDown(benchmark::State&) override {
+        if (tag_) {
+            WRP_CTE_CLIENT->AsyncDelTag(tag_->GetTagId()).Wait();
+        }
         tag_.reset();
     }
 protected:
@@ -115,6 +121,9 @@ public:
         }
     }
     void TearDown(benchmark::State&) override {
+        if (tag_) {
+            WRP_CTE_CLIENT->AsyncDelTag(tag_->GetTagId()).Wait();
+        }
         tag_.reset();
     }
 protected:
@@ -150,6 +159,9 @@ BENCHMARK_DEFINE_F(RawCteTagCreateFixture, BM_RawCteTagCreate)(benchmark::State&
         auto name = bench::UniqueTagName();
         wrp_cte::core::Tag tag(name);
         benchmark::DoNotOptimize(tag);
+        state.PauseTiming();
+        WRP_CTE_CLIENT->AsyncDelTag(tag.GetTagId()).Wait();
+        state.ResumeTiming();
     }
     state.SetItemsProcessed(state.iterations());
 }

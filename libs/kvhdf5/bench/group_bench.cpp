@@ -16,6 +16,9 @@ BENCHMARK_DEFINE_F(FileCreateFixture, BM_FileCreate)(benchmark::State& state) {
         ResetAllocator();
         auto file = CreateFile();
         benchmark::DoNotOptimize(file);
+        state.PauseTiming();
+        DestroyFile(file);
+        state.ResumeTiming();
     }
     state.SetItemsProcessed(state.iterations());
 }
@@ -37,6 +40,9 @@ BENCHMARK_DEFINE_F(GroupCreateFixture, BM_CreateGroup)(benchmark::State& state) 
         state.ResumeTiming();
         auto result = root.CreateGroup("test");
         benchmark::DoNotOptimize(result);
+        state.PauseTiming();
+        DestroyFile(file);
+        state.ResumeTiming();
     }
     state.SetItemsProcessed(state.iterations());
 }
@@ -55,6 +61,7 @@ BENCHMARK_DEFINE_F(GroupOpenFixture, BM_OpenGroup)(benchmark::State& state) {
         auto result = root.OpenGroup("target");
         benchmark::DoNotOptimize(result);
     }
+    DestroyFile(file);
     state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK_REGISTER_F(GroupOpenFixture, BM_OpenGroup);
@@ -80,6 +87,10 @@ BENCHMARK_DEFINE_F(SiblingGroupsFixture, BM_CreateSiblingGroups)(benchmark::Stat
             auto result = root.CreateGroup(gpu_string_view(name.c_str()));
             benchmark::DoNotOptimize(result);
         }
+
+        state.PauseTiming();
+        DestroyFile(file);
+        state.ResumeTiming();
     }
     state.SetItemsProcessed(state.iterations() * count);
 }
@@ -110,6 +121,10 @@ BENCHMARK_DEFINE_F(DeepGroupFixture, BM_CreateGroupDeep)(benchmark::State& state
             current = result.value();
         }
         benchmark::DoNotOptimize(current);
+
+        state.PauseTiming();
+        DestroyFile(file);
+        state.ResumeTiming();
     }
     state.SetItemsProcessed(state.iterations() * depth);
 }
@@ -140,6 +155,10 @@ BENCHMARK_DEFINE_F(OpenDeepGroupFixture, BM_OpenGroupDeep)(benchmark::State& sta
             g = g.OpenGroup(gpu_string_view(name.c_str())).value();
         }
         benchmark::DoNotOptimize(g);
+
+        state.PauseTiming();
+        DestroyFile(file);
+        state.ResumeTiming();
     }
     state.SetItemsProcessed(state.iterations() * depth);
     state.counters["opens/sec"] = benchmark::Counter(
@@ -167,6 +186,9 @@ BENCHMARK_DEFINE_F(DatasetCreateFixture, BM_CreateDataset)(benchmark::State& sta
         state.ResumeTiming();
         auto result = root.CreateDataset("ds", Datatype::Float64(), space);
         benchmark::DoNotOptimize(result);
+        state.PauseTiming();
+        DestroyFile(file);
+        state.ResumeTiming();
     }
     state.SetItemsProcessed(state.iterations());
 }
@@ -188,6 +210,7 @@ BENCHMARK_DEFINE_F(DatasetOpenFixture, BM_OpenDataset)(benchmark::State& state) 
         auto result = root.OpenDataset("target_ds");
         benchmark::DoNotOptimize(result);
     }
+    DestroyFile(file);
     state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK_REGISTER_F(DatasetOpenFixture, BM_OpenDataset);
@@ -213,6 +236,7 @@ BENCHMARK_DEFINE_F(GroupInfoFixture, BM_GetGroupInfo)(benchmark::State& state) {
         auto info = root.GetInfo();
         benchmark::DoNotOptimize(info);
     }
+    DestroyFile(file);
     state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK_REGISTER_F(GroupInfoFixture, BM_GetGroupInfo)
