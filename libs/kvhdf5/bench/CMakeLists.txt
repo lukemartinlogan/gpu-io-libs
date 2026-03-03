@@ -34,3 +34,7 @@ target_link_libraries(kvhdf5_benchmarks PRIVATE
 set_target_properties(kvhdf5_benchmarks PROPERTIES
     CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
 )
+
+target_compile_definitions(kvhdf5_benchmarks PRIVATE
+    KVHDF5_CHIMAERA_CONF="${KVHDF5_CHIMAERA_CONF_PATH}"
+)
