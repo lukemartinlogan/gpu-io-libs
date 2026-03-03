@@ -72,6 +72,10 @@ target_link_libraries(kvhdf5_tests PRIVATE
     Catch2::Catch2WithMain
 )
 
+target_compile_definitions(kvhdf5_tests PRIVATE
+    KVHDF5_CHIMAERA_CONF="${KVHDF5_CHIMAERA_CONF_PATH}"
+)
+
 # Set CUDA architecture for the test executable
 set_target_properties(kvhdf5_tests PROPERTIES
     CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"

@@ -13,6 +13,7 @@
 inline void EnsureCteRuntime() {
     static bool initialized = []() {
         setenv("CHI_IPC_MODE", "SHM", 1);
+        setenv("WRP_RUNTIME_CONF", KVHDF5_CHIMAERA_CONF, 1);
         bool success = chi::CHIMAERA_INIT(chi::ChimaeraMode::kClient, true);
         if (!success) {
             throw std::runtime_error("Failed to initialize Chimaera");
