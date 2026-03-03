@@ -77,6 +77,14 @@ public:
         assert(result.has_value());
         return std::move(result.value());
     }
+
+    void DestroyContainer(kvhdf5::Container<kvhdf5::CteBlobStore>& c) {
+        c.GetBlobStore().GetStore()->Destroy();
+    }
+
+    void DestroyFile(kvhdf5::File<kvhdf5::CteBlobStore>& f) {
+        f.GetContainer().GetBlobStore().GetStore()->Destroy();
+    }
 };
 
 // Convenience alias for the default fixture.
