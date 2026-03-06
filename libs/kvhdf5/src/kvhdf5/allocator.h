@@ -1,12 +1,12 @@
 #pragma once
 
 #include "../defines.h"
-#include "hermes_shm/memory/allocator/arena_allocator.h"
+#include "hermes_shm/memory/allocator/buddy_allocator.h"
 #include <cuda/std/concepts>
 
 namespace kvhdf5 {
 
-using AllocatorImpl = hshm::ipc::ArenaAllocator<false>;
+using AllocatorImpl = hshm::ipc::BuddyAllocator;
 
 template<typename A>
 concept Allocator = requires {
