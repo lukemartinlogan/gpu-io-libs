@@ -22,8 +22,8 @@ inline std::string UniqueTagName() {
     return "bench_tag_" + std::to_string(id);
 }
 
-// Default heap size: 64MB.
-static constexpr size_t kDefaultHeapSize = 64ULL * 1024 * 1024;
+// Default heap size: 1MB (enough for metadata objects; override heap_size_ if more is needed).
+static constexpr size_t kDefaultHeapSize = 1ULL * 1024 * 1024;
 
 // Base fixture that manages its own allocator with configurable heap size.
 // Not a template — subclass fixtures set heap_size_ in their constructor.
