@@ -19,6 +19,7 @@ add_executable(kvhdf5_benchmarks
     attribute_bench.cpp
     dataset_bench.cpp
     lifecycle_bench.cpp
+    vector_bench.cpp
 )
 
 target_include_directories(kvhdf5_benchmarks PRIVATE
