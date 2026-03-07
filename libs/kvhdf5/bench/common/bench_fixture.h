@@ -96,4 +96,43 @@ public:
 // Convenience alias for the default fixture.
 using CteFixture = CteFixtureBase;
 
+// Lightweight fixture for allocator-only benchmarks.
+// Does NOT start the CTE runtime — safe for vector/allocator microbenchmarks.
+class AllocatorFixture : public benchmark::Fixture {
+protected:
+    size_t heap_size_ = kDefaultHeapSize;
+    size_t alloc_size_ = 0;
+    char* memory_ = nullptr;
+    hshm::ipc::ArrayBackend backend_;
+    kvhdf5::AllocatorImpl* allocator_ = nullptr;
+
+public:
+    void SetUp(benchmark::State&) override {
+        alloc_size_ = heap_size_ + 3 * hshm::ipc::kBackendHeaderSize;
+        memory_ = new char[alloc_size_];
+        cuda::std::memset(memory_, 0, alloc_size_);
+        if (backend_.shm_init(hshm::ipc::MemoryBackendId::GetRoot(),
+                              alloc_size_, memory_)) {
+            allocator_ = backend_.MakeAlloc<kvhdf5::AllocatorImpl>();
+        }
+    }
+
+    void TearDown(benchmark::State&) override {
+        allocator_ = nullptr;
+        if (memory_) {
+            delete[] memory_;
+            memory_ = nullptr;
+        }
+    }
+
+    kvhdf5::AllocatorImpl* GetAllocator() { return allocator_; }
+
+    void ResetAllocator() {
+        cuda::std::memset(memory_, 0, alloc_size_);
+        backend_.shm_init(hshm::ipc::MemoryBackendId::GetRoot(),
+                          alloc_size_, memory_);
+        allocator_ = backend_.MakeAlloc<kvhdf5::AllocatorImpl>();
+    }
+};
+
 }  // namespace bench
