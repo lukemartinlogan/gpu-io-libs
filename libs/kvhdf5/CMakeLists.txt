@@ -52,12 +52,12 @@ set(WRP_CORE_ENABLE_DOCKER_CI  OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     iowarp_core
     GIT_REPOSITORY https://github.com/abscosmos/iowarp-core.git
-    GIT_TAG        7ee9ce12f1c07f7bebbed60df79500d52e9cd175
+    GIT_TAG        d366de4e41d1f7b2b601887b2a31f64f02eef904
 )
 # FetchContent_Populate(<name>) is deprecated in CMake 3.30+ (CMP0169).
 # We need it here to interject the cmake file copy between fetch and
 # add_subdirectory; set OLD to suppress the warning until a cleaner pattern
-# is available upstream in clio-core.
+# is available upstream.
 cmake_policy(SET CMP0169 OLD)
 FetchContent_GetProperties(iowarp_core)
 if(NOT iowarp_core_POPULATED)
@@ -71,7 +71,7 @@ if(NOT iowarp_core_POPULATED)
     )
     add_subdirectory(${iowarp_core_SOURCE_DIR} ${iowarp_core_BINARY_DIR})
 endif()
-message(STATUS "clio-core loaded from FetchContent (abscosmos/iowarp-core)")
+message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ d366de4)")
 
 FetchContent_Declare(
     cccl

@@ -41,6 +41,7 @@ add_executable(kvhdf5_tests
     unit/cte_blob_store_test.cpp
     integration/iowarp/vector_test.cpp
     integration/iowarp/cte_test.cpp
+    integration/iowarp/buddy_allocator_test.cpp
 )
 
 # When iowarp is built with CUDA enabled, its headers contain raw __device__/__host__
