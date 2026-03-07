@@ -1,9 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
-#include "hermes_shm/memory/allocator/arena_allocator.h"
+#include "hermes_shm/memory/allocator/buddy_allocator.h"
 #include "hermes_shm/data_structures/priv/vector.h"
 #include "../../common/allocator_fixture.h"
 
-using Allocator = hshm::ipc::ArenaAllocator<false>;
+using Allocator = hshm::ipc::BuddyAllocator;
 
 template<typename T>
 using vector = hshm::priv::vector<T, Allocator>;
@@ -98,11 +98,11 @@ TEST_CASE("iowarp vector iteration", "[integration][iowarp]") {
     }
 }
 
-TEST_CASE("iowarp vector with arena allocator", "[integration][iowarp]") {
+TEST_CASE("iowarp vector with buddy allocator", "[integration][iowarp]") {
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
 
-    SECTION("Vector works with arena allocator") {
+    SECTION("Vector works with buddy allocator") {
         vector<uint64_t> vec(fixture.allocator);
 
         vec.push_back(12345);
