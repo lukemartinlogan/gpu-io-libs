@@ -13,7 +13,9 @@ class FileCreateFixture : public bench::CteFixture {};
 
 BENCHMARK_DEFINE_F(FileCreateFixture, BM_FileCreate)(benchmark::State& state) {
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         auto file = CreateFile();
         benchmark::DoNotOptimize(file);
         state.PauseTiming();
@@ -57,7 +59,9 @@ BENCHMARK_DEFINE_F(GroupOpenFixture, BM_OpenGroup)(benchmark::State& state) {
     root.CreateGroup("target");
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         auto result = root.OpenGroup("target");
         benchmark::DoNotOptimize(result);
     }
@@ -206,7 +210,9 @@ BENCHMARK_DEFINE_F(DatasetOpenFixture, BM_OpenDataset)(benchmark::State& state) 
     root.CreateDataset("target_ds", Datatype::Float64(), space);
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         auto result = root.OpenDataset("target_ds");
         benchmark::DoNotOptimize(result);
     }
@@ -232,7 +238,9 @@ BENCHMARK_DEFINE_F(GroupInfoFixture, BM_GetGroupInfo)(benchmark::State& state) {
     }
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         auto info = root.GetInfo();
         benchmark::DoNotOptimize(info);
     }

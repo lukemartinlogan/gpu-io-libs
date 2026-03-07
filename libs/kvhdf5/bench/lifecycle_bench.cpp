@@ -21,7 +21,9 @@ BENCHMARK_DEFINE_F(LifecycleFixture, BM_FullLifecycle)(benchmark::State& state) 
     std::vector<double> read_buf(elements);
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         // Create file + group + dataset
         auto file = CreateFile();
         auto root = file.OpenRootGroup();
@@ -69,7 +71,9 @@ BENCHMARK_DEFINE_F(LargeSeqFixture, BM_LargeSequentialWriteRead)(benchmark::Stat
     std::vector<double> out(total);
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         auto file = CreateFile();
         auto root = file.OpenRootGroup();
 
@@ -143,7 +147,9 @@ BENCHMARK_DEFINE_F(Strided2DFixture, BM_Strided2DHyperslab)(benchmark::State& st
 
     std::vector<double> out(selected);
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.Read(type, mem_space, file_space, out.data());
         benchmark::DoNotOptimize(out.data());
     }
@@ -173,7 +179,9 @@ BENCHMARK_DEFINE_F(DeepTraversalFixture, BM_DeepHierarchyTraversal)(benchmark::S
     }
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         auto g = root;
         for (int64_t d = 0; d < depth; ++d) {
             std::string name = "level_" + std::to_string(d);
@@ -283,7 +291,9 @@ BENCHMARK_DEFINE_F(SparseChunkFixture, BM_SparseChunkAccess)(benchmark::State& s
     std::vector<double> out(total_elements);
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.Read(type, full_space, full_space, out.data());
         benchmark::DoNotOptimize(out.data());
     }

@@ -44,7 +44,9 @@ BENCHMARK_DEFINE_F(SingleChunkFixture, BM_WriteSingleChunk)(benchmark::State& st
     for (int64_t i = 0; i < elements; ++i) data[i] = static_cast<double>(i);
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.Write(type, mem_space, file_space, data.data());
     }
     DestroyFile(file);
@@ -74,7 +76,9 @@ BENCHMARK_DEFINE_F(SingleChunkFixture, BM_ReadSingleChunk)(benchmark::State& sta
     std::vector<double> out(elements);
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.Read(type, mem_space, file_space, out.data());
         benchmark::DoNotOptimize(out.data());
     }
@@ -110,7 +114,9 @@ BENCHMARK_DEFINE_F(MultiChunkFixture, BM_WriteMultiChunk)(benchmark::State& stat
     for (int64_t i = 0; i < total; ++i) data[i] = static_cast<double>(i);
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.Write(type, mem_space, file_space, data.data());
     }
     DestroyFile(file);
@@ -144,7 +150,9 @@ BENCHMARK_DEFINE_F(MultiChunkFixture, BM_ReadMultiChunk)(benchmark::State& state
     std::vector<double> out(total);
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.Read(type, mem_space, file_space, out.data());
         benchmark::DoNotOptimize(out.data());
     }
@@ -190,7 +198,9 @@ BENCHMARK_DEFINE_F(TwoDFixture, BM_Write2D)(benchmark::State& state) {
     for (uint64_t i = 0; i < rows * cols; ++i) data[i] = static_cast<double>(i);
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.Write(type, mem_space, file_space, data.data());
     }
     DestroyFile(file);
@@ -226,7 +236,9 @@ BENCHMARK_DEFINE_F(TwoDFixture, BM_Read2D)(benchmark::State& state) {
 
     std::vector<double> out(rows * cols);
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.Read(type, mem_space, file_space, out.data());
         benchmark::DoNotOptimize(out.data());
     }
@@ -270,7 +282,9 @@ BENCHMARK_DEFINE_F(HyperslabContFixture, BM_WriteHyperslabContiguous)(benchmark:
     for (int64_t i = 0; i < slab_count; ++i) data[i] = static_cast<double>(i);
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.Write(type, mem_space, file_space, data.data());
     }
     DestroyFile(file);
@@ -310,7 +324,9 @@ BENCHMARK_DEFINE_F(HyperslabContFixture, BM_ReadHyperslabContiguous)(benchmark::
 
     std::vector<double> out(slab_count);
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.Read(type, mem_space, file_space, out.data());
         benchmark::DoNotOptimize(out.data());
     }
@@ -357,7 +373,9 @@ BENCHMARK_DEFINE_F(HyperslabStridedFixture, BM_WriteHyperslabStrided)(benchmark:
     for (int64_t i = 0; i < count_val; ++i) data[i] = static_cast<double>(i);
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.Write(type, mem_space, file_space, data.data());
     }
     DestroyFile(file);
@@ -401,7 +419,9 @@ BENCHMARK_DEFINE_F(HyperslabStridedFixture, BM_ReadHyperslabStrided)(benchmark::
 
     std::vector<double> out(count_val);
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.Read(type, mem_space, file_space, out.data());
         benchmark::DoNotOptimize(out.data());
     }
@@ -459,7 +479,9 @@ BENCHMARK_DEFINE_F(Slice2DFixture, BM_Read2DRowSlice)(benchmark::State& state) {
 
     std::vector<double> out(cols);
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.Read(type, mem_space, file_space, out.data());
         benchmark::DoNotOptimize(out.data());
     }
@@ -509,7 +531,9 @@ BENCHMARK_DEFINE_F(Slice2DFixture, BM_Read2DColSlice)(benchmark::State& state) {
 
     std::vector<double> out(rows);
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.Read(type, mem_space, file_space, out.data());
         benchmark::DoNotOptimize(out.data());
     }
@@ -535,7 +559,9 @@ BENCHMARK_DEFINE_F(SetExtentFixture, BM_SetExtent)(benchmark::State& state) {
 
     uint64_t new_dim = 200;
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         new_dim = (new_dim == 200) ? 300 : 200;
         ds.SetExtent(cstd::span<const uint64_t>(&new_dim, 1));
     }
@@ -573,7 +599,9 @@ BENCHMARK_DEFINE_F(ChunkIterFixture, BM_ChunkIter)(benchmark::State& state) {
     };
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         int64_t count = 0;
         ds.ChunkIter(counter_cb, &count);
         benchmark::DoNotOptimize(count);

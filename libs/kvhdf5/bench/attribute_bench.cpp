@@ -27,7 +27,9 @@ BENCHMARK_DEFINE_F(GroupAttrFixture, BM_GroupSetAttribute)(benchmark::State& sta
     std::vector<byte_t> data(value_bytes, byte_t{42});
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         root.SetAttribute("attr", type, data.data());
     }
     DestroyFile(file);
@@ -52,7 +54,9 @@ BENCHMARK_DEFINE_F(GroupAttrFixture, BM_GroupGetAttribute)(benchmark::State& sta
     std::vector<byte_t> out(value_bytes);
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         root.GetAttribute("attr", type, out.data());
         benchmark::DoNotOptimize(out.data());
     }
@@ -80,7 +84,9 @@ BENCHMARK_DEFINE_F(DatasetAttrFixture, BM_DatasetSetAttribute)(benchmark::State&
     auto type = Datatype::Int32();
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.SetAttribute("attr", type, &value);
     }
     DestroyFile(file);
@@ -102,7 +108,9 @@ BENCHMARK_DEFINE_F(DatasetAttrFixture, BM_DatasetGetAttribute)(benchmark::State&
 
     int32_t out = 0;
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         ds.GetAttribute("attr", type, &out);
         benchmark::DoNotOptimize(out);
     }
@@ -162,7 +170,9 @@ BENCHMARK_DEFINE_F(ManyAttrsFixture, BM_GetNthAttribute)(benchmark::State& state
     int32_t out = 0;
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         root.GetAttribute(
             gpu_string_view(last_name.c_str()), type, &out);
         benchmark::DoNotOptimize(out);
@@ -191,7 +201,9 @@ BENCHMARK_DEFINE_F(AttrHandleFixture, BM_AttributeHandleWrite)(benchmark::State&
     auto handle = root.OpenAttribute("handle_attr");
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         val++;
         handle.Write(type, &val);
     }
@@ -212,7 +224,9 @@ BENCHMARK_DEFINE_F(AttrHandleFixture, BM_AttributeHandleRead)(benchmark::State& 
     int32_t out = 0;
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         handle.Read(type, &out);
         benchmark::DoNotOptimize(out);
     }

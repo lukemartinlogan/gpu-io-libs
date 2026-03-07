@@ -93,7 +93,9 @@ BENCHMARK_REGISTER_F(GroupOpFixture, BM_PutGroup)
 
 BENCHMARK_DEFINE_F(GroupOpFixture, BM_GetGroup)(benchmark::State& state) {
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         auto result = container_->GetGroup(group_id_);
         benchmark::DoNotOptimize(result);
     }
@@ -146,7 +148,9 @@ BENCHMARK_REGISTER_F(DatasetOpFixture, BM_PutDataset);
 
 BENCHMARK_DEFINE_F(DatasetOpFixture, BM_GetDataset)(benchmark::State& state) {
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         auto result = container_->GetDataset(dataset_id_);
         benchmark::DoNotOptimize(result);
     }
@@ -189,7 +193,9 @@ protected:
 BENCHMARK_DEFINE_F(ChunkOpFixture, BM_PutChunk)(benchmark::State& state) {
     cstd::span<const byte_t> span(data_.data(), data_.size());
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         container_->PutChunk(key_, span);
     }
     state.SetBytesProcessed(state.iterations() * state.range(0));
@@ -207,7 +213,9 @@ BENCHMARK_DEFINE_F(ChunkOpFixture, BM_GetChunk)(benchmark::State& state) {
     cstd::span<byte_t> out_span(out.data(), out.size());
 
     for (auto _ : state) {
+        state.PauseTiming();
         ResetAllocator();
+        state.ResumeTiming();
         auto result = container_->GetChunk(key_, out_span);
         benchmark::DoNotOptimize(result);
     }
