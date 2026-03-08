@@ -36,14 +36,15 @@ class Dataset {
         // full-space coordinates.
         uint64_t coords[MAX_DIMS];
         uint64_t remainder = n;
-        for (int d = ndims - 1; d >= 0; --d) {
-            uint64_t dim_selected = hyp.count[d] * hyp.block[d];
+        for (size_t d = ndims; d > 0; --d) {
+            size_t i = d - 1;
+            uint64_t dim_selected = hyp.count[i] * hyp.block[i];
             uint64_t dim_idx = remainder % dim_selected;
             remainder /= dim_selected;
 
-            uint64_t ci = dim_idx / hyp.block[d];
-            uint64_t bi = dim_idx % hyp.block[d];
-            coords[d] = hyp.start[d] + ci * hyp.stride[d] + bi;
+            uint64_t ci = dim_idx / hyp.block[i];
+            uint64_t bi = dim_idx % hyp.block[i];
+            coords[i] = hyp.start[i] + ci * hyp.stride[i] + bi;
         }
 
         // Linearize using the dataspace dims
@@ -51,9 +52,10 @@ class Dataset {
 
         uint64_t flat = 0;
         uint64_t stride = 1;
-        for (int d = ndims - 1; d >= 0; --d) {
-            flat += coords[d] * stride;
-            stride *= dims_span[d];
+        for (size_t d = ndims; d > 0; --d) {
+            size_t i = d - 1;
+            flat += coords[i] * stride;
+            stride *= dims_span[i];
         }
         return flat;
     }
@@ -93,10 +95,9 @@ class Dataset {
             "CoordsToFlat: dims must not be empty"
         );
 
-        size_t ndims = dims.size();
         uint64_t flat = 0;
         uint64_t stride = 1;
-        for (size_t d = ndims; d > 0; --d) {
+        for (size_t d = dims.size(); d > 0; --d) {
             size_t i = d - 1;
             flat += coords[i] * stride;
             stride *= dims[i];
@@ -452,13 +453,14 @@ advance_write:
 
             // Advance to next chunk in range (row-major increment)
             done = true;
-            for (int d = ndims - 1; d >= 0; --d) {
-                chunk_coords[d]++;
-                if (chunk_coords[d] <= last_chunk[d]) {
+            for (size_t d = ndims; d > 0; --d) {
+                size_t i = d - 1;
+                chunk_coords[i]++;
+                if (chunk_coords[i] <= last_chunk[i]) {
                     done = false;
                     break;
                 }
-                chunk_coords[d] = first_chunk[d];
+                chunk_coords[i] = first_chunk[i];
             }
         }
 
@@ -584,13 +586,14 @@ advance_write:
 
             // Advance chunk coords (row-major)
             done = true;
-            for (int d = ndims - 1; d >= 0; --d) {
-                chunk_coords[d]++;
-                if (chunk_coords[d] < num_chunks[d]) {
+            for (size_t d = ndims; d > 0; --d) {
+                size_t i = d - 1;
+                chunk_coords[i]++;
+                if (chunk_coords[i] < num_chunks[i]) {
                     done = false;
                     break;
                 }
-                chunk_coords[d] = 0;
+                chunk_coords[i] = 0;
             }
         }
 
