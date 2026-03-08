@@ -1,5 +1,5 @@
 #include "cte_blob_store.h"
-#include <cstring>
+#include <cuda/std/cstring>
 
 namespace kvhdf5 {
 
@@ -42,9 +42,9 @@ bool CteBlobStore::PutBlob(cstd::span<const byte_t> key,
         buf = heap_buf.data();
     }
 
-    std::memcpy(buf, &real_size, kPrefixSize);
+    cstd::memcpy(buf, &real_size, kPrefixSize);
     if (real_size > 0) {
-        std::memcpy(buf + kPrefixSize, value.data(), real_size);
+        cstd::memcpy(buf + kPrefixSize, value.data(), real_size);
     }
 
     tag_.PutBlob(blob_name, buf, total);
@@ -82,7 +82,7 @@ CteBlobStore::GetBlob(cstd::span<const byte_t> key,
 
     // Extract size prefix and validate
     uint64_t real_size;
-    std::memcpy(&real_size, read_buf, kPrefixSize);
+    cstd::memcpy(&real_size, read_buf, kPrefixSize);
 
     if (real_size > stored_size - kPrefixSize) {
         // Corrupted blob: prefix claims more data than is stored
@@ -94,7 +94,7 @@ CteBlobStore::GetBlob(cstd::span<const byte_t> key,
     }
 
     if (real_size > 0) {
-        std::memcpy(value_out.data(), read_buf + kPrefixSize, real_size);
+        cstd::memcpy(value_out.data(), read_buf + kPrefixSize, real_size);
     }
 
     return cstd::span<byte_t>(value_out.data(), real_size);

@@ -28,7 +28,7 @@ public:
      * Initializes the root group and sets up ID allocation.
      */
     explicit Container(BlobStoreImpl&& blob_store, AllocatorImpl* alloc)
-        : raw_store_(std::move(blob_store))
+        : raw_store_(cstd::move(blob_store))
         , store_(&raw_store_)
         , context_(alloc)
         , next_object_id_(1)  // 0 is reserved for invalid/null
@@ -55,7 +55,7 @@ public:
      * store_ must point to this->raw_store_, not the moved-from object.
      */
     Container(Container&& other) noexcept
-        : raw_store_(std::move(other.raw_store_))
+        : raw_store_(cstd::move(other.raw_store_))
         , store_(&raw_store_)
         , context_(other.context_)
         , root_group_(other.root_group_)

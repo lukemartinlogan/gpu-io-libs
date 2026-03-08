@@ -6,7 +6,7 @@
 #include "dataspace.h"
 #include "hdf5_datatype.h"
 #include <cuda/std/span>
-#include <cstring>
+#include <cuda/std/cstring>
 
 namespace kvhdf5 {
 
@@ -108,7 +108,7 @@ class Dataset {
 
     /// Copy `elem_size` bytes between two pointers.
     static CROSS_FUN void CopyElement(byte_t* dst, const byte_t* src, uint32_t elem_size) {
-        cuda::std::memcpy(dst, src, elem_size);
+        cstd::memcpy(dst, src, elem_size);
     }
 
     /// Row-copy between a chunk buffer and a contiguous user buffer.
@@ -171,9 +171,9 @@ class Dataset {
             byte_t* chunk_row = chunk_buf + outer * inner_bytes;
             byte_t* user_row = user_buf + buf_offset * elem_size;
             if (write) {
-                std::memcpy(chunk_row, user_row, inner_bytes);
+                cstd::memcpy(chunk_row, user_row, inner_bytes);
             } else {
-                std::memcpy(user_row, chunk_row, inner_bytes);
+                cstd::memcpy(user_row, chunk_row, inner_bytes);
             }
         }
     }
@@ -311,7 +311,7 @@ public:
                 auto load_result = container_->GetChunk(load_key, load_span);
                 bool chunk_exists = load_result.has_value();
                 if (!chunk_exists) {
-                    std::memset(chunk_buf, 0, chunk_bytes);
+                    cstd::memset(chunk_buf, 0, chunk_bytes);
                 }
 
                 // Iterate all selected points and check if they fall in this chunk
@@ -468,7 +468,7 @@ advance_write:
             auto chunk_result = container_->GetChunk(key, chunk_span);
             bool chunk_exists = chunk_result.has_value();
             if (!chunk_exists) {
-                std::memset(chunk_buf, 0, chunk_bytes);
+                cstd::memset(chunk_buf, 0, chunk_bytes);
             }
 
             if (file_space.GetSelectionType() == SelectionType::All) {
