@@ -58,15 +58,26 @@ class Dataset {
         return flat;
     }
 
+    // TODO: return a dim_vector
     /// Decompose a flat dataset index into per-dimension coordinates.
     static CROSS_FUN void FlatToCoords(
-        uint64_t flat, const uint64_t* dims, uint8_t ndims,
-        uint64_t* coords_out
+        uint64_t flat, cstd::span<const uint64_t> dims,
+        cstd::span<uint64_t> coords_out
     ) {
+        KVHDF5_ASSERT(
+            dims.size() == coords_out.size(),
+            "FlatToCoords: dims and coords_out must have same rank"
+        );
+        KVHDF5_ASSERT(
+            !dims.empty(),
+            "FlatToCoords: dims must not be empty"
+        );
+        
         uint64_t remainder = flat;
-        for (int d = ndims - 1; d >= 0; --d) {
-            coords_out[d] = remainder % dims[d];
-            remainder /= dims[d];
+        for (size_t d = dims.size(); d > 0; --d) {
+            size_t i = d - 1;
+            coords_out[i] = remainder % dims[i];
+            remainder /= dims[i];
         }
     }
 
