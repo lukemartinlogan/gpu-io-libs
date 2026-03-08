@@ -87,9 +87,7 @@ class Dataset {
     static CROSS_FUN void CopyElement(
         byte_t* dst, const byte_t* src, uint32_t elem_size
     ) {
-        for (uint32_t b = 0; b < elem_size; ++b) {
-            dst[b] = src[b];
-        }
+        cuda::std::memcpy(dst, src, elem_size);
     }
 
 public:
