@@ -6,6 +6,7 @@
 #include "dataspace.h"
 #include "hdf5_datatype.h"
 #include <cuda/std/span>
+#include <cuda/std/cstring>
 
 namespace kvhdf5 {
 
@@ -36,14 +37,15 @@ class Dataset {
         // full-space coordinates.
         uint64_t coords[MAX_DIMS];
         uint64_t remainder = n;
-        for (int d = ndims - 1; d >= 0; --d) {
-            uint64_t dim_selected = hyp.count[d] * hyp.block[d];
+        for (size_t d = ndims; d > 0; --d) {
+            size_t i = d - 1;
+            uint64_t dim_selected = hyp.count[i] * hyp.block[i];
             uint64_t dim_idx = remainder % dim_selected;
             remainder /= dim_selected;
 
-            uint64_t ci = dim_idx / hyp.block[d];
-            uint64_t bi = dim_idx % hyp.block[d];
-            coords[d] = hyp.start[d] + ci * hyp.stride[d] + bi;
+            uint64_t ci = dim_idx / hyp.block[i];
+            uint64_t bi = dim_idx % hyp.block[i];
+            coords[i] = hyp.start[i] + ci * hyp.stride[i] + bi;
         }
 
         // Linearize using the dataspace dims
@@ -51,44 +53,128 @@ class Dataset {
 
         uint64_t flat = 0;
         uint64_t stride = 1;
-        for (int d = ndims - 1; d >= 0; --d) {
-            flat += coords[d] * stride;
-            stride *= dims_span[d];
+        for (size_t d = ndims; d > 0; --d) {
+            size_t i = d - 1;
+            flat += coords[i] * stride;
+            stride *= dims_span[i];
         }
         return flat;
     }
 
+    // TODO: return a dim_vector
     /// Decompose a flat dataset index into per-dimension coordinates.
     static CROSS_FUN void FlatToCoords(
-        uint64_t flat, const uint64_t* dims, uint8_t ndims,
-        uint64_t* coords_out
+        uint64_t flat, cstd::span<const uint64_t> dims,
+        cstd::span<uint64_t> coords_out
     ) {
+        KVHDF5_ASSERT(
+            dims.size() == coords_out.size(),
+            "FlatToCoords: dims and coords_out must have same rank"
+        );
+        KVHDF5_ASSERT(
+            !dims.empty(),
+            "FlatToCoords: dims must not be empty"
+        );
+        
         uint64_t remainder = flat;
-        for (int d = ndims - 1; d >= 0; --d) {
-            coords_out[d] = remainder % dims[d];
-            remainder /= dims[d];
+        for (size_t d = dims.size(); d > 0; --d) {
+            size_t i = d - 1;
+            coords_out[i] = remainder % dims[i];
+            remainder /= dims[i];
         }
     }
 
     /// Linearize per-dimension coordinates to flat row-major index.
-    static CROSS_FUN uint64_t CoordsToFlat(
-        const uint64_t* coords, const uint64_t* dims, uint8_t ndims
-    ) {
+    static CROSS_FUN uint64_t CoordsToFlat(cstd::span<const uint64_t> coords, cstd::span<const uint64_t> dims) {
+        KVHDF5_ASSERT(
+            coords.size() == dims.size(),
+            "CoordsToFlat: coords and dims must have same rank"
+        );
+
+        KVHDF5_ASSERT(
+            !dims.empty(),
+            "CoordsToFlat: dims must not be empty"
+        );
+
         uint64_t flat = 0;
         uint64_t stride = 1;
-        for (int d = ndims - 1; d >= 0; --d) {
-            flat += coords[d] * stride;
-            stride *= dims[d];
+        for (size_t d = dims.size(); d > 0; --d) {
+            size_t i = d - 1;
+            flat += coords[i] * stride;
+            stride *= dims[i];
         }
         return flat;
     }
 
     /// Copy `elem_size` bytes between two pointers.
-    static CROSS_FUN void CopyElement(
-        byte_t* dst, const byte_t* src, uint32_t elem_size
+    static CROSS_FUN void CopyElement(byte_t* dst, const byte_t* src, uint32_t elem_size) {
+        cstd::memcpy(dst, src, elem_size);
+    }
+
+    /// Row-copy between a chunk buffer and a contiguous user buffer.
+    /// When writing: copies user buffer rows → chunk_buf.
+    /// When reading:  copies chunk_buf rows → user buffer.
+    static void CopyChunkRows(
+        byte_t* chunk_buf,
+        byte_t* user_buf,
+        cstd::span<const uint64_t> chunk_start,
+        cstd::span<const uint64_t> chunk_actual,
+        cstd::span<const uint64_t> ds_dims,
+        uint32_t elem_size,
+        uint64_t chunk_total_elems,
+        bool write
     ) {
-        for (uint32_t b = 0; b < elem_size; ++b) {
-            dst[b] = src[b];
+        KVHDF5_ASSERT(
+            chunk_start.size() == ds_dims.size(),
+            "CopyChunkRows: chunk_start rank must match ds_dims rank"
+        );
+        KVHDF5_ASSERT(
+            chunk_actual.size() == ds_dims.size(),
+            "CopyChunkRows: chunk_actual rank must match ds_dims rank"
+        );
+        KVHDF5_ASSERT(
+            !ds_dims.empty(),
+            "CopyChunkRows: ds_dims must not be empty"
+        );
+
+        KVHDF5_ASSERT(
+            elem_size > 0,
+            "CopyChunkRows: elem_size must be > 0"
+        );
+
+        KVHDF5_ASSERT(
+            chunk_total_elems > 0,
+            "CopyChunkRows: chunk_total_elems must be > 0"
+        );
+
+        uint8_t ndims = static_cast<uint8_t>(ds_dims.size());
+        uint64_t inner_elems = chunk_actual[ndims - 1];
+        uint64_t inner_bytes = inner_elems * elem_size;
+        uint64_t outer_count = chunk_total_elems / inner_elems;
+
+        for (uint64_t outer = 0; outer < outer_count; ++outer) {
+            uint64_t local_coords[MAX_DIMS];
+            uint64_t rem = outer;
+            for (size_t d = ndims - 1; d > 0; --d) {
+                size_t i = d - 1;
+                local_coords[i] = rem % chunk_actual[i];
+                rem /= chunk_actual[i];
+            }
+            local_coords[ndims - 1] = 0;
+
+            uint64_t global[MAX_DIMS];
+            for (uint8_t d = 0; d < ndims; ++d)
+                global[d] = chunk_start[d] + local_coords[d];
+            uint64_t buf_offset = CoordsToFlat(
+                cstd::span<const uint64_t>(global, ndims), ds_dims);
+
+            byte_t* chunk_row = chunk_buf + outer * inner_bytes;
+            byte_t* user_row = user_buf + buf_offset * elem_size;
+            if (write) {
+                cstd::memcpy(chunk_row, user_row, inner_bytes);
+            } else {
+                cstd::memcpy(user_row, chunk_row, inner_bytes);
+            }
         }
     }
 
@@ -182,43 +268,50 @@ public:
             if (file_space.GetSelectionType() == SelectionType::All) {
                 // SelectAll: every element in this chunk is written from the
                 // user buffer.  No need to load existing data.
-                for (uint64_t flat = 0; flat < chunk_total_elems; ++flat) {
-                    uint64_t local_coords[MAX_DIMS];
-                    uint64_t remainder = flat;
-                    for (int d = ndims - 1; d >= 0; --d) {
-                        local_coords[d] = remainder % chunk_actual[d];
-                        remainder /= chunk_actual[d];
+
+                if (mem_space.GetSelectionType() == SelectionType::All) {
+                    // Fast path: both spaces are SelectAll.
+                    CopyChunkRows(
+                        chunk_buf, const_cast<byte_t*>(src),
+                        cstd::span<const uint64_t>(chunk_start, ndims),
+                        cstd::span<const uint64_t>(chunk_actual, ndims),
+                        shape.Dims(), elem_size,
+                        chunk_total_elems, /*write=*/true);
+                } else {
+                    // Slow path: mem_space has hyperslab selection
+                    for (uint64_t flat = 0; flat < chunk_total_elems; ++flat) {
+                        uint64_t local_coords[MAX_DIMS];
+                        uint64_t remainder = flat;
+                        for (size_t d = ndims; d > 0; --d) {
+                            size_t i = d - 1;
+                            local_coords[i] = remainder % chunk_actual[i];
+                            remainder /= chunk_actual[i];
+                        }
+
+                        uint64_t global[MAX_DIMS];
+                        for (uint8_t d = 0; d < ndims; ++d)
+                            global[d] = chunk_start[d] + local_coords[d];
+                        uint64_t ds_flat = CoordsToFlat(
+                            cstd::span<const uint64_t>(global, ndims), shape.Dims());
+
+                        uint64_t mem_flat = GetNthSelectedPointFlat(
+                            mem_space, ds_flat, mem_ndims);
+
+                        CopyElement(chunk_buf + flat * elem_size,
+                                    src + mem_flat * elem_size, elem_size);
                     }
-
-                    // Compute global coords and flatten
-                    uint64_t global[MAX_DIMS];
-                    for (uint8_t d = 0; d < ndims; ++d)
-                        global[d] = chunk_start[d] + local_coords[d];
-                    uint64_t ds_flat = CoordsToFlat(global, shape.dims.data(), ndims);
-
-                    // Map through mem_space to get buffer offset
-                    uint64_t mem_flat = GetNthSelectedPointFlat(
-                        mem_space, ds_flat, mem_ndims);
-
-                    CopyElement(chunk_buf + flat * elem_size,
-                                src + mem_flat * elem_size, elem_size);
                 }
             } else {
                 // Hyperslab: only some elements in this chunk are written.
                 // First load existing chunk data (or zero-init).
+                // Try GetChunk directly to avoid redundant ChunkExists call.
                 ChunkKey load_key(id_,
                     cstd::span<const uint64_t>(chunk_coords, ndims));
-                bool chunk_exists = container_->ChunkExists(load_key);
-                if (chunk_exists) {
-                    auto chunk_span = cstd::span<byte_t>(chunk_buf, chunk_bytes);
-                    auto result = container_->GetChunk(load_key, chunk_span);
-                    if (!result.has_value()) {
-                        return make_error(ErrorCode::InvalidArgument,
-                                          "failed to read chunk for partial write");
-                    }
-                } else {
-                    for (uint64_t i = 0; i < chunk_bytes; ++i)
-                        chunk_buf[i] = byte_t{0};
+                auto load_span = cstd::span<byte_t>(chunk_buf, chunk_bytes);
+                auto load_result = container_->GetChunk(load_key, load_span);
+                bool chunk_exists = load_result.has_value();
+                if (!chunk_exists) {
+                    cstd::memset(chunk_buf, 0, chunk_bytes);
                 }
 
                 // Iterate all selected points and check if they fall in this chunk
@@ -227,7 +320,8 @@ public:
                     uint64_t file_flat = GetNthSelectedPointFlat(
                         file_space, n, ndims);
                     uint64_t file_coords[MAX_DIMS];
-                    FlatToCoords(file_flat, shape.dims.data(), ndims, file_coords);
+                    FlatToCoords(file_flat, shape.Dims(),
+                        cstd::span<uint64_t>(file_coords, ndims));
 
                     // Check if this point is in the current chunk
                     bool in_chunk = true;
@@ -245,7 +339,9 @@ public:
                     any_written = true;
 
                     // Compute local flat index within chunk
-                    uint64_t local_flat = CoordsToFlat(local, chunk_actual, ndims);
+                    uint64_t local_flat = CoordsToFlat(
+                        cstd::span<const uint64_t>(local, ndims),
+                        cstd::span<const uint64_t>(chunk_actual, ndims));
 
                     // Compute memory buffer offset
                     uint64_t mem_flat = GetNthSelectedPointFlat(
@@ -273,13 +369,14 @@ public:
 advance_write:
             // Advance to next chunk in range (row-major increment)
             done = true;
-            for (int d = ndims - 1; d >= 0; --d) {
-                chunk_coords[d]++;
-                if (chunk_coords[d] <= last_chunk[d]) {
+            for (size_t d = ndims; d > 0; --d) {
+                size_t i = d - 1;
+                chunk_coords[i]++;
+                if (chunk_coords[i] <= last_chunk[i]) {
                     done = false;
                     break;
                 }
-                chunk_coords[d] = first_chunk[d];
+                chunk_coords[i] = first_chunk[i];
             }
         }
 
@@ -365,42 +462,47 @@ advance_write:
 
             byte_t chunk_buf[kMaxChunkBytes];
 
-            // Load chunk data (or zero-init)
-            bool chunk_exists = container_->ChunkExists(key);
-            if (chunk_exists) {
-                auto chunk_span = cstd::span<byte_t>(chunk_buf, chunk_bytes);
-                auto result = container_->GetChunk(key, chunk_span);
-                if (!result.has_value()) {
-                    return make_error(ErrorCode::InvalidArgument,
-                                      "failed to read chunk");
-                }
-            } else {
-                for (uint64_t i = 0; i < chunk_bytes; ++i) {
-                    chunk_buf[i] = byte_t{0};
-                }
+            // Try to load chunk data directly; zero-fill if it doesn't exist.
+            // This avoids the redundant ChunkExists call (extra CTE round-trip).
+            auto chunk_span = cstd::span<byte_t>(chunk_buf, chunk_bytes);
+            auto chunk_result = container_->GetChunk(key, chunk_span);
+            bool chunk_exists = chunk_result.has_value();
+            if (!chunk_exists) {
+                cstd::memset(chunk_buf, 0, chunk_bytes);
             }
 
             if (file_space.GetSelectionType() == SelectionType::All) {
-                // SelectAll: scatter every element from chunk to user buffer
-                for (uint64_t flat = 0; flat < chunk_total_elems; ++flat) {
-                    uint64_t local_coords[MAX_DIMS];
-                    uint64_t remainder = flat;
-                    for (int d = ndims - 1; d >= 0; --d) {
-                        local_coords[d] = remainder % chunk_actual[d];
-                        remainder /= chunk_actual[d];
+                if (mem_space.GetSelectionType() == SelectionType::All) {
+                    // Fast path: both spaces are SelectAll.
+                    CopyChunkRows(
+                        chunk_buf, dst,
+                        cstd::span<const uint64_t>(chunk_start, ndims),
+                        cstd::span<const uint64_t>(chunk_actual, ndims),
+                        shape.Dims(), elem_size,
+                        chunk_total_elems, /*write=*/false);
+                } else {
+                    // Slow path: mem_space has hyperslab selection
+                    for (uint64_t flat = 0; flat < chunk_total_elems; ++flat) {
+                        uint64_t local_coords[MAX_DIMS];
+                        uint64_t remainder = flat;
+                        for (size_t d = ndims; d > 0; --d) {
+                            size_t i = d - 1;
+                            local_coords[i] = remainder % chunk_actual[i];
+                            remainder /= chunk_actual[i];
+                        }
+
+                        uint64_t global[MAX_DIMS];
+                        for (uint8_t d = 0; d < ndims; ++d)
+                            global[d] = chunk_start[d] + local_coords[d];
+                        uint64_t ds_flat = CoordsToFlat(
+                            cstd::span<const uint64_t>(global, ndims), shape.Dims());
+
+                        uint64_t mem_flat = GetNthSelectedPointFlat(
+                            mem_space, ds_flat, mem_ndims);
+
+                        CopyElement(dst + mem_flat * elem_size,
+                                    chunk_buf + flat * elem_size, elem_size);
                     }
-
-                    uint64_t global[MAX_DIMS];
-                    for (uint8_t d = 0; d < ndims; ++d)
-                        global[d] = chunk_start[d] + local_coords[d];
-                    uint64_t ds_flat = CoordsToFlat(global, shape.dims.data(), ndims);
-
-                    // Map through mem_space to get buffer offset
-                    uint64_t mem_flat = GetNthSelectedPointFlat(
-                        mem_space, ds_flat, mem_ndims);
-
-                    CopyElement(dst + mem_flat * elem_size,
-                                chunk_buf + flat * elem_size, elem_size);
                 }
             } else {
                 // Hyperslab: only scatter selected points from this chunk
@@ -408,7 +510,8 @@ advance_write:
                     uint64_t file_flat = GetNthSelectedPointFlat(
                         file_space, n, ndims);
                     uint64_t file_coords[MAX_DIMS];
-                    FlatToCoords(file_flat, shape.dims.data(), ndims, file_coords);
+                    FlatToCoords(file_flat, shape.Dims(),
+                        cstd::span<uint64_t>(file_coords, ndims));
 
                     bool in_chunk = true;
                     uint64_t local[MAX_DIMS];
@@ -422,7 +525,9 @@ advance_write:
                     }
                     if (!in_chunk) continue;
 
-                    uint64_t local_flat = CoordsToFlat(local, chunk_actual, ndims);
+                    uint64_t local_flat = CoordsToFlat(
+                        cstd::span<const uint64_t>(local, ndims),
+                        cstd::span<const uint64_t>(chunk_actual, ndims));
                     uint64_t mem_flat = GetNthSelectedPointFlat(
                         mem_space, n, mem_ndims);
 
@@ -433,13 +538,14 @@ advance_write:
 
             // Advance to next chunk in range (row-major increment)
             done = true;
-            for (int d = ndims - 1; d >= 0; --d) {
-                chunk_coords[d]++;
-                if (chunk_coords[d] <= last_chunk[d]) {
+            for (size_t d = ndims; d > 0; --d) {
+                size_t i = d - 1;
+                chunk_coords[i]++;
+                if (chunk_coords[i] <= last_chunk[i]) {
                     done = false;
                     break;
                 }
-                chunk_coords[d] = first_chunk[d];
+                chunk_coords[i] = first_chunk[i];
             }
         }
 
@@ -565,13 +671,14 @@ advance_write:
 
             // Advance chunk coords (row-major)
             done = true;
-            for (int d = ndims - 1; d >= 0; --d) {
-                chunk_coords[d]++;
-                if (chunk_coords[d] < num_chunks[d]) {
+            for (size_t d = ndims; d > 0; --d) {
+                size_t i = d - 1;
+                chunk_coords[i]++;
+                if (chunk_coords[i] < num_chunks[i]) {
                     done = false;
                     break;
                 }
-                chunk_coords[d] = 0;
+                chunk_coords[i] = 0;
             }
         }
 

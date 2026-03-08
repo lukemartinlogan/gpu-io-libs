@@ -1,7 +1,14 @@
 #include "cte_blob_store.h"
-#include <cstring>
+#include <cuda/std/cstring>
 
 namespace kvhdf5 {
+
+// Size prefix stored before every blob value.
+static constexpr size_t kPrefixSize = sizeof(uint64_t);
+
+// Stack buffer for Put/Get. Avoids heap allocation for most metadata blobs.
+// Must exceed BlobStore::DefaultMaxValueSize (1024) + kPrefixSize.
+static constexpr size_t kStackBufSize = 2048;
 
 CteBlobStore::CteBlobStore(std::string_view tag_name)
     : tag_(std::string{tag_name}) {}
@@ -13,8 +20,8 @@ bool CteBlobStore::PutBlob(cstd::span<const byte_t> key,
                            cstd::span<const byte_t> value) {
     std::string blob_name = KeyToHex(key);
 
-    // Delete first to handle CTE's no-truncate-on-overwrite behavior.
-    // GetBlobSize returns 0 for non-existent blobs, so this is safe.
+    // Delete first: CTE's internal overwrite-with-truncation is slower
+    // than delete + fresh create.
     if (tag_.GetBlobSize(blob_name) > 0) {
         auto task = WRP_CTE_CLIENT->AsyncDelBlob(tag_.GetTagId(), blob_name);
         task.Wait();
@@ -22,14 +29,25 @@ bool CteBlobStore::PutBlob(cstd::span<const byte_t> key,
 
     // Build buffer: [uint64_t real_size][data bytes]
     uint64_t real_size = value.size();
-    size_t total = sizeof(real_size) + real_size;
-    std::vector<char> buffer(total);
-    std::memcpy(buffer.data(), &real_size, sizeof(real_size));
-    if (real_size > 0) {
-        std::memcpy(buffer.data() + sizeof(real_size), value.data(), real_size);
+    size_t total = kPrefixSize + real_size;
+
+    // Use stack buffer for small values, heap for large ones
+    char stack_buf[kStackBufSize];
+    char* buf;
+    std::vector<char> heap_buf;
+    if (total <= kStackBufSize) {
+        buf = stack_buf;
+    } else {
+        heap_buf.resize(total);
+        buf = heap_buf.data();
     }
 
-    tag_.PutBlob(blob_name, buffer.data(), buffer.size());
+    cstd::memcpy(buf, &real_size, kPrefixSize);
+    if (real_size > 0) {
+        cstd::memcpy(buf + kPrefixSize, value.data(), real_size);
+    }
+
+    tag_.PutBlob(blob_name, buf, total);
     return true;
 }
 
@@ -43,18 +61,40 @@ CteBlobStore::GetBlob(cstd::span<const byte_t> key,
         return cstd::unexpected(BlobStoreError::NotExist);
     }
 
-    // Read the size prefix
+    if (stored_size < kPrefixSize) {
+        // Malformed blob — too small to contain even the size prefix
+        return cstd::unexpected(BlobStoreError::NotExist);
+    }
+
+    // Read entire blob (prefix + data) in ONE CTE call instead of two.
+    char stack_buf[kStackBufSize];
+    char* read_buf;
+    std::vector<char> heap_buf;
+
+    if (stored_size <= kStackBufSize) {
+        read_buf = stack_buf;
+    } else {
+        heap_buf.resize(stored_size);
+        read_buf = heap_buf.data();
+    }
+
+    tag_.GetBlob(blob_name, read_buf, stored_size, 0);
+
+    // Extract size prefix and validate
     uint64_t real_size;
-    tag_.GetBlob(blob_name, reinterpret_cast<char*>(&real_size),
-                 sizeof(real_size), 0);
+    cstd::memcpy(&real_size, read_buf, kPrefixSize);
+
+    if (real_size > stored_size - kPrefixSize) {
+        // Corrupted blob: prefix claims more data than is stored
+        return cstd::unexpected(BlobStoreError::NotExist);
+    }
 
     if (value_out.size() < real_size) {
         return cstd::unexpected(BlobStoreError::NotEnoughSpace);
     }
 
     if (real_size > 0) {
-        tag_.GetBlob(blob_name, reinterpret_cast<char*>(value_out.data()),
-                     real_size, sizeof(real_size));
+        cstd::memcpy(value_out.data(), read_buf + kPrefixSize, real_size);
     }
 
     return cstd::span<byte_t>(value_out.data(), real_size);

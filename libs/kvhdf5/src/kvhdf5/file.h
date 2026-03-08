@@ -23,7 +23,7 @@ class File {
     Container<B> container_;
 
     explicit File(Container<B>&& container)
-        : container_(std::move(container)) {}
+        : container_(cstd::move(container)) {}
 
 public:
     // Not copyable (owns the container)
@@ -41,8 +41,8 @@ public:
      * @return            The new File on success, or an Error.
      */
     static expected<File> Create(B&& blob_store, Context ctx) {
-        Container<B> c(std::move(blob_store), ctx.allocator_);
-        return File(std::move(c));
+        Container<B> c(cstd::move(blob_store), ctx.allocator_);
+        return File(cstd::move(c));
     }
 
     /**
