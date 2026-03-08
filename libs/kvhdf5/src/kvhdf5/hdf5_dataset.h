@@ -110,6 +110,73 @@ class Dataset {
         cuda::std::memcpy(dst, src, elem_size);
     }
 
+    /// Row-copy between a chunk buffer and a contiguous user buffer.
+    /// When writing: copies user buffer rows → chunk_buf.
+    /// When reading:  copies chunk_buf rows → user buffer.
+    static void CopyChunkRows(
+        byte_t* chunk_buf,
+        byte_t* user_buf,
+        cstd::span<const uint64_t> chunk_start,
+        cstd::span<const uint64_t> chunk_actual,
+        cstd::span<const uint64_t> ds_dims,
+        uint32_t elem_size,
+        uint64_t chunk_total_elems,
+        bool write
+    ) {
+        KVHDF5_ASSERT(
+            chunk_start.size() == ds_dims.size(),
+            "CopyChunkRows: chunk_start rank must match ds_dims rank"
+        );
+        KVHDF5_ASSERT(
+            chunk_actual.size() == ds_dims.size(),
+            "CopyChunkRows: chunk_actual rank must match ds_dims rank"
+        );
+        KVHDF5_ASSERT(
+            !ds_dims.empty(),
+            "CopyChunkRows: ds_dims must not be empty"
+        );
+
+        KVHDF5_ASSERT(
+            elem_size > 0,
+            "CopyChunkRows: elem_size must be > 0"
+        );
+
+        KVHDF5_ASSERT(
+            chunk_total_elems > 0,
+            "CopyChunkRows: chunk_total_elems must be > 0"
+        );
+
+        uint8_t ndims = static_cast<uint8_t>(ds_dims.size());
+        uint64_t inner_elems = chunk_actual[ndims - 1];
+        uint64_t inner_bytes = inner_elems * elem_size;
+        uint64_t outer_count = chunk_total_elems / inner_elems;
+
+        for (uint64_t outer = 0; outer < outer_count; ++outer) {
+            uint64_t local_coords[MAX_DIMS];
+            uint64_t rem = outer;
+            for (size_t d = ndims - 1; d > 0; --d) {
+                size_t i = d - 1;
+                local_coords[i] = rem % chunk_actual[i];
+                rem /= chunk_actual[i];
+            }
+            local_coords[ndims - 1] = 0;
+
+            uint64_t global[MAX_DIMS];
+            for (uint8_t d = 0; d < ndims; ++d)
+                global[d] = chunk_start[d] + local_coords[d];
+            uint64_t buf_offset = CoordsToFlat(
+                cstd::span<const uint64_t>(global, ndims), ds_dims);
+
+            byte_t* chunk_row = chunk_buf + outer * inner_bytes;
+            byte_t* user_row = user_buf + buf_offset * elem_size;
+            if (write) {
+                std::memcpy(chunk_row, user_row, inner_bytes);
+            } else {
+                std::memcpy(user_row, chunk_row, inner_bytes);
+            }
+        }
+    }
+
 public:
     CROSS_FUN Dataset(DatasetId id, Ref<Container<B>> container)
         : id_(id), container_(container) {}
