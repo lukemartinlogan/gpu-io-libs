@@ -6,6 +6,7 @@
 #include "dataspace.h"
 #include "hdf5_datatype.h"
 #include <cuda/std/span>
+#include <cstring>
 
 namespace kvhdf5 {
 
@@ -267,43 +268,50 @@ public:
             if (file_space.GetSelectionType() == SelectionType::All) {
                 // SelectAll: every element in this chunk is written from the
                 // user buffer.  No need to load existing data.
-                for (uint64_t flat = 0; flat < chunk_total_elems; ++flat) {
-                    uint64_t local_coords[MAX_DIMS];
-                    uint64_t remainder = flat;
-                    for (int d = ndims - 1; d >= 0; --d) {
-                        local_coords[d] = remainder % chunk_actual[d];
-                        remainder /= chunk_actual[d];
+
+                if (mem_space.GetSelectionType() == SelectionType::All) {
+                    // Fast path: both spaces are SelectAll.
+                    CopyChunkRows(
+                        chunk_buf, const_cast<byte_t*>(src),
+                        cstd::span<const uint64_t>(chunk_start, ndims),
+                        cstd::span<const uint64_t>(chunk_actual, ndims),
+                        shape.Dims(), elem_size,
+                        chunk_total_elems, /*write=*/true);
+                } else {
+                    // Slow path: mem_space has hyperslab selection
+                    for (uint64_t flat = 0; flat < chunk_total_elems; ++flat) {
+                        uint64_t local_coords[MAX_DIMS];
+                        uint64_t remainder = flat;
+                        for (size_t d = ndims; d > 0; --d) {
+                            size_t i = d - 1;
+                            local_coords[i] = remainder % chunk_actual[i];
+                            remainder /= chunk_actual[i];
+                        }
+
+                        uint64_t global[MAX_DIMS];
+                        for (uint8_t d = 0; d < ndims; ++d)
+                            global[d] = chunk_start[d] + local_coords[d];
+                        uint64_t ds_flat = CoordsToFlat(
+                            cstd::span<const uint64_t>(global, ndims), shape.Dims());
+
+                        uint64_t mem_flat = GetNthSelectedPointFlat(
+                            mem_space, ds_flat, mem_ndims);
+
+                        CopyElement(chunk_buf + flat * elem_size,
+                                    src + mem_flat * elem_size, elem_size);
                     }
-
-                    // Compute global coords and flatten
-                    uint64_t global[MAX_DIMS];
-                    for (uint8_t d = 0; d < ndims; ++d)
-                        global[d] = chunk_start[d] + local_coords[d];
-                    uint64_t ds_flat = CoordsToFlat(global, shape.dims.data(), ndims);
-
-                    // Map through mem_space to get buffer offset
-                    uint64_t mem_flat = GetNthSelectedPointFlat(
-                        mem_space, ds_flat, mem_ndims);
-
-                    CopyElement(chunk_buf + flat * elem_size,
-                                src + mem_flat * elem_size, elem_size);
                 }
             } else {
                 // Hyperslab: only some elements in this chunk are written.
                 // First load existing chunk data (or zero-init).
+                // Try GetChunk directly to avoid redundant ChunkExists call.
                 ChunkKey load_key(id_,
                     cstd::span<const uint64_t>(chunk_coords, ndims));
-                bool chunk_exists = container_->ChunkExists(load_key);
-                if (chunk_exists) {
-                    auto chunk_span = cstd::span<byte_t>(chunk_buf, chunk_bytes);
-                    auto result = container_->GetChunk(load_key, chunk_span);
-                    if (!result.has_value()) {
-                        return make_error(ErrorCode::InvalidArgument,
-                                          "failed to read chunk for partial write");
-                    }
-                } else {
-                    for (uint64_t i = 0; i < chunk_bytes; ++i)
-                        chunk_buf[i] = byte_t{0};
+                auto load_span = cstd::span<byte_t>(chunk_buf, chunk_bytes);
+                auto load_result = container_->GetChunk(load_key, load_span);
+                bool chunk_exists = load_result.has_value();
+                if (!chunk_exists) {
+                    std::memset(chunk_buf, 0, chunk_bytes);
                 }
 
                 // Iterate all selected points and check if they fall in this chunk
@@ -454,42 +462,47 @@ advance_write:
 
             byte_t chunk_buf[kMaxChunkBytes];
 
-            // Load chunk data (or zero-init)
-            bool chunk_exists = container_->ChunkExists(key);
-            if (chunk_exists) {
-                auto chunk_span = cstd::span<byte_t>(chunk_buf, chunk_bytes);
-                auto result = container_->GetChunk(key, chunk_span);
-                if (!result.has_value()) {
-                    return make_error(ErrorCode::InvalidArgument,
-                                      "failed to read chunk");
-                }
-            } else {
-                for (uint64_t i = 0; i < chunk_bytes; ++i) {
-                    chunk_buf[i] = byte_t{0};
-                }
+            // Try to load chunk data directly; zero-fill if it doesn't exist.
+            // This avoids the redundant ChunkExists call (extra CTE round-trip).
+            auto chunk_span = cstd::span<byte_t>(chunk_buf, chunk_bytes);
+            auto chunk_result = container_->GetChunk(key, chunk_span);
+            bool chunk_exists = chunk_result.has_value();
+            if (!chunk_exists) {
+                std::memset(chunk_buf, 0, chunk_bytes);
             }
 
             if (file_space.GetSelectionType() == SelectionType::All) {
-                // SelectAll: scatter every element from chunk to user buffer
-                for (uint64_t flat = 0; flat < chunk_total_elems; ++flat) {
-                    uint64_t local_coords[MAX_DIMS];
-                    uint64_t remainder = flat;
-                    for (int d = ndims - 1; d >= 0; --d) {
-                        local_coords[d] = remainder % chunk_actual[d];
-                        remainder /= chunk_actual[d];
+                if (mem_space.GetSelectionType() == SelectionType::All) {
+                    // Fast path: both spaces are SelectAll.
+                    CopyChunkRows(
+                        chunk_buf, dst,
+                        cstd::span<const uint64_t>(chunk_start, ndims),
+                        cstd::span<const uint64_t>(chunk_actual, ndims),
+                        shape.Dims(), elem_size,
+                        chunk_total_elems, /*write=*/false);
+                } else {
+                    // Slow path: mem_space has hyperslab selection
+                    for (uint64_t flat = 0; flat < chunk_total_elems; ++flat) {
+                        uint64_t local_coords[MAX_DIMS];
+                        uint64_t remainder = flat;
+                        for (size_t d = ndims; d > 0; --d) {
+                            size_t i = d - 1;
+                            local_coords[i] = remainder % chunk_actual[i];
+                            remainder /= chunk_actual[i];
+                        }
+
+                        uint64_t global[MAX_DIMS];
+                        for (uint8_t d = 0; d < ndims; ++d)
+                            global[d] = chunk_start[d] + local_coords[d];
+                        uint64_t ds_flat = CoordsToFlat(
+                            cstd::span<const uint64_t>(global, ndims), shape.Dims());
+
+                        uint64_t mem_flat = GetNthSelectedPointFlat(
+                            mem_space, ds_flat, mem_ndims);
+
+                        CopyElement(dst + mem_flat * elem_size,
+                                    chunk_buf + flat * elem_size, elem_size);
                     }
-
-                    uint64_t global[MAX_DIMS];
-                    for (uint8_t d = 0; d < ndims; ++d)
-                        global[d] = chunk_start[d] + local_coords[d];
-                    uint64_t ds_flat = CoordsToFlat(global, shape.dims.data(), ndims);
-
-                    // Map through mem_space to get buffer offset
-                    uint64_t mem_flat = GetNthSelectedPointFlat(
-                        mem_space, ds_flat, mem_ndims);
-
-                    CopyElement(dst + mem_flat * elem_size,
-                                chunk_buf + flat * elem_size, elem_size);
                 }
             } else {
                 // Hyperslab: only scatter selected points from this chunk
