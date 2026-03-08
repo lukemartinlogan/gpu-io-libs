@@ -3,6 +3,13 @@
 
 namespace kvhdf5 {
 
+// Size prefix stored before every blob value.
+static constexpr size_t kPrefixSize = sizeof(uint64_t);
+
+// Stack buffer for Put/Get. Avoids heap allocation for most metadata blobs.
+// Must exceed BlobStore::DefaultMaxValueSize (1024) + kPrefixSize.
+static constexpr size_t kStackBufSize = 2048;
+
 CteBlobStore::CteBlobStore(std::string_view tag_name)
     : tag_(std::string{tag_name}) {}
 
