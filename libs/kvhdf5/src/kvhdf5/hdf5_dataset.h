@@ -361,13 +361,14 @@ public:
 advance_write:
             // Advance to next chunk in range (row-major increment)
             done = true;
-            for (int d = ndims - 1; d >= 0; --d) {
-                chunk_coords[d]++;
-                if (chunk_coords[d] <= last_chunk[d]) {
+            for (size_t d = ndims; d > 0; --d) {
+                size_t i = d - 1;
+                chunk_coords[i]++;
+                if (chunk_coords[i] <= last_chunk[i]) {
                     done = false;
                     break;
                 }
-                chunk_coords[d] = first_chunk[d];
+                chunk_coords[i] = first_chunk[i];
             }
         }
 
