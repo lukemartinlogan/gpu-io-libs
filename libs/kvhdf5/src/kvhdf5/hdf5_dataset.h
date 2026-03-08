@@ -312,7 +312,8 @@ public:
                     uint64_t file_flat = GetNthSelectedPointFlat(
                         file_space, n, ndims);
                     uint64_t file_coords[MAX_DIMS];
-                    FlatToCoords(file_flat, shape.dims.data(), ndims, file_coords);
+                    FlatToCoords(file_flat, shape.Dims(),
+                        cstd::span<uint64_t>(file_coords, ndims));
 
                     // Check if this point is in the current chunk
                     bool in_chunk = true;
@@ -330,7 +331,9 @@ public:
                     any_written = true;
 
                     // Compute local flat index within chunk
-                    uint64_t local_flat = CoordsToFlat(local, chunk_actual, ndims);
+                    uint64_t local_flat = CoordsToFlat(
+                        cstd::span<const uint64_t>(local, ndims),
+                        cstd::span<const uint64_t>(chunk_actual, ndims));
 
                     // Compute memory buffer offset
                     uint64_t mem_flat = GetNthSelectedPointFlat(
@@ -493,7 +496,8 @@ advance_write:
                     uint64_t file_flat = GetNthSelectedPointFlat(
                         file_space, n, ndims);
                     uint64_t file_coords[MAX_DIMS];
-                    FlatToCoords(file_flat, shape.dims.data(), ndims, file_coords);
+                    FlatToCoords(file_flat, shape.Dims(),
+                        cstd::span<uint64_t>(file_coords, ndims));
 
                     bool in_chunk = true;
                     uint64_t local[MAX_DIMS];
@@ -507,7 +511,9 @@ advance_write:
                     }
                     if (!in_chunk) continue;
 
-                    uint64_t local_flat = CoordsToFlat(local, chunk_actual, ndims);
+                    uint64_t local_flat = CoordsToFlat(
+                        cstd::span<const uint64_t>(local, ndims),
+                        cstd::span<const uint64_t>(chunk_actual, ndims));
                     uint64_t mem_flat = GetNthSelectedPointFlat(
                         mem_space, n, mem_ndims);
 
