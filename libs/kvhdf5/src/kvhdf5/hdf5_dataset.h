@@ -106,9 +106,7 @@ class Dataset {
     }
 
     /// Copy `elem_size` bytes between two pointers.
-    static CROSS_FUN void CopyElement(
-        byte_t* dst, const byte_t* src, uint32_t elem_size
-    ) {
+    static CROSS_FUN void CopyElement(byte_t* dst, const byte_t* src, uint32_t elem_size) {
         cuda::std::memcpy(dst, src, elem_size);
     }
 
