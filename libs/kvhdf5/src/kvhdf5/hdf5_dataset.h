@@ -82,14 +82,24 @@ class Dataset {
     }
 
     /// Linearize per-dimension coordinates to flat row-major index.
-    static CROSS_FUN uint64_t CoordsToFlat(
-        const uint64_t* coords, const uint64_t* dims, uint8_t ndims
-    ) {
+    static CROSS_FUN uint64_t CoordsToFlat(cstd::span<const uint64_t> coords, cstd::span<const uint64_t> dims) {
+        KVHDF5_ASSERT(
+            coords.size() == dims.size(),
+            "CoordsToFlat: coords and dims must have same rank"
+        );
+
+        KVHDF5_ASSERT(
+            !dims.empty(),
+            "CoordsToFlat: dims must not be empty"
+        );
+
+        size_t ndims = dims.size();
         uint64_t flat = 0;
         uint64_t stride = 1;
-        for (int d = ndims - 1; d >= 0; --d) {
-            flat += coords[d] * stride;
-            stride *= dims[d];
+        for (size_t d = ndims; d > 0; --d) {
+            size_t i = d - 1;
+            flat += coords[i] * stride;
+            stride *= dims[i];
         }
         return flat;
     }
