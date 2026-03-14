@@ -90,3 +90,5 @@ set_target_properties(kvhdf5_tests PROPERTIES
 )
 
 catch_discover_tests(kvhdf5_tests)
+
+add_subdirectory(integration/iowarp/gpu)
