@@ -32,10 +32,14 @@ set(WRP_CORE_ENABLE_CEREAL     ON  CACHE BOOL "" FORCE)
 set(WRP_CORE_ENABLE_IO_URING   ON  CACHE BOOL "" FORCE)
 set(WRP_CORE_ENABLE_RPATH      ON  CACHE BOOL "" FORCE)
 set(WRP_CORE_ENABLE_ASAN       OFF CACHE BOOL "" FORCE)
-set(HSHM_LOG_LEVEL             "0" CACHE STRING "" FORCE)
+set(HSHM_LOG_LEVEL             "3" CACHE STRING "" FORCE)
 
 # Off for our use
-set(WRP_CORE_ENABLE_CUDA       OFF CACHE BOOL "" FORCE)
+if(KVHDF5_HAS_CUDA)
+    set(WRP_CORE_ENABLE_CUDA   ON  CACHE BOOL "" FORCE)
+else()
+    set(WRP_CORE_ENABLE_CUDA   OFF CACHE BOOL "" FORCE)
+endif()
 set(WRP_CORE_ENABLE_ELF        OFF CACHE BOOL "" FORCE)
 set(WRP_CORE_ENABLE_LIBFABRIC  OFF CACHE BOOL "" FORCE)
 set(WRP_CORE_ENABLE_MPI        OFF CACHE BOOL "" FORCE)
@@ -52,7 +56,8 @@ set(WRP_CORE_ENABLE_DOCKER_CI  OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     iowarp_core
     GIT_REPOSITORY https://github.com/abscosmos/iowarp-core.git
-    GIT_TAG        8631a307e67204aec528ec7d4334bd2f5cb3d4ba
+    GIT_TAG        add-missing-guard
+    GIT_SHALLOW    TRUE
 )
 # FetchContent_Populate(<name>) is deprecated in CMake 3.30+ (CMP0169).
 # We need it here to interject the cmake file copy between fetch and
@@ -71,12 +76,12 @@ if(NOT iowarp_core_POPULATED)
     )
     add_subdirectory(${iowarp_core_SOURCE_DIR} ${iowarp_core_BINARY_DIR})
 endif()
-message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ 8631a30)")
+message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ 856f364e (add-missing-guard))")
 
 FetchContent_Declare(
     cccl
     GIT_REPOSITORY https://github.com/NVIDIA/cccl.git
-    GIT_TAG e5ed71c7dce1130e582db831fffc61f562203884
+    GIT_TAG        e5ed71c7dce1130e582db831fffc61f562203884
 )
 FetchContent_MakeAvailable(cccl)
 
@@ -89,6 +94,10 @@ target_include_directories(kvhdf5 PUBLIC
 )
 
 if(KVHDF5_HAS_CUDA)
+    target_compile_options(kvhdf5 PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+    )
+    target_compile_definitions(kvhdf5 PUBLIC HSHM_ENABLE_CUDA=1)
     target_link_libraries(kvhdf5 PUBLIC
         CUDA::cudart
         CCCL::CCCL
