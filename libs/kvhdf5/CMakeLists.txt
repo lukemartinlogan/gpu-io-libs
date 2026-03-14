@@ -34,9 +34,11 @@ set(WRP_CORE_ENABLE_RPATH      ON  CACHE BOOL "" FORCE)
 set(WRP_CORE_ENABLE_ASAN       OFF CACHE BOOL "" FORCE)
 set(HSHM_LOG_LEVEL             "3" CACHE STRING "" FORCE)
 
-# Off for our use
+# Enable CUDA in iowarp-core when CUDA compiler is available
 if(KVHDF5_HAS_CUDA)
     set(WRP_CORE_ENABLE_CUDA   ON  CACHE BOOL "" FORCE)
+    # Set architecture before iowarp-core configures (RTX 4090 = sm_89)
+    set(CMAKE_CUDA_ARCHITECTURES "89" CACHE STRING "CUDA architectures" FORCE)
 else()
     set(WRP_CORE_ENABLE_CUDA   OFF CACHE BOOL "" FORCE)
 endif()
