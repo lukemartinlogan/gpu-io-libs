@@ -4,7 +4,8 @@ if(NOT KVHDF5_HAS_CUDA)
 endif()
 
 add_executable(kvhdf5_gpu_cte_tests
-    # add tests here
+    test_cpu_client.cc
+    test_gpu_kernel.cu
 )
 
 set_source_files_properties(test_cpu_client.cc PROPERTIES LANGUAGE CUDA)
