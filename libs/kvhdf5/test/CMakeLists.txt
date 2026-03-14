@@ -75,7 +75,14 @@ target_link_libraries(kvhdf5_tests PRIVATE
 
 target_compile_definitions(kvhdf5_tests PRIVATE
     KVHDF5_CHIMAERA_CONF="${KVHDF5_CHIMAERA_CONF_PATH}"
+    $<$<BOOL:${WRP_CORE_ENABLE_CUDA}>:HSHM_ENABLE_CUDA=1>
 )
+
+if(WRP_CORE_ENABLE_CUDA)
+    target_compile_options(kvhdf5_tests PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+    )
+endif()
 
 # Set CUDA architecture for the test executable
 set_target_properties(kvhdf5_tests PROPERTIES
