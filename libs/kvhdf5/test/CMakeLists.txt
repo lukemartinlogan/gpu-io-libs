@@ -44,25 +44,10 @@ add_executable(kvhdf5_tests
     integration/iowarp/buddy_allocator_test.cpp
 )
 
-# When iowarp is built with CUDA enabled, its headers contain raw __device__/__host__
-# keywords that only nvcc understands, so those test files must be compiled as CUDA.
-# When iowarp is built without CUDA (WRP_CORE_ENABLE_CUDA=OFF), all those macros
-# expand to empty via hermes_shm's macro guards, so plain g++ (CXX) works fine and
-# avoids nvcc's device-pass issues (spurious __shared__ / atomic errors).
-if(WRP_CORE_ENABLE_CUDA)
-    set_source_files_properties(
-        unit/context_test.cpp
-        unit/metadata_test.cpp
-        unit/blob_store_test.cpp
-        unit/container_test.cpp
-        unit/container_complex_test.cpp
-        unit/file_test.cpp
-        unit/cte_blob_store_test.cpp
-        integration/iowarp/vector_test.cpp
-        integration/iowarp/cte_test.cpp
-        PROPERTIES LANGUAGE CUDA
-    )
-endif()
+# These test files include iowarp headers with __device__/__host__ keywords
+# guarded by HSHM_ENABLE_CUDA / __CUDACC__. When compiled as plain CXX (not
+# CUDA), the macros expand to nothing and everything works.
+# GPU-specific tests use the separate kvhdf5_gpu_cte_tests target instead.
 
 target_include_directories(kvhdf5_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/common
@@ -77,12 +62,6 @@ target_compile_definitions(kvhdf5_tests PRIVATE
     KVHDF5_CHIMAERA_CONF="${KVHDF5_CHIMAERA_CONF_PATH}"
     $<$<BOOL:${WRP_CORE_ENABLE_CUDA}>:HSHM_ENABLE_CUDA=1>
 )
-
-if(WRP_CORE_ENABLE_CUDA)
-    target_compile_options(kvhdf5_tests PRIVATE
-        $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
-    )
-endif()
 
 # Set CUDA architecture for the test executable
 set_target_properties(kvhdf5_tests PROPERTIES
