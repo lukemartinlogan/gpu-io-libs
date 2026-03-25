@@ -8,7 +8,6 @@ add_executable(kvhdf5_gpu_cte_tests
     test_gpu_kernel.cu
 )
 
-set_source_files_properties(test_cpu_client.cc PROPERTIES LANGUAGE CUDA)
 
 set_target_properties(kvhdf5_gpu_cte_tests PROPERTIES
     CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
@@ -29,8 +28,5 @@ target_compile_definitions(kvhdf5_gpu_cte_tests PRIVATE
     HSHM_ENABLE_CUDA=1
 )
 
-target_compile_options(kvhdf5_gpu_cte_tests PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
-)
 
 catch_discover_tests(kvhdf5_gpu_cte_tests)
