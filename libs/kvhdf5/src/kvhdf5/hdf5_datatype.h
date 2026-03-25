@@ -35,7 +35,7 @@ public:
     CROSS_FUN static Datatype Float64() { return Datatype(DatatypeRef(PrimitiveType(PrimitiveType::Kind::Float64))); }
 
     CROSS_FUN static Datatype CreateCompound(size_t total_size) {
-        Datatype dt(DatatypeRef(PrimitiveType(PrimitiveType::Kind::Int8)));
+        Datatype dt{DatatypeRef{PrimitiveType{PrimitiveType::Kind::Int8}}};
         dt.compound_size_ = total_size;
         dt.is_compound_ = true;
         return dt;
