@@ -58,8 +58,7 @@ set(WRP_CORE_ENABLE_DOCKER_CI  OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     iowarp_core
     GIT_REPOSITORY https://github.com/abscosmos/iowarp-core.git
-    GIT_TAG        add-missing-guard
-    GIT_SHALLOW    TRUE
+    GIT_TAG        d81c144ad6c372315ba872c84c345c9cce4e2390
 )
 # FetchContent_Populate(<name>) is deprecated in CMake 3.30+ (CMP0169).
 # We need it here to interject the cmake file copy between fetch and
@@ -76,9 +75,9 @@ if(NOT iowarp_core_POPULATED)
         "${iowarp_core_SOURCE_DIR}/cmake/IowarpCoreCommon.cmake"
         DESTINATION "${CMAKE_SOURCE_DIR}/cmake/"
     )
-    add_subdirectory(${iowarp_core_SOURCE_DIR} ${iowarp_core_BINARY_DIR})
+    add_subdirectory(${iowarp_core_SOURCE_DIR} ${iowarp_core_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
-message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ 856f364e (add-missing-guard))")
+message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ d81c144a (add-missing-zmq-guards))")
 
 FetchContent_Declare(
     cccl
@@ -88,7 +87,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(cccl)
 
 add_library(kvhdf5 STATIC
-    src/kvhdf5/cte_blob_store.cpp
+    src/kvhdf5/cpu_cte_blob_store.cpp
 )
 
 target_include_directories(kvhdf5 PUBLIC
@@ -96,9 +95,6 @@ target_include_directories(kvhdf5 PUBLIC
 )
 
 if(KVHDF5_HAS_CUDA)
-    target_compile_options(kvhdf5 PRIVATE
-        $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
-    )
     target_compile_definitions(kvhdf5 PUBLIC HSHM_ENABLE_CUDA=1)
     target_link_libraries(kvhdf5 PUBLIC
         CUDA::cudart
