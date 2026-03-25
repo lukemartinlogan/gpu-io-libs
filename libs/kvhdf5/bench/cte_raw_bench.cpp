@@ -171,7 +171,7 @@ BENCHMARK_REGISTER_F(RawCteTagCreateFixture, BM_RawCteTagCreate)
     ->Iterations(5);
 
 // ============================================================================
-// BM_CteGetBreakdown — time each CTE round-trip inside CteBlobStore::GetBlob
+// BM_CteGetBreakdown — time each CTE round-trip inside CpuCteBlobStore::GetBlob
 // ============================================================================
 
 class CteGetBreakdownFixture : public benchmark::Fixture {
@@ -181,7 +181,7 @@ public:
         tag_name_ = bench::UniqueTagName();
         tag_.emplace(tag_name_);
 
-        // Build blob in CteBlobStore format: [uint64_t real_size][data bytes]
+        // Build blob in CpuCteBlobStore format: [uint64_t real_size][data bytes]
         constexpr size_t kDataSize = 64;
         uint64_t real_size = kDataSize;
         size_t total = sizeof(real_size) + kDataSize;

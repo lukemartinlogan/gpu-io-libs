@@ -1,6 +1,6 @@
 #include "bench_fixture.h"
 #include "kvhdf5/hdf5.h"
-#include "kvhdf5/cte_blob_store.h"
+#include "kvhdf5/cpu_cte_blob_store.h"
 #include <string>
 #include <vector>
 
@@ -10,8 +10,8 @@ using namespace kvhdf5;
 // Helper: create a 1D dataset with specified total elements and chunk size
 // ============================================================================
 
-static Dataset<CteBlobStore> Make1DDataset(
-    Group<CteBlobStore>& root, const char* name,
+static Dataset<CpuCteBlobStore> Make1DDataset(
+    Group<CpuCteBlobStore>& root, const char* name,
     uint64_t total_elements, uint64_t chunk_size
 ) {
     uint64_t dim = total_elements;

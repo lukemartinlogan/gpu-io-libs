@@ -1,6 +1,6 @@
 #include "bench_fixture.h"
 #include "kvhdf5/hdf5.h"
-#include "kvhdf5/cte_blob_store.h"
+#include "kvhdf5/cpu_cte_blob_store.h"
 #include <string>
 
 using namespace kvhdf5;
