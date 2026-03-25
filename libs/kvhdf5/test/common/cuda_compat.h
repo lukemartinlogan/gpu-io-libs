@@ -5,7 +5,7 @@
 
 #if defined(__CUDACC__)
 
-extern __host__ __device__ void __nanosleep(unsigned int ns);
+extern __device__ void __nanosleep(unsigned int ns);
 
 // Now include the full runtime
 #include <cuda_runtime.h>
