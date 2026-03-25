@@ -320,8 +320,9 @@ extern "C" int run_host_put_gpu_get_test(chi::PoolId pool_id,
     return 1;
 }
 
-// ---- Catch2 test cases -------------------------------------------------------
+// ---- Catch2 test cases (host-only, hidden from device compilation pass) ------
 
+#if !HSHM_IS_GPU
 TEST_CASE("GPU backend init and AllocateBuffer work from kernel",
           "[integration][iowarp][cte_gpu][gpu_kernel]") {
     EnsureGpuCteRuntime();
@@ -346,5 +347,6 @@ TEST_CASE("Host PutBlob, kernel allocates receive buffer, host GetBlob into it",
     REQUIRE(rc == 1);
     REQUIRE(data_match);
 }
+#endif  // !HSHM_IS_GPU
 
 #endif  // HSHM_ENABLE_CUDA
