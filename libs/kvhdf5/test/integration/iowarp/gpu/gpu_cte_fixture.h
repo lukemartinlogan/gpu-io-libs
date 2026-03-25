@@ -20,6 +20,7 @@
 
 inline wrp_cte::core::TagId g_gpu_cte_tag_id{};
 
+#if !HSHM_IS_GPU
 inline void EnsureGpuCteRuntime() {
     static bool initialized = []() {
         setenv("CHI_IPC_MODE", "SHM", 1);
@@ -58,3 +59,4 @@ inline void EnsureGpuCteRuntime() {
     }();
     (void)initialized;
 }
+#endif  // !HSHM_IS_GPU
