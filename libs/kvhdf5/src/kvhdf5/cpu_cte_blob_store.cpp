@@ -1,4 +1,4 @@
-#include "cte_blob_store.h"
+#include "cpu_cte_blob_store.h"
 #include <cuda/std/cstring>
 
 namespace kvhdf5 {
@@ -10,14 +10,14 @@ static constexpr size_t kPrefixSize = sizeof(uint64_t);
 // Must exceed BlobStore::DefaultMaxValueSize (1024) + kPrefixSize.
 static constexpr size_t kStackBufSize = 2048;
 
-CteBlobStore::CteBlobStore(std::string_view tag_name)
+CpuCteBlobStore::CpuCteBlobStore(std::string_view tag_name)
     : tag_(std::string{tag_name}) {}
 
-CteBlobStore::CteBlobStore(gpu_string_view tag_name)
+CpuCteBlobStore::CpuCteBlobStore(gpu_string_view tag_name)
     : tag_(std::string(tag_name.data(), tag_name.size())) {}
 
-bool CteBlobStore::PutBlob(cstd::span<const byte_t> key,
-                           cstd::span<const byte_t> value) {
+bool CpuCteBlobStore::PutBlob(cstd::span<const byte_t> key,
+                               cstd::span<const byte_t> value) {
     std::string blob_name = KeyToHex(key);
 
     // Delete first: CTE's internal overwrite-with-truncation is slower
@@ -52,8 +52,8 @@ bool CteBlobStore::PutBlob(cstd::span<const byte_t> key,
 }
 
 cstd::expected<cstd::span<byte_t>, BlobStoreError>
-CteBlobStore::GetBlob(cstd::span<const byte_t> key,
-                      cstd::span<byte_t> value_out) {
+CpuCteBlobStore::GetBlob(cstd::span<const byte_t> key,
+                          cstd::span<byte_t> value_out) {
     std::string blob_name = KeyToHex(key);
 
     chi::u64 stored_size = tag_.GetBlobSize(blob_name);
@@ -100,7 +100,7 @@ CteBlobStore::GetBlob(cstd::span<const byte_t> key,
     return cstd::span<byte_t>(value_out.data(), real_size);
 }
 
-bool CteBlobStore::DeleteBlob(cstd::span<const byte_t> key) {
+bool CpuCteBlobStore::DeleteBlob(cstd::span<const byte_t> key) {
     std::string blob_name = KeyToHex(key);
 
     if (tag_.GetBlobSize(blob_name) == 0) {
@@ -112,17 +112,17 @@ bool CteBlobStore::DeleteBlob(cstd::span<const byte_t> key) {
     return true;
 }
 
-bool CteBlobStore::Exists(cstd::span<const byte_t> key) {
+bool CpuCteBlobStore::Exists(cstd::span<const byte_t> key) {
     std::string blob_name = KeyToHex(key);
     return tag_.GetBlobSize(blob_name) > 0;
 }
 
-void CteBlobStore::Destroy() {
+void CpuCteBlobStore::Destroy() {
     auto task = WRP_CTE_CLIENT->AsyncDelTag(tag_.GetTagId());
     task.Wait();
 }
 
-std::string CteBlobStore::KeyToHex(cstd::span<const byte_t> key) {
+std::string CpuCteBlobStore::KeyToHex(cstd::span<const byte_t> key) {
     if (key.empty()) {
         return "_";
     }
