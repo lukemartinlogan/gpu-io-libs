@@ -58,7 +58,7 @@ set(WRP_CORE_ENABLE_DOCKER_CI  OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     iowarp_core
     GIT_REPOSITORY https://github.com/abscosmos/iowarp-core.git
-    GIT_TAG        d81c144ad6c372315ba872c84c345c9cce4e2390
+    GIT_TAG        d81c144a
 )
 # FetchContent_Populate(<name>) is deprecated in CMake 3.30+ (CMP0169).
 # We need it here to interject the cmake file copy between fetch and
@@ -75,6 +75,28 @@ if(NOT iowarp_core_POPULATED)
         "${iowarp_core_SOURCE_DIR}/cmake/IowarpCoreCommon.cmake"
         DESTINATION "${CMAKE_SOURCE_DIR}/cmake/"
     )
+
+    # ---------- Post-fetch patch: GpuShmMmap UVM → pinned host ----------
+    # WSL2 reports cudaDevAttrConcurrentManagedAccess=0, so concurrent
+    # CPU+GPU access to cudaMallocManaged memory causes SIGSEGV.
+    # Pinned host memory (cudaMallocHost) is accessible from both sides
+    # without requiring ConcurrentManagedAccess.
+    # Upstream bug: GpuShmMmap should check the attribute and fall back.
+    set(_gpu_shm_mmap "${iowarp_core_SOURCE_DIR}/context-transport-primitives/include/hermes_shm/memory/backend/gpu_shm_mmap.h")
+    if(EXISTS "${_gpu_shm_mmap}")
+        file(READ "${_gpu_shm_mmap}" _gpu_shm_src)
+        # Replace the two-line cudaMallocManaged call with cudaMallocHost
+        string(REPLACE "cudaMallocManaged(&ptr, backend_size," "cudaMallocHost(&ptr, backend_size); //" _gpu_shm_src "${_gpu_shm_src}")
+        string(REPLACE "                                        cudaMemAttachGlobal);" "                                        /* cudaMemAttachGlobal */;" _gpu_shm_src "${_gpu_shm_src}")
+        # Replace cudaFree with cudaFreeHost for pinned memory
+        string(REPLACE "cudaFree(region_)" "cudaFreeHost(region_)" _gpu_shm_src "${_gpu_shm_src}")
+        # Update error message
+        string(REPLACE "GpuShmMmap: cudaMallocManaged failed" "GpuShmMmap: cudaMallocHost failed" _gpu_shm_src "${_gpu_shm_src}")
+        file(WRITE "${_gpu_shm_mmap}" "${_gpu_shm_src}")
+        message(STATUS "kvhdf5: Patched GpuShmMmap to use cudaMallocHost (WSL2 ConcurrentManagedAccess workaround)")
+    endif()
+    # ----------------------------------------------------------------
+
     add_subdirectory(${iowarp_core_SOURCE_DIR} ${iowarp_core_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
 message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ d81c144a (add-missing-zmq-guards))")
