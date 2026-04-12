@@ -33,9 +33,8 @@ static GpuBackends SetupGpuBackends() {
         return b;
     }
 
-    CHI_IPC->RegisterGpuAllocator(primary_id,
-                                   b.primary.data_,
-                                   b.primary.data_capacity_);
+    CHI_CPU_IPC->GetGpuIpcManager()->RegisterGpuAllocator(
+        primary_id, b.primary.data_, b.primary.data_capacity_);
     b.ok = true;
     return b;
 }
@@ -43,7 +42,7 @@ static GpuBackends SetupGpuBackends() {
 static chi::IpcManagerGpuInfo BuildGpuInfo(GpuBackends &b) {
     chi::IpcManagerGpuInfo info;
     info.backend         = static_cast<hipc::MemoryBackend &>(b.primary);
-    info.gpu2cpu_queue   = CHI_IPC->GetGpuQueue(0);
+    info.gpu2cpu_queue   = CHI_CPU_IPC->GetGpuQueue(0);
     info.gpu2cpu_backend = static_cast<hipc::MemoryBackend &>(b.g2c);
     return info;
 }
@@ -76,10 +75,14 @@ __global__ void kernel_alloc_and_fill(chi::IpcManagerGpu gpu_info,
 }
 
 extern "C" int run_gpu_alloc_test() {
-    GpuBackends b = SetupGpuBackends();
-    if (!b.ok) return -100;
+    // Use the runtime-managed GPU info rather than manually constructing one.
+    // The persistent orchestrator kernel must be paused before any device-
+    // synchronizing host API (cudaMallocHost, cudaStreamCreate) because CDP
+    // deadlocks with it, and resumed once the client kernel is in flight.
+    auto *gpu_ipc = CHI_CPU_IPC->GetGpuIpcManager();
+    chi::IpcManagerGpuInfo gpu_info = gpu_ipc->GetClientGpuInfo(0);
 
-    chi::IpcManagerGpuInfo gpu_info = BuildGpuInfo(b);
+    gpu_ipc->PauseGpuOrchestrator();
 
     int *d_result = hshm::GpuApi::Malloc<int>(sizeof(int));
     int h_result = 0;
@@ -92,14 +95,18 @@ extern "C" int run_gpu_alloc_test() {
 
     cudaError_t launch_err = cudaGetLastError();
     if (launch_err != cudaSuccess) {
+        gpu_ipc->ResumeGpuOrchestrator();
         hshm::GpuApi::Free(d_result);
         hshm::GpuApi::DestroyStream(stream);
         return -201;
     }
 
+    // This kernel does not submit CTE tasks, so the orchestrator does not
+    // need to run concurrently. Sync the stream, then pause cleanly.
     hshm::GpuApi::Synchronize(stream);
     cudaError_t sync_err = cudaGetLastError();
     if (sync_err != cudaSuccess) {
+        gpu_ipc->ResumeGpuOrchestrator();
         hshm::GpuApi::Free(d_result);
         hshm::GpuApi::DestroyStream(stream);
         return -200;
@@ -108,6 +115,7 @@ extern "C" int run_gpu_alloc_test() {
     hshm::GpuApi::Memcpy(&h_result, d_result, sizeof(int));
     hshm::GpuApi::Free(d_result);
     hshm::GpuApi::DestroyStream(stream);
+    gpu_ipc->ResumeGpuOrchestrator();
     return h_result;
 }
 
@@ -146,10 +154,10 @@ __global__ void kernel_write_uvm_pattern(chi::IpcManagerGpu gpu_info,
 
 extern "C" int run_gpu_write_then_host_put_test(chi::PoolId pool_id,
                                                  wrp_cte::core::TagId tag_id) {
-    GpuBackends b = SetupGpuBackends();
-    if (!b.ok) return -100;
+    auto *gpu_ipc = CHI_CPU_IPC->GetGpuIpcManager();
+    chi::IpcManagerGpuInfo gpu_info = gpu_ipc->GetClientGpuInfo(0);
 
-    chi::IpcManagerGpuInfo gpu_info = BuildGpuInfo(b);
+    gpu_ipc->PauseGpuOrchestrator();
 
     // use pinned host memory so CPU can read the result without device sync
     KernelWriteResult *d_out;
@@ -164,6 +172,7 @@ extern "C" int run_gpu_write_then_host_put_test(chi::PoolId pool_id,
 
     cudaError_t launch_err = cudaGetLastError();
     if (launch_err != cudaSuccess) {
+        gpu_ipc->ResumeGpuOrchestrator();
         cudaFreeHost(d_out);
         hshm::GpuApi::DestroyStream(stream);
         return -201;
@@ -172,6 +181,7 @@ extern "C" int run_gpu_write_then_host_put_test(chi::PoolId pool_id,
     hshm::GpuApi::Synchronize(stream);
     cudaError_t sync_err = cudaGetLastError();
     if (sync_err != cudaSuccess) {
+        gpu_ipc->ResumeGpuOrchestrator();
         cudaFreeHost(d_out);
         hshm::GpuApi::DestroyStream(stream);
         return -200;
@@ -179,22 +189,25 @@ extern "C" int run_gpu_write_then_host_put_test(chi::PoolId pool_id,
 
     if (d_out->status != 1) {
         int s = d_out->status;
+        gpu_ipc->ResumeGpuOrchestrator();
         cudaFreeHost(d_out);
         hshm::GpuApi::DestroyStream(stream);
         return s;
     }
 
-    // issue AsyncPutBlob from host using the UVM ShmPtr the kernel filled
-    auto put_task = WRP_CTE_CLIENT->AsyncPutBlob(
-        tag_id,
-        "gpu_write_host_put_blob",
-        0, kKernelBlobSize,
-        d_out->shm,
-        1.0f,
-        wrp_cte::core::Context(),
-        0,
-        chi::PoolQuery::Local());
-    put_task.Wait();
+    // Resume orchestrator so it can service the host-submitted PutBlob task.
+    gpu_ipc->ResumeGpuOrchestrator();
+
+    // issue PutBlob from host using direct NewTask/Send (AsyncPutBlob is
+    // host-only and not visible in nvcc device-pass preprocessing of .cu)
+    auto *cpu_ipc = CHI_CPU_IPC;
+    auto put_task = cpu_ipc->template NewTask<wrp_cte::core::PutBlobTask>(
+        chi::CreateTaskId(), pool_id, chi::PoolQuery::Local(),
+        tag_id, "gpu_write_host_put_blob", chi::u64(0),
+        chi::u64(kKernelBlobSize), d_out->shm, 1.0f,
+        wrp_cte::core::Context(), chi::u32(0));
+    auto put_future = cpu_ipc->Send(put_task);
+    put_future.Wait();
     int rc = static_cast<int>(put_task->GetReturnCode());
 
     cudaFreeHost(d_out);
@@ -241,20 +254,22 @@ extern "C" int run_host_put_gpu_get_test(chi::PoolId pool_id,
             put_buf.ptr_[i] = static_cast<char>(i % 251);
         }
         hipc::ShmPtr<> put_shm = put_buf.shm_.template Cast<void>();
-        auto put_task = WRP_CTE_CLIENT->AsyncPutBlob(
-            tag_id, "host_put_gpu_get_blob",
-            0, kKernelBlobSize, put_shm,
-            1.0f, wrp_cte::core::Context(), 0,
-            chi::PoolQuery::Local());
-        put_task.Wait();
-        CHI_IPC->FreeBuffer(put_buf);
+        auto *cpu_ipc = CHI_CPU_IPC;
+        auto put_task = cpu_ipc->template NewTask<wrp_cte::core::PutBlobTask>(
+            chi::CreateTaskId(), pool_id, chi::PoolQuery::Local(),
+            tag_id, "host_put_gpu_get_blob", chi::u64(0),
+            chi::u64(kKernelBlobSize), put_shm, 1.0f,
+            wrp_cte::core::Context(), chi::u32(0));
+        auto put_future = cpu_ipc->Send(put_task);
+        put_future.Wait();
+        cpu_ipc->FreeBuffer(put_buf);
         if (put_task->GetReturnCode() != 0) return -102;
     }
 
-    GpuBackends b = SetupGpuBackends();
-    if (!b.ok) return -100;
+    auto *gpu_ipc = CHI_CPU_IPC->GetGpuIpcManager();
+    chi::IpcManagerGpuInfo gpu_info = gpu_ipc->GetClientGpuInfo(0);
 
-    chi::IpcManagerGpuInfo gpu_info = BuildGpuInfo(b);
+    gpu_ipc->PauseGpuOrchestrator();
 
     // launch kernel to allocate a UVM receive buffer
     KernelWriteResult *d_out;
@@ -269,6 +284,7 @@ extern "C" int run_host_put_gpu_get_test(chi::PoolId pool_id,
 
     cudaError_t launch_err = cudaGetLastError();
     if (launch_err != cudaSuccess) {
+        gpu_ipc->ResumeGpuOrchestrator();
         cudaFreeHost(d_out);
         hshm::GpuApi::DestroyStream(stream);
         return -201;
@@ -277,6 +293,7 @@ extern "C" int run_host_put_gpu_get_test(chi::PoolId pool_id,
     hshm::GpuApi::Synchronize(stream);
     cudaError_t sync_err = cudaGetLastError();
     if (sync_err != cudaSuccess) {
+        gpu_ipc->ResumeGpuOrchestrator();
         cudaFreeHost(d_out);
         hshm::GpuApi::DestroyStream(stream);
         return -200;
@@ -284,18 +301,24 @@ extern "C" int run_host_put_gpu_get_test(chi::PoolId pool_id,
 
     if (d_out->status != 1) {
         int s = d_out->status;
+        gpu_ipc->ResumeGpuOrchestrator();
         cudaFreeHost(d_out);
         hshm::GpuApi::DestroyStream(stream);
         return s;
     }
 
-    // host issues AsyncGetBlob into the UVM buffer the kernel allocated
-    auto get_task = WRP_CTE_CLIENT->AsyncGetBlob(
-        tag_id, "host_put_gpu_get_blob",
-        0, kKernelBlobSize, 0,
-        d_out->shm,
-        chi::PoolQuery::Local());
-    get_task.Wait();
+    // Resume orchestrator so it can service the host-submitted GetBlob task.
+    gpu_ipc->ResumeGpuOrchestrator();
+
+    // host issues GetBlob into the UVM buffer the kernel allocated (direct
+    // NewTask/Send; AsyncGetBlob is host-only and hidden in nvcc device-pass)
+    auto *cpu_ipc = CHI_CPU_IPC;
+    auto get_task = cpu_ipc->template NewTask<wrp_cte::core::GetBlobTask>(
+        chi::CreateTaskId(), pool_id, chi::PoolQuery::Local(),
+        tag_id, "host_put_gpu_get_blob", chi::u64(0),
+        chi::u64(kKernelBlobSize), chi::u32(0), d_out->shm);
+    auto get_future = cpu_ipc->Send(get_task);
+    get_future.Wait();
     int rc = static_cast<int>(get_task->GetReturnCode());
     if (rc != 0) {
         cudaFreeHost(d_out);
