@@ -243,12 +243,14 @@ TEST_CASE("CTE overwrite with smaller data", "[integration][iowarp][cte]") {
 
         tag.PutBlob(blob_name, large_data, large_size);
         chi::u64 size_after_large = tag.GetBlobSize(blob_name);
+        REQUIRE(size_after_large == large_size);
 
         tag.PutBlob(blob_name, small_data, small_size, 0);
         chi::u64 size_after_small = tag.GetBlobSize(blob_name);
 
-        // CTE does NOT truncate: the size stays at the old (larger) value.
-        REQUIRE(size_after_small == size_after_large);
+        // CTE now truncates blob storage on overwrite: the reported size
+        // reflects the new (smaller) data, not the original (larger) one.
+        REQUIRE(size_after_small == small_size);
     }
 }
 
