@@ -58,7 +58,7 @@ set(WRP_CORE_ENABLE_DOCKER_CI  OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     iowarp_core
     GIT_REPOSITORY https://github.com/abscosmos/iowarp-core.git
-    GIT_TAG        d81c144ad6c372315ba872c84c345c9cce4e2390
+    GIT_TAG        5bc88515bf69373a8050ce667ebd470ed971cadf
 )
 # FetchContent_Populate(<name>) is deprecated in CMake 3.30+ (CMP0169).
 # We need it here to interject the cmake file copy between fetch and
@@ -75,9 +75,10 @@ if(NOT iowarp_core_POPULATED)
         "${iowarp_core_SOURCE_DIR}/cmake/IowarpCoreCommon.cmake"
         DESTINATION "${CMAKE_SOURCE_DIR}/cmake/"
     )
+
     add_subdirectory(${iowarp_core_SOURCE_DIR} ${iowarp_core_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
-message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ d81c144a (add-missing-zmq-guards))")
+message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ 5bc88515)")
 
 FetchContent_Declare(
     cccl
