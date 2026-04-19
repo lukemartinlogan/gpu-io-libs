@@ -114,7 +114,7 @@ class Dataset {
     /// Row-copy between a chunk buffer and a contiguous user buffer.
     /// When writing: copies user buffer rows → chunk_buf.
     /// When reading:  copies chunk_buf rows → user buffer.
-    static void CopyChunkRows(
+    static CROSS_FUN void CopyChunkRows(
         byte_t* chunk_buf,
         byte_t* user_buf,
         cstd::span<const uint64_t> chunk_start,
@@ -186,7 +186,7 @@ public:
     static constexpr size_t kMaxChunkBytes = 64 * 1024;
 
     // --- Write (SelectAll + Hyperslab, multi-chunk) ---
-    expected<void> Write(
+    CROSS_FUN expected<void> Write(
         const Datatype& mem_type,
         const Dataspace& mem_space,
         const Dataspace& file_space,
@@ -384,7 +384,7 @@ advance_write:
     }
 
     // --- Read (SelectAll + Hyperslab, multi-chunk) ---
-    expected<void> Read(
+    CROSS_FUN expected<void> Read(
         const Datatype& mem_type,
         const Dataspace& mem_space,
         const Dataspace& file_space,
@@ -554,7 +554,7 @@ advance_write:
 
     // --- Query ---
 
-    expected<Dataspace> GetSpace() const {
+    CROSS_FUN expected<Dataspace> GetSpace() const {
         auto meta_result = container_->GetDataset(id_);
         if (!meta_result.has_value()) {
             return make_error(ErrorCode::InvalidArgument, "dataset not found");
@@ -564,7 +564,7 @@ advance_write:
         return Dataspace::CreateSimple(dims_span);
     }
 
-    Datatype GetType() const {
+    CROSS_FUN Datatype GetType() const {
         auto meta_result = container_->GetDataset(id_);
         KVHDF5_ASSERT(meta_result.has_value(), "Dataset::GetType: dataset not found");
         auto& meta = meta_result.value();
@@ -597,7 +597,7 @@ advance_write:
     /// Updates metadata only; existing chunks are not modified.
     /// Growing adds empty space (reads return zero).
     /// Shrinking leaves orphaned chunks (acceptable for now).
-    expected<void> SetExtent(cstd::span<const uint64_t> new_dims) {
+    CROSS_FUN expected<void> SetExtent(cstd::span<const uint64_t> new_dims) {
         auto meta_result = container_->GetDataset(id_);
         if (!meta_result.has_value()) {
             return make_error(ErrorCode::InvalidArgument, "dataset not found");
@@ -617,10 +617,10 @@ advance_write:
     }
 
     // --- Attributes (declarations; defined in hdf5_attribute.h) ---
-    expected<void> SetAttribute(gpu_string_view name, const Datatype& type, const void* data);
-    expected<void> GetAttribute(gpu_string_view name, const Datatype& type, void* data) const;
-    bool HasAttribute(gpu_string_view name) const;
-    AttributeHandle<B> OpenAttribute(gpu_string_view name);
+    CROSS_FUN expected<void> SetAttribute(gpu_string_view name, const Datatype& type, const void* data);
+    CROSS_FUN expected<void> GetAttribute(gpu_string_view name, const Datatype& type, void* data) const;
+    CROSS_FUN bool HasAttribute(gpu_string_view name) const;
+    CROSS_FUN AttributeHandle<B> OpenAttribute(gpu_string_view name);
 
     // --- ChunkIter ---
 
@@ -631,7 +631,7 @@ advance_write:
     /// Iterate over all existing chunks in the dataset.
     /// For each chunk that exists, calls the callback with the ChunkKey and
     /// the chunk data size in bytes.
-    expected<void> ChunkIter(ChunkIterCallback callback, void* user_data) const {
+    CROSS_FUN expected<void> ChunkIter(ChunkIterCallback callback, void* user_data) const {
         auto meta_result = container_->GetDataset(id_);
         if (!meta_result.has_value()) {
             return make_error(ErrorCode::InvalidArgument, "dataset not found");
@@ -690,7 +690,7 @@ advance_write:
 // Defined here because they return Dataset<B>, which is now complete.
 
 template<RawBlobStore B>
-expected<Dataset<B>> Group<B>::CreateDataset(
+CROSS_FUN expected<Dataset<B>> Group<B>::CreateDataset(
     gpu_string_view name, const Datatype& type,
     const Dataspace& space, const DatasetCreateProps& props
 ) {
@@ -742,7 +742,7 @@ expected<Dataset<B>> Group<B>::CreateDataset(
 }
 
 template<RawBlobStore B>
-expected<Dataset<B>> Group<B>::OpenDataset(gpu_string_view name) {
+CROSS_FUN expected<Dataset<B>> Group<B>::OpenDataset(gpu_string_view name) {
     auto meta_result = container_->GetGroup(id_);
     if (!meta_result.has_value()) {
         return make_error(ErrorCode::InvalidArgument, "group not found");

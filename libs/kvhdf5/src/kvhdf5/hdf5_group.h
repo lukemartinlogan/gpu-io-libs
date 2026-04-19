@@ -36,7 +36,7 @@ public:
 
     // --- Child groups ---
 
-    expected<Group> CreateGroup(gpu_string_view name) {
+    CROSS_FUN expected<Group> CreateGroup(gpu_string_view name) {
         auto meta_result = container_->GetGroup(id_);
         if (!meta_result.has_value()) {
             return make_error(ErrorCode::InvalidArgument, "parent group not found");
@@ -62,7 +62,7 @@ public:
         return Group(child_id, container_);
     }
 
-    expected<Group> OpenGroup(gpu_string_view name) {
+    CROSS_FUN expected<Group> OpenGroup(gpu_string_view name) {
         auto meta_result = container_->GetGroup(id_);
         if (!meta_result.has_value()) {
             return make_error(ErrorCode::InvalidArgument, "group not found");
@@ -81,7 +81,7 @@ public:
 
     // --- Attributes ---
 
-    expected<void> SetAttribute(gpu_string_view name, const Datatype& type, const void* data) {
+    CROSS_FUN expected<void> SetAttribute(gpu_string_view name, const Datatype& type, const void* data) {
         auto meta_result = container_->GetGroup(id_);
         if (!meta_result.has_value()) {
             return make_error(ErrorCode::InvalidArgument, "group not found");
@@ -111,7 +111,7 @@ public:
         return {};
     }
 
-    expected<void> GetAttribute(gpu_string_view name, const Datatype& type, void* data) const {
+    CROSS_FUN expected<void> GetAttribute(gpu_string_view name, const Datatype& type, void* data) const {
         auto meta_result = container_->GetGroup(id_);
         if (!meta_result.has_value()) {
             return make_error(ErrorCode::InvalidArgument, "group not found");
@@ -134,7 +134,7 @@ public:
         return make_error(ErrorCode::InvalidArgument, "attribute not found");
     }
 
-    bool HasAttribute(gpu_string_view name) const {
+    CROSS_FUN bool HasAttribute(gpu_string_view name) const {
         auto meta_result = container_->GetGroup(id_);
         if (!meta_result.has_value()) return false;
         auto& meta = meta_result.value();
@@ -151,7 +151,7 @@ public:
 
     CROSS_FUN GroupId GetId() const { return id_; }
 
-    expected<GroupInfo> GetInfo() const {
+    CROSS_FUN expected<GroupInfo> GetInfo() const {
         auto meta_result = container_->GetGroup(id_);
         if (!meta_result.has_value()) {
             return make_error(ErrorCode::InvalidArgument, "group not found");
@@ -161,13 +161,13 @@ public:
     }
 
     // --- Datasets (declarations; defined in hdf5_dataset.h after Dataset<B>) ---
-    expected<Dataset<B>> CreateDataset(
+    CROSS_FUN expected<Dataset<B>> CreateDataset(
         gpu_string_view name, const Datatype& type,
         const Dataspace& space, const DatasetCreateProps& props = {});
-    expected<Dataset<B>> OpenDataset(gpu_string_view name);
+    CROSS_FUN expected<Dataset<B>> OpenDataset(gpu_string_view name);
 
     // --- Attribute handle (declaration; defined in hdf5_attribute.h) ---
-    AttributeHandle<B> OpenAttribute(gpu_string_view name);
+    CROSS_FUN AttributeHandle<B> OpenAttribute(gpu_string_view name);
 };
 
 // Define File<B>::OpenRootGroup now that Group<B> is complete

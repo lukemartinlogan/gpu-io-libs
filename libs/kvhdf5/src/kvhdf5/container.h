@@ -27,7 +27,7 @@ public:
      * Accepts a pre-built blob store and an allocator.
      * Initializes the root group and sets up ID allocation.
      */
-    explicit Container(BlobStoreImpl&& blob_store, AllocatorImpl* alloc)
+    explicit CROSS_FUN Container(BlobStoreImpl&& blob_store, AllocatorImpl* alloc)
         : raw_store_(cstd::move(blob_store))
         , store_(&raw_store_)
         , context_(alloc)
@@ -54,7 +54,7 @@ public:
      * Move constructor.
      * store_ must point to this->raw_store_, not the moved-from object.
      */
-    Container(Container&& other) noexcept
+    CROSS_FUN Container(Container&& other) noexcept
         : raw_store_(cstd::move(other.raw_store_))
         , store_(&raw_store_)
         , context_(other.context_)
