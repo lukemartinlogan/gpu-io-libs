@@ -125,6 +125,7 @@ __global__ void kernel_delete_and_exists(
     d_result->status = 0;
     d_result->data_match = 0;
     CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
 
     cstd::array<byte_t, 4> key = {byte_t{10}, byte_t{20}, byte_t{30}, byte_t{40}};
     cstd::array<byte_t, 4> value = {byte_t{1}, byte_t{2}, byte_t{3}, byte_t{4}};
@@ -176,6 +177,7 @@ __global__ void kernel_multiple_keys(
     d_result->status = 0;
     d_result->data_match = 0;
     CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
 
     cstd::array<byte_t, 4> key1 = {byte_t{1}, byte_t{0}, byte_t{0}, byte_t{0}};
     cstd::array<byte_t, 4> key2 = {byte_t{2}, byte_t{0}, byte_t{0}, byte_t{0}};
@@ -289,9 +291,9 @@ static BlobTestResult RunGpuBlobTest(
 TEST_CASE("GpuCteBlobStore - PutBlob + GetBlob roundtrip from kernel",
           "[unit][gpu_cte][blob_store]") {
     EnsureGpuCteRuntime();
-    chi::PoolId pool_id = wrp_cte::core::kCtePoolId;
+    chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = WRP_CTE_CLIENT->AsyncGetOrCreateTag("gpu_blob_store_roundtrip");
+    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_roundtrip");
     tag_task.Wait();
     wrp_cte::core::TagId tag_id = tag_task->tag_id_;
 
@@ -308,9 +310,9 @@ TEST_CASE("GpuCteBlobStore - PutBlob + GetBlob roundtrip from kernel",
 TEST_CASE("GpuCteBlobStore - DeleteBlob sentinel + Exists from kernel",
           "[unit][gpu_cte][blob_store]") {
     EnsureGpuCteRuntime();
-    chi::PoolId pool_id = wrp_cte::core::kCtePoolId;
+    chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = WRP_CTE_CLIENT->AsyncGetOrCreateTag("gpu_blob_store_delete");
+    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_delete");
     tag_task.Wait();
     wrp_cte::core::TagId tag_id = tag_task->tag_id_;
 
@@ -326,9 +328,9 @@ TEST_CASE("GpuCteBlobStore - DeleteBlob sentinel + Exists from kernel",
 TEST_CASE("GpuCteBlobStore - Multiple keys from kernel",
           "[unit][gpu_cte][blob_store]") {
     EnsureGpuCteRuntime();
-    chi::PoolId pool_id = wrp_cte::core::kCtePoolId;
+    chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = WRP_CTE_CLIENT->AsyncGetOrCreateTag("gpu_blob_store_multi");
+    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_multi");
     tag_task.Wait();
     wrp_cte::core::TagId tag_id = tag_task->tag_id_;
 
