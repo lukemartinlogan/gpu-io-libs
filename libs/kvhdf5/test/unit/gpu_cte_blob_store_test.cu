@@ -283,6 +283,268 @@ static BlobTestResult RunGpuBlobTest(
 }
 
 // ---------------------------------------------------------------------------
+// Kernel: Overwrite at the same key (Test 1)
+//   (a) same-length overwrite: 8 bytes -> different 8 bytes
+//   (b) shorter overwrite: 16 bytes first, then 4 bytes
+// ---------------------------------------------------------------------------
+
+__global__ void kernel_overwrite_same_key(
+    chi::IpcManagerGpuInfo gpu_info,
+    GpuCteBlobStore store,
+    BlobTestResult *d_result)
+{
+    d_result->status = 0;
+    d_result->data_match = 0;
+    CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
+
+    // --- Variant (a): same-length overwrite ---
+    cstd::array<byte_t, 4> key_a = {byte_t{0xA1}, byte_t{0xA2}, byte_t{0xA3}, byte_t{0xA4}};
+    cstd::array<byte_t, 8> val_a1 = {
+        byte_t{0x11}, byte_t{0x22}, byte_t{0x33}, byte_t{0x44},
+        byte_t{0x55}, byte_t{0x66}, byte_t{0x77}, byte_t{0x88}
+    };
+    cstd::array<byte_t, 8> val_a2 = {
+        byte_t{0xAA}, byte_t{0xBB}, byte_t{0xCC}, byte_t{0xDD},
+        byte_t{0xEE}, byte_t{0xFF}, byte_t{0x00}, byte_t{0x11}
+    };
+
+    if (!store.PutBlob(key_a, val_a1)) { d_result->status = -1; return; }
+    if (!store.PutBlob(key_a, val_a2)) { d_result->status = -2; return; }
+
+    cstd::array<byte_t, 8> out_a;
+    auto r_a = store.GetBlob(key_a, out_a);
+    if (!r_a.has_value())     { d_result->status = -3; return; }
+    if (r_a->size() != 8)     { d_result->status = -4; return; }
+    for (int i = 0; i < 8; ++i) {
+        if (out_a[i] != val_a2[i]) { d_result->status = -5; return; }
+    }
+
+    // --- Variant (b): shorter overwrite (16 -> 4 bytes) ---
+    cstd::array<byte_t, 4> key_b = {byte_t{0xB1}, byte_t{0xB2}, byte_t{0xB3}, byte_t{0xB4}};
+    cstd::array<byte_t, 16> val_b1 = {
+        byte_t{0x01}, byte_t{0x02}, byte_t{0x03}, byte_t{0x04},
+        byte_t{0x05}, byte_t{0x06}, byte_t{0x07}, byte_t{0x08},
+        byte_t{0x09}, byte_t{0x0A}, byte_t{0x0B}, byte_t{0x0C},
+        byte_t{0x0D}, byte_t{0x0E}, byte_t{0x0F}, byte_t{0x10}
+    };
+    cstd::array<byte_t, 4> val_b2 = {byte_t{0xDE}, byte_t{0xAD}, byte_t{0xBE}, byte_t{0xEF}};
+
+    if (!store.PutBlob(key_b, val_b1)) { d_result->status = -6; return; }
+    if (!store.PutBlob(key_b, val_b2)) { d_result->status = -7; return; }
+
+    // Read back with a buffer sized to the new (shorter) value
+    cstd::array<byte_t, 4> out_b;
+    auto r_b = store.GetBlob(key_b, out_b);
+    if (!r_b.has_value())     { d_result->status = -8; return; }
+    if (r_b->size() != 4)     { d_result->status = -9; return; }
+    for (int i = 0; i < 4; ++i) {
+        if (out_b[i] != val_b2[i]) { d_result->status = -10; return; }
+    }
+
+    d_result->status = 1;
+    d_result->data_match = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Kernel: GetBlob with an oversized output buffer (Test 2)
+// ---------------------------------------------------------------------------
+
+__global__ void kernel_get_oversized_buffer(
+    chi::IpcManagerGpuInfo gpu_info,
+    GpuCteBlobStore store,
+    BlobTestResult *d_result)
+{
+    d_result->status = 0;
+    d_result->data_match = 0;
+    CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
+
+    cstd::array<byte_t, 4> key = {byte_t{0xC1}, byte_t{0xC2}, byte_t{0xC3}, byte_t{0xC4}};
+    cstd::array<byte_t, 4> value = {byte_t{0x10}, byte_t{0x20}, byte_t{0x30}, byte_t{0x40}};
+
+    if (!store.PutBlob(key, value)) { d_result->status = -1; return; }
+
+    // Get with a 16-byte output buffer — 4x the stored size
+    cstd::array<byte_t, 16> big_out;
+    auto result = store.GetBlob(key, big_out);
+
+    // Semantic contract: result must be present with real_size == 4
+    if (!result.has_value())   { d_result->status = -2; return; }
+    if (result->size() != 4)   { d_result->status = -3; return; }
+
+    // First 4 bytes of output must match the original value
+    for (int i = 0; i < 4; ++i) {
+        if (big_out[i] != value[i]) { d_result->status = -4; return; }
+    }
+
+    d_result->status = 1;
+    d_result->data_match = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Kernel: Empty (zero-byte) value (Test 3)
+// ---------------------------------------------------------------------------
+
+__global__ void kernel_empty_value(
+    chi::IpcManagerGpuInfo gpu_info,
+    GpuCteBlobStore store,
+    BlobTestResult *d_result)
+{
+    d_result->status = 0;
+    d_result->data_match = 0;
+    CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
+
+    cstd::array<byte_t, 4> key = {byte_t{0xD1}, byte_t{0xD2}, byte_t{0xD3}, byte_t{0xD4}};
+
+    // Construct a zero-length span using a dummy backing byte
+    byte_t dummy = byte_t{0};
+    cstd::span<const byte_t> empty_value(&dummy, 0);
+
+    if (!store.PutBlob(key, empty_value)) { d_result->status = -1; return; }
+
+    // Semantic contract: key should exist after Put with empty value.
+    // Current tombstone-by-zero-prefix design returns false — this test will
+    // FAIL to document that bug.
+    if (!store.Exists(key)) { d_result->status = -2; return; }
+
+    // Semantic contract: GetBlob on empty value should succeed with size==0.
+    // Current design returns NotExist (zero prefix sentinel) — failure is expected.
+    byte_t out_dummy = byte_t{0};
+    cstd::span<byte_t> empty_out(&out_dummy, 0);
+    auto result = store.GetBlob(key, empty_out);
+    if (!result.has_value()) { d_result->status = -3; return; }
+    if (result->size() != 0) { d_result->status = -4; return; }
+
+    d_result->status = 1;
+    d_result->data_match = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Kernel: Large blob roundtrip — 256 KB (Test 4)
+// ---------------------------------------------------------------------------
+
+static constexpr size_t kLargeBlobSize = 256 * 1024;  // 256 KB
+
+__global__ void kernel_large_blob_roundtrip(
+    chi::IpcManagerGpuInfo gpu_info,
+    GpuCteBlobStore store,
+    BlobTestResult *d_result)
+{
+    d_result->status = 0;
+    d_result->data_match = 0;
+    CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
+
+    cstd::array<byte_t, 4> key = {byte_t{0xE1}, byte_t{0xE2}, byte_t{0xE3}, byte_t{0xE4}};
+
+    // Allocate a 256 KB write buffer from the GPU IPC allocator.
+    // This memory is accessible to both GPU and CPU (the store task handler
+    // reads it via the ShmPtr), which is the correct path for PutBlob input.
+    hipc::FullPtr<char> put_buf = CHI_IPC->AllocateBuffer(kLargeBlobSize);
+    if (put_buf.IsNull()) { d_result->status = -1; return; }
+
+    // Fill with known pattern: byte[i] = i & 0xFF
+    for (size_t i = 0; i < kLargeBlobSize; ++i) {
+        put_buf.ptr_[i] = static_cast<char>(i & 0xFF);
+    }
+
+    cstd::span<const byte_t> value_span(
+        reinterpret_cast<const byte_t *>(put_buf.ptr_), kLargeBlobSize);
+
+    bool put_ok = store.PutBlob(key, value_span);
+    CHI_IPC->FreeBuffer(put_buf);
+    if (!put_ok) { d_result->status = -2; return; }
+
+    // Allocate a 256 KB read buffer for GetBlob output.
+    hipc::FullPtr<char> get_buf = CHI_IPC->AllocateBuffer(kLargeBlobSize);
+    if (get_buf.IsNull()) { d_result->status = -3; return; }
+
+    cstd::span<byte_t> out_span(
+        reinterpret_cast<byte_t *>(get_buf.ptr_), kLargeBlobSize);
+
+    auto result = store.GetBlob(key, out_span);
+    if (!result.has_value())                   { CHI_IPC->FreeBuffer(get_buf); d_result->status = -4; return; }
+    if (result->size() != kLargeBlobSize)      { CHI_IPC->FreeBuffer(get_buf); d_result->status = -5; return; }
+
+    // Verify content matches the known pattern
+    d_result->data_match = 1;
+    for (size_t i = 0; i < kLargeBlobSize; ++i) {
+        if (static_cast<uint8_t>(get_buf.ptr_[i]) != static_cast<uint8_t>(i & 0xFF)) {
+            d_result->data_match = 0;
+            break;
+        }
+    }
+
+    CHI_IPC->FreeBuffer(get_buf);
+    d_result->status = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Kernels: Cross-kernel persistence (Test 5)
+//   kernel_persist_writer: Put a key
+//   kernel_persist_reader: Get the same key and verify
+// ---------------------------------------------------------------------------
+
+__global__ void kernel_persist_writer(
+    chi::IpcManagerGpuInfo gpu_info,
+    GpuCteBlobStore store,
+    BlobTestResult *d_result)
+{
+    d_result->status = 0;
+    d_result->data_match = 0;
+    CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
+
+    cstd::array<byte_t, 4> key = {byte_t{0xF1}, byte_t{0xF2}, byte_t{0xF3}, byte_t{0xF4}};
+    cstd::array<byte_t, 8> value = {
+        byte_t{0x12}, byte_t{0x34}, byte_t{0x56}, byte_t{0x78},
+        byte_t{0x9A}, byte_t{0xBC}, byte_t{0xDE}, byte_t{0xF0}
+    };
+
+    if (!store.PutBlob(key, value)) {
+        d_result->status = -1;
+        return;
+    }
+
+    d_result->status = 1;
+}
+
+__global__ void kernel_persist_reader(
+    chi::IpcManagerGpuInfo gpu_info,
+    GpuCteBlobStore store,
+    BlobTestResult *d_result)
+{
+    d_result->status = 0;
+    d_result->data_match = 0;
+    CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
+
+    cstd::array<byte_t, 4> key = {byte_t{0xF1}, byte_t{0xF2}, byte_t{0xF3}, byte_t{0xF4}};
+    cstd::array<byte_t, 8> expected = {
+        byte_t{0x12}, byte_t{0x34}, byte_t{0x56}, byte_t{0x78},
+        byte_t{0x9A}, byte_t{0xBC}, byte_t{0xDE}, byte_t{0xF0}
+    };
+
+    cstd::array<byte_t, 8> output;
+    auto result = store.GetBlob(key, output);
+
+    if (!result.has_value())  { d_result->status = -1; return; }
+    if (result->size() != 8)  { d_result->status = -2; return; }
+
+    d_result->data_match = 1;
+    for (int i = 0; i < 8; ++i) {
+        if (output[i] != expected[i]) {
+            d_result->data_match = 0;
+            break;
+        }
+    }
+
+    d_result->status = 1;
+}
+
+// ---------------------------------------------------------------------------
 // Catch2 tests (host-only, hidden from device compilation pass)
 // ---------------------------------------------------------------------------
 
@@ -342,6 +604,113 @@ TEST_CASE("GpuCteBlobStore - Multiple keys from kernel",
     INFO("kernel status: " << result.status);
     REQUIRE(result.status == 1);
     REQUIRE(result.data_match == 1);
+}
+
+TEST_CASE("GpuCteBlobStore - Overwrite at the same key",
+          "[unit][gpu_cte][blob_store][gpu_blob_store_overwrite]") {
+    EnsureGpuCteRuntime();
+    chi::PoolId pool_id = g_gpu_cte_pool_id;
+
+    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_overwrite");
+    tag_task.Wait();
+    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+
+    GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
+    REQUIRE(store.IsValid());
+    auto result = RunGpuBlobTest(kernel_overwrite_same_key, store);
+    store.Destroy();
+
+    INFO("kernel status: " << result.status);
+    REQUIRE(result.status == 1);
+    REQUIRE(result.data_match == 1);
+}
+
+TEST_CASE("GpuCteBlobStore - GetBlob with oversized output buffer",
+          "[unit][gpu_cte][blob_store][gpu_blob_store_oversized_get]") {
+    EnsureGpuCteRuntime();
+    chi::PoolId pool_id = g_gpu_cte_pool_id;
+
+    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_oversized_get");
+    tag_task.Wait();
+    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+
+    GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
+    REQUIRE(store.IsValid());
+    auto result = RunGpuBlobTest(kernel_get_oversized_buffer, store);
+    store.Destroy();
+
+    INFO("kernel status: " << result.status);
+    REQUIRE(result.status == 1);
+    REQUIRE(result.data_match == 1);
+}
+
+TEST_CASE("GpuCteBlobStore - Empty (zero-byte) value",
+          "[unit][gpu_cte][blob_store][gpu_blob_store_empty_value]") {
+    EnsureGpuCteRuntime();
+    chi::PoolId pool_id = g_gpu_cte_pool_id;
+
+    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_empty_value");
+    tag_task.Wait();
+    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+
+    GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
+    REQUIRE(store.IsValid());
+    auto result = RunGpuBlobTest(kernel_empty_value, store);
+    store.Destroy();
+
+    // Documenting expected failure: zero-prefix sentinel design conflates
+    // "deleted" with "empty value", so status will be -2 on current impl.
+    INFO("kernel status: " << result.status);
+    REQUIRE(result.status == 1);
+}
+
+TEST_CASE("GpuCteBlobStore - Large blob (256 KB) roundtrip",
+          "[unit][gpu_cte][blob_store][gpu_blob_store_large]") {
+    EnsureGpuCteRuntime();
+    chi::PoolId pool_id = g_gpu_cte_pool_id;
+
+    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_large");
+    tag_task.Wait();
+    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+
+    // Provide a scratch buffer large enough for 256 KB + 8-byte prefix
+    GpuCteBlobStore store = GpuCteBlobStore::Create(
+        tag_id, pool_id, kLargeBlobSize + sizeof(uint64_t));
+    REQUIRE(store.IsValid());
+    auto result = RunGpuBlobTest(kernel_large_blob_roundtrip, store);
+    store.Destroy();
+
+    INFO("kernel status: " << result.status);
+    REQUIRE(result.status == 1);
+    REQUIRE(result.data_match == 1);
+}
+
+TEST_CASE("GpuCteBlobStore - Cross-kernel persistence",
+          "[unit][gpu_cte][blob_store][gpu_blob_store_persist]") {
+    EnsureGpuCteRuntime();
+    chi::PoolId pool_id = g_gpu_cte_pool_id;
+
+    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_persist");
+    tag_task.Wait();
+    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+
+    // Single store instance shared across both kernel launches: same scratch
+    // buffer, same CTE tag — persistence comes from the CTE backend.
+    GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
+    REQUIRE(store.IsValid());
+
+    // Kernel A: write the key
+    auto write_result = RunGpuBlobTest(kernel_persist_writer, store);
+    INFO("writer kernel status: " << write_result.status);
+    REQUIRE(write_result.status == 1);
+
+    // Kernel B: read the same key from a separate launch
+    auto read_result = RunGpuBlobTest(kernel_persist_reader, store);
+    store.Destroy();
+
+    INFO("reader kernel status: " << read_result.status);
+    REQUIRE(read_result.status == 1);
+    REQUIRE(read_result.data_match == 1);
 }
 
 #endif  // !HSHM_IS_GPU
