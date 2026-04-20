@@ -68,9 +68,32 @@ class GpuCteBlobStore {
     // Size prefix stored before every blob value (same as CpuCteBlobStore).
     static constexpr size_t kPrefixSize = sizeof(uint64_t);
 
-    // Max hex-encoded key length: 64-byte key -> 128 hex chars + null.
-    // Covers ChunkKey (the largest key type at ~80 bytes serialized).
-    static constexpr size_t kMaxKeyHexBuf = 256;
+    // Encoded blob name: exactly kNameLen null-free characters plus a trailing
+    // '\0'. See KeyToName() below for why the length must stay <= 10.
+    //
+    // Root-cause note: iowarp-core's GPU-side PutBlob / GetBlob / DelBlob
+    // handler builds a "compound key" via
+    //   chi::priv::string::reserve(22 + blob_name_len)
+    // (see core_runtime_gpu.cc: MakeCompoundKey). When the reserved capacity
+    // exceeds the chi::priv::string SSO size (32), reserve() calls
+    // TransitionToHeap(), which invokes the per-warp PrivateBuddyAllocator.
+    // That device-side heap allocation path faults with CUDA Error 700 in
+    // this runtime configuration, so we must keep blob_name_len <= 10 to
+    // stay inside SSO: 22 + 10 = 32 <= SSO capacity 32.
+    //
+    // A hex encoding (2 chars per byte) would need <=5-byte keys, which is
+    // too small for real use (8-byte IDs, 80-byte ChunkKey). We instead
+    // hash the key with FNV-1a (64-bit) and encode the 64-bit digest in 10
+    // Z85 characters, giving a fixed-width null-free name regardless of
+    // input key size. Z85's alphabet is ASCII-printable and excludes NUL,
+    // so the name survives PutBlobTask's null-terminated C-string path.
+    //
+    // Hash collision risk is birthday-paradox 64-bit (~2^32 distinct keys
+    // before a ~50% collision chance). Acceptable for this runtime's
+    // expected working set; document and revisit if a user-facing CTE
+    // scans by prefix or exposes names externally.
+    static constexpr size_t kNameLen = 10;
+    static constexpr size_t kMaxKeyNameBuf = kNameLen + 1;  // +null
 
 public:
     /** Default-constructible so the struct stays trivially copyable. */
@@ -147,10 +170,9 @@ public:
                            cstd::span<const byte_t> value) {
         if (scratch_buf_ == nullptr) return false;
 
-        // 1. Hex-encode key
-        char hex_buf[kMaxKeyHexBuf];
-        size_t hex_len = KeyToHex(key, hex_buf, kMaxKeyHexBuf);
-        hex_buf[hex_len] = '\0';
+        // 1. Encode key as a fixed-width 10-char null-free name.
+        char name_buf[kMaxKeyNameBuf];
+        KeyToName(key, name_buf);
 
         // 2. Check the scratch buffer is large enough for [prefix][value]
         uint64_t real_size = value.size();
@@ -169,7 +191,7 @@ public:
         auto *ipc = CHI_IPC;
         auto task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
             chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
-            tag_id_, hex_buf, chi::u64(0), chi::u64(total),
+            tag_id_, name_buf, chi::u64(0), chi::u64(total),
             shm, -1.0f, wrp_cte::core::Context(), chi::u32(0));
         if (task.IsNull()) return false;
         auto future = ipc->Send(task);
@@ -185,10 +207,9 @@ public:
             return cstd::unexpected<BlobStoreError>(BlobStoreError::NotExist);
         }
 
-        // 1. Hex-encode key
-        char hex_buf[kMaxKeyHexBuf];
-        size_t hex_len = KeyToHex(key, hex_buf, kMaxKeyHexBuf);
-        hex_buf[hex_len] = '\0';
+        // 1. Encode key as a fixed-width 10-char null-free name.
+        char name_buf[kMaxKeyNameBuf];
+        KeyToName(key, name_buf);
 
         // 2. Ensure scratch holds [prefix][value_out]
         size_t request_size = kPrefixSize + value_out.size();
@@ -204,7 +225,7 @@ public:
         auto *ipc = CHI_IPC;
         auto task = ipc->template NewTask<wrp_cte::core::GetBlobTask>(
             chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
-            tag_id_, hex_buf, chi::u64(0), chi::u64(request_size),
+            tag_id_, name_buf, chi::u64(0), chi::u64(request_size),
             chi::u32(0), shm);
         if (task.IsNull()) {
             return cstd::unexpected<BlobStoreError>(BlobStoreError::NotExist);
@@ -242,9 +263,8 @@ public:
         if (scratch_buf_ == nullptr) return false;
 
         // Sentinel delete: overwrite blob with real_size=0
-        char hex_buf[kMaxKeyHexBuf];
-        size_t hex_len = KeyToHex(key, hex_buf, kMaxKeyHexBuf);
-        hex_buf[hex_len] = '\0';
+        char name_buf[kMaxKeyNameBuf];
+        KeyToName(key, name_buf);
 
         if (kPrefixSize > scratch_size_) return false;
 
@@ -255,7 +275,7 @@ public:
         auto *ipc = CHI_IPC;
         auto task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
             chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
-            tag_id_, hex_buf, chi::u64(0), chi::u64(kPrefixSize),
+            tag_id_, name_buf, chi::u64(0), chi::u64(kPrefixSize),
             shm, -1.0f, wrp_cte::core::Context(), chi::u32(0));
         if (task.IsNull()) return false;
         auto future = ipc->Send(task);
@@ -269,9 +289,8 @@ public:
         if (scratch_buf_ == nullptr) return false;
 
         // Read just the size prefix to check existence
-        char hex_buf[kMaxKeyHexBuf];
-        size_t hex_len = KeyToHex(key, hex_buf, kMaxKeyHexBuf);
-        hex_buf[hex_len] = '\0';
+        char name_buf[kMaxKeyNameBuf];
+        KeyToName(key, name_buf);
 
         if (kPrefixSize > scratch_size_) return false;
 
@@ -281,7 +300,7 @@ public:
         auto *ipc = CHI_IPC;
         auto task = ipc->template NewTask<wrp_cte::core::GetBlobTask>(
             chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
-            tag_id_, hex_buf, chi::u64(0), chi::u64(kPrefixSize),
+            tag_id_, name_buf, chi::u64(0), chi::u64(kPrefixSize),
             chi::u32(0), shm);
         if (task.IsNull()) return false;
         auto future = ipc->Send(task);
@@ -297,25 +316,42 @@ public:
 
 private:
     /**
-     * Encode a byte key as hex into a caller-provided buffer.
-     * Empty key encodes as "_" (same convention as CpuCteBlobStore).
-     * Returns the number of characters written (not counting null terminator).
+     * Encode an arbitrary-length byte key into a fixed-width, null-free name
+     * of exactly kNameLen characters (plus a trailing '\0').
+     *
+     * Strategy: FNV-1a 64-bit hash over the key bytes, then emit the digest
+     * in base-85 using a null-free printable alphabet. 10 base-85 digits
+     * cover the full 64-bit space (85^10 > 2^64), so the encoding is
+     * bijective on the hash output.
+     *
+     * An empty key hashes to the FNV-1a offset basis, yielding a fixed
+     * sentinel name — consistent with CpuCteBlobStore's empty-key handling.
+     *
+     * The caller's buffer must be >= kMaxKeyNameBuf bytes.
      */
-    CROSS_FUN static size_t KeyToHex(cstd::span<const byte_t> key,
-                                      char* out, size_t out_size) {
-        if (key.empty()) {
-            out[0] = '_';
-            return 1;
+    CROSS_FUN static void KeyToName(cstd::span<const byte_t> key, char* out) {
+        // FNV-1a 64-bit
+        uint64_t h = 0xcbf29ce484222325ULL;
+        for (size_t i = 0; i < key.size(); ++i) {
+            h ^= static_cast<uint64_t>(static_cast<uint8_t>(key[i]));
+            h *= 0x100000001b3ULL;
         }
+        // Fold the key length in so that two keys whose bytes are a prefix
+        // of one another still produce different names.
+        h ^= static_cast<uint64_t>(key.size());
+        h *= 0x100000001b3ULL;
 
-        const char hex_chars[] = "0123456789abcdef";
-        size_t len = 0;
-        for (size_t i = 0; i < key.size() && len + 2 < out_size; ++i) {
-            uint8_t byte = static_cast<uint8_t>(key[i]);
-            out[len++] = hex_chars[byte >> 4];
-            out[len++] = hex_chars[byte & 0x0F];
+        // Base-85 digits (null-free, printable ASCII, ~Z85 alphabet).
+        static const char alphabet[86] =
+            "0123456789"
+            "abcdefghijklmnopqrstuvwxyz"
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            ".-:+=^!/*?&<>()[]{}@%$#";
+        for (size_t i = 0; i < kNameLen; ++i) {
+            out[kNameLen - 1 - i] = alphabet[h % 85];
+            h /= 85;
         }
-        return len;
+        out[kNameLen] = '\0';
     }
 };
 
