@@ -7,6 +7,10 @@ add_executable(kvhdf5_gpu_cte_tests
     test_cpu_client.cc
     test_gpu_kernel.cu
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_cte_blob_store_test.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_blob_store_typed_test.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_container_test.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_container_helpers.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/clang18_repro_test.cu
 )
 
 
@@ -21,6 +25,27 @@ set_target_properties(kvhdf5_gpu_cte_tests PROPERTIES
 # so we use -gline-tables-only (line info only, no variable DWARF) for this file.
 set_source_files_properties(
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_cte_blob_store_test.cu
+    PROPERTIES COMPILE_FLAGS "-gline-tables-only"
+)
+
+# gpu_blob_store_typed_test.cu has the same cuda::std::span instantiation
+# pattern — apply the same ptxas DWARF workaround.
+set_source_files_properties(
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_blob_store_typed_test.cu
+    PROPERTIES COMPILE_FLAGS "-gline-tables-only"
+)
+
+# gpu_container_test.cu instantiates hshm::priv::vector element access in
+# device code (via GroupMetadata::Serialize / Deserialize).  ptxas 12.6 with
+# clang-18 emits an llvm.nvvm.isspacep.shared intrinsic with a typed pointer
+# (GroupEntry* / Attribute*) instead of i8*, which fails IR verification when
+# full device debug info (-g) is active.
+#
+# Fix: --generate-line-info tells nvcc to emit only line-table PTX debug info
+# (no variable DWARF) for the device compilation, suppressing the broken
+# isspacep calls.  -gline-tables-only handles the host compilation pass.
+set_source_files_properties(
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_container_test.cu
     PROPERTIES COMPILE_FLAGS "-gline-tables-only"
 )
 
