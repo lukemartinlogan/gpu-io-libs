@@ -293,8 +293,11 @@ struct ManagedAllocFixture {
     bool Setup() {
         size_t alloc_size = kHeapSize + 3 * hshm::ipc::kBackendHeaderSize;
 
+        auto* gpu_ipc = CHI_CPU_IPC->GetGpuIpcManager();
+        gpu_ipc->PauseGpuOrchestrator();
         cudaError_t err = cudaMallocManaged(
             reinterpret_cast<void**>(&memory), alloc_size);
+        gpu_ipc->ResumeGpuOrchestrator();
         if (err != cudaSuccess) return false;
 
         memset(memory, 0, alloc_size);
@@ -310,7 +313,10 @@ struct ManagedAllocFixture {
 
     void Teardown() {
         if (memory) {
+            auto* gpu_ipc = CHI_CPU_IPC->GetGpuIpcManager();
+            gpu_ipc->PauseGpuOrchestrator();
             cudaFree(memory);
+            gpu_ipc->ResumeGpuOrchestrator();
             memory    = nullptr;
             allocator = nullptr;
         }
@@ -337,19 +343,29 @@ struct ManagedContainerBox {
 
     bool Setup(GpuCteBlobStore blob_store, AllocatorImpl* alloc) {
         void* raw = nullptr;
+        auto* gpu_ipc = CHI_CPU_IPC->GetGpuIpcManager();
+        gpu_ipc->PauseGpuOrchestrator();
         cudaError_t err = cudaMallocManaged(&raw, sizeof(ContainerT));
+        gpu_ipc->ResumeGpuOrchestrator();
         if (err != cudaSuccess) return false;
 
-        // Placement-new: ctor calls AllocateId + PutGroup for root group
-        // on the host side (CPU CTE path).
-        ptr = new (raw) ContainerT(std::move(blob_store), alloc);
+        // Placement-new via Container::Open: skips the root-group PutGroup so
+        // GpuCteBlobStore::PutBlob is not called at construction time (it would
+        // fail here because the GPU-side storage target is not yet routed for
+        // PoolQuery::Local() tasks submitted from the host ctor).
+        // next_object_id_hint=2 because root is kRootGroupId=1.
+        ptr = new (raw) ContainerT(
+            ContainerT::Open(std::move(blob_store), alloc, 2));
         return ptr != nullptr;
     }
 
     void Teardown() {
         if (ptr) {
             ptr->~ContainerT();
+            auto* gpu_ipc = CHI_CPU_IPC->GetGpuIpcManager();
+            gpu_ipc->PauseGpuOrchestrator();
             cudaFree(ptr);
+            gpu_ipc->ResumeGpuOrchestrator();
             ptr = nullptr;
         }
     }
@@ -521,10 +537,8 @@ struct ContainerTestFixture {
     ManagedAllocFixture  alloc_fixture;
     ManagedContainerBox  container_box;
 
-    bool Setup(const char* tag_name) {
-        auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag(tag_name);
-        tag_task.Wait();
-        wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    bool Setup(const char* tag_name, bool seed_root_group = false) {
+        wrp_cte::core::TagId tag_id = CreateGpuCteTag(tag_name);
 
         GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, g_gpu_cte_pool_id);
         if (!store.IsValid()) return false;
@@ -533,6 +547,17 @@ struct ContainerTestFixture {
 
         if (!container_box.Setup(std::move(store), alloc_fixture.allocator))
             return false;
+
+        // Some tests (e.g. kernel_root_group) require the root group blob to
+        // exist in the store. Container::Open skips this, so callers that need
+        // it must request explicit seeding here.
+        if (seed_root_group) {
+            bool ok = kvhdf5::test::HostPutGroup(
+                container_box.ptr,
+                GroupId(kvhdf5::kRootGroupId),
+                *alloc_fixture.allocator);
+            if (!ok) return false;
+        }
 
         return true;
     }
@@ -699,7 +724,7 @@ TEST_CASE("Container<GpuCteBlobStore> - RootGroup is valid and accessible on dev
     EnsureGpuCteRuntime();
 
     ContainerTestFixture fx;
-    REQUIRE(fx.Setup("gpu_container_root"));
+    REQUIRE(fx.Setup("gpu_container_root", /*seed_root_group=*/true));
 
     auto result = RunContainerTest(kernel_root_group, fx.ContainerPtr());
 

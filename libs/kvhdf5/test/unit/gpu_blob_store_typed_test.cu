@@ -332,9 +332,7 @@ TEST_CASE("GpuCteBlobStore - direct-path 6-byte key roundtrip",
     EnsureGpuCteRuntime();
     chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_direct_6byte");
-    tag_task.Wait();
-    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    wrp_cte::core::TagId tag_id = CreateGpuCteTag("gpu_blob_store_direct_6byte");
 
     GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
     REQUIRE(store.IsValid());
@@ -351,9 +349,7 @@ TEST_CASE("BlobStore<GpuCteBlobStore> - Put/Get POD roundtrip from kernel",
     EnsureGpuCteRuntime();
     chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_typed_pod_roundtrip");
-    tag_task.Wait();
-    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    wrp_cte::core::TagId tag_id = CreateGpuCteTag("gpu_typed_pod_roundtrip");
 
     GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
     REQUIRE(store.IsValid());
@@ -370,9 +366,7 @@ TEST_CASE("BlobStore<GpuCteBlobStore> - Put/Get small struct (bit_cast serde) fr
     EnsureGpuCteRuntime();
     chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_typed_struct_roundtrip");
-    tag_task.Wait();
-    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    wrp_cte::core::TagId tag_id = CreateGpuCteTag("gpu_typed_struct_roundtrip");
 
     GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
     REQUIRE(store.IsValid());
@@ -389,9 +383,7 @@ TEST_CASE("BlobStore<GpuCteBlobStore> - PutRawBlob/GetRawBlob with ChunkKey from
     EnsureGpuCteRuntime();
     chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_typed_raw_blob_roundtrip");
-    tag_task.Wait();
-    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    wrp_cte::core::TagId tag_id = CreateGpuCteTag("gpu_typed_raw_blob_roundtrip");
 
     GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
     REQUIRE(store.IsValid());
@@ -408,9 +400,7 @@ TEST_CASE("BlobStore<GpuCteBlobStore> - Typed Exists from kernel",
     EnsureGpuCteRuntime();
     chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_typed_exists");
-    tag_task.Wait();
-    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    wrp_cte::core::TagId tag_id = CreateGpuCteTag("gpu_typed_exists");
 
     GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
     REQUIRE(store.IsValid());
@@ -427,9 +417,7 @@ TEST_CASE("BlobStore<GpuCteBlobStore> - Typed Delete from kernel",
     EnsureGpuCteRuntime();
     chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_typed_delete");
-    tag_task.Wait();
-    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    wrp_cte::core::TagId tag_id = CreateGpuCteTag("gpu_typed_delete");
 
     GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
     REQUIRE(store.IsValid());

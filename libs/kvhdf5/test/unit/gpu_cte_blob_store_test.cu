@@ -555,9 +555,7 @@ TEST_CASE("GpuCteBlobStore - PutBlob + GetBlob roundtrip from kernel",
     EnsureGpuCteRuntime();
     chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_roundtrip");
-    tag_task.Wait();
-    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    wrp_cte::core::TagId tag_id = CreateGpuCteTag("gpu_blob_store_roundtrip");
 
     GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
     REQUIRE(store.IsValid());
@@ -574,9 +572,7 @@ TEST_CASE("GpuCteBlobStore - DeleteBlob sentinel + Exists from kernel",
     EnsureGpuCteRuntime();
     chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_delete");
-    tag_task.Wait();
-    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    wrp_cte::core::TagId tag_id = CreateGpuCteTag("gpu_blob_store_delete");
 
     GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
     REQUIRE(store.IsValid());
@@ -592,9 +588,7 @@ TEST_CASE("GpuCteBlobStore - Multiple keys from kernel",
     EnsureGpuCteRuntime();
     chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_multi");
-    tag_task.Wait();
-    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    wrp_cte::core::TagId tag_id = CreateGpuCteTag("gpu_blob_store_multi");
 
     GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
     REQUIRE(store.IsValid());
@@ -611,9 +605,7 @@ TEST_CASE("GpuCteBlobStore - Overwrite at the same key",
     EnsureGpuCteRuntime();
     chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_overwrite");
-    tag_task.Wait();
-    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    wrp_cte::core::TagId tag_id = CreateGpuCteTag("gpu_blob_store_overwrite");
 
     GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
     REQUIRE(store.IsValid());
@@ -630,9 +622,7 @@ TEST_CASE("GpuCteBlobStore - GetBlob with oversized output buffer",
     EnsureGpuCteRuntime();
     chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_oversized_get");
-    tag_task.Wait();
-    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    wrp_cte::core::TagId tag_id = CreateGpuCteTag("gpu_blob_store_oversized_get");
 
     GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
     REQUIRE(store.IsValid());
@@ -649,9 +639,7 @@ TEST_CASE("GpuCteBlobStore - Empty (zero-byte) value",
     EnsureGpuCteRuntime();
     chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_empty_value");
-    tag_task.Wait();
-    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    wrp_cte::core::TagId tag_id = CreateGpuCteTag("gpu_blob_store_empty_value");
 
     GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
     REQUIRE(store.IsValid());
@@ -669,9 +657,7 @@ TEST_CASE("GpuCteBlobStore - Large blob (256 KB) roundtrip",
     EnsureGpuCteRuntime();
     chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_large");
-    tag_task.Wait();
-    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    wrp_cte::core::TagId tag_id = CreateGpuCteTag("gpu_blob_store_large");
 
     // Provide a scratch buffer large enough for 256 KB + 8-byte prefix
     GpuCteBlobStore store = GpuCteBlobStore::Create(
@@ -690,9 +676,7 @@ TEST_CASE("GpuCteBlobStore - Cross-kernel persistence",
     EnsureGpuCteRuntime();
     chi::PoolId pool_id = g_gpu_cte_pool_id;
 
-    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_blob_store_persist");
-    tag_task.Wait();
-    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+    wrp_cte::core::TagId tag_id = CreateGpuCteTag("gpu_blob_store_persist");
 
     // Single store instance shared across both kernel launches: same scratch
     // buffer, same CTE tag — persistence comes from the CTE backend.
