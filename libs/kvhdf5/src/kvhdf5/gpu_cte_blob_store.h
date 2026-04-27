@@ -207,38 +207,35 @@ public:
             return cstd::unexpected<BlobStoreError>(BlobStoreError::NotExist);
         }
 
-        // 1. Encode key as a fixed-width 10-char null-free name.
         char name_buf[kMaxKeyNameBuf];
         KeyToName(key, name_buf);
 
-        // 2. Ensure scratch holds [prefix][value_out]
-        size_t request_size = kPrefixSize + value_out.size();
-        if (request_size > scratch_size_) {
+        // The server-side GetBlob handler rejects requests that read past the
+        // end of a blob (ReadData returns non-zero rc). Since the caller's
+        // value_out may be larger than the stored value, do a two-phase read:
+        // first fetch only the 8-byte size prefix to learn real_size, then
+        // fetch exactly kPrefixSize + real_size bytes.
+        if (kPrefixSize > scratch_size_) {
             return cstd::unexpected<BlobStoreError>(BlobStoreError::NotEnoughSpace);
         }
+        cstd::memset(scratch_buf_, 0, kPrefixSize);
 
-        // Zero the scratch so we can detect empty reads.
-        cstd::memset(scratch_buf_, 0, request_size);
-
-        // 3. Submit get task with raw-UVA ShmPtr.
         hipc::ShmPtr<> shm = hipc::ShmPtr<>::FromRaw(scratch_buf_);
         auto *ipc = CHI_IPC;
-        auto task = ipc->template NewTask<wrp_cte::core::GetBlobTask>(
+
+        auto probe_task = ipc->template NewTask<wrp_cte::core::GetBlobTask>(
             chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
-            tag_id_, name_buf, chi::u64(0), chi::u64(request_size),
+            tag_id_, name_buf, chi::u64(0), chi::u64(kPrefixSize),
             chi::u32(0), shm);
-        if (task.IsNull()) {
+        if (probe_task.IsNull()) {
             return cstd::unexpected<BlobStoreError>(BlobStoreError::NotExist);
         }
-        auto future = ipc->Send(task);
-
-        future.Wait();
-        int rc = static_cast<int>(task->GetReturnCode());
-        if (rc != 0) {
+        auto probe_future = ipc->Send(probe_task);
+        probe_future.Wait();
+        if (static_cast<int>(probe_task->GetReturnCode()) != 0) {
             return cstd::unexpected<BlobStoreError>(BlobStoreError::NotExist);
         }
 
-        // 4. Read size prefix
         uint64_t real_size;
         cstd::memcpy(&real_size, scratch_buf_, kPrefixSize);
 
@@ -251,10 +248,27 @@ public:
             return cstd::unexpected<BlobStoreError>(BlobStoreError::NotEnoughSpace);
         }
 
-        // 5. Copy data into output
-        if (real_size > 0) {
-            cstd::memcpy(value_out.data(), scratch_buf_ + kPrefixSize, real_size);
+        size_t fetch_size = kPrefixSize + real_size;
+        if (fetch_size > scratch_size_) {
+            return cstd::unexpected<BlobStoreError>(BlobStoreError::NotEnoughSpace);
         }
+
+        cstd::memset(scratch_buf_, 0, fetch_size);
+
+        auto fetch_task = ipc->template NewTask<wrp_cte::core::GetBlobTask>(
+            chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
+            tag_id_, name_buf, chi::u64(0), chi::u64(fetch_size),
+            chi::u32(0), shm);
+        if (fetch_task.IsNull()) {
+            return cstd::unexpected<BlobStoreError>(BlobStoreError::NotExist);
+        }
+        auto fetch_future = ipc->Send(fetch_task);
+        fetch_future.Wait();
+        if (static_cast<int>(fetch_task->GetReturnCode()) != 0) {
+            return cstd::unexpected<BlobStoreError>(BlobStoreError::NotExist);
+        }
+
+        cstd::memcpy(value_out.data(), scratch_buf_ + kPrefixSize, real_size);
 
         return cstd::span<byte_t>(value_out.data(), real_size);
     }
