@@ -19,7 +19,8 @@
 // a RAM storage target and a tag for blob operations.  Callers read the
 // module-level globals below after calling EnsureGpuCteRuntime().
 
-inline wrp_cte::core::TagId g_gpu_cte_tag_id{};
+inline wrp_cte::core::TagId g_gpu_cte_tag_id{};       // tag on kCtePoolId (512,0)
+inline wrp_cte::core::TagId g_gpu_pool_tag_id{};      // tag on g_gpu_cte_pool_id (513,0)
 inline chi::PoolId g_gpu_cte_pool_id{};
 inline std::unique_ptr<wrp_cte::core::Client> g_gpu_cte_client{};
 
@@ -109,13 +110,20 @@ inline void EnsureGpuCteRuntime() {
         }
 
         // Create the shared tag on the compose-created CTE pool (512, 0)
-        // for CPU-path tests in test_gpu_kernel.cu that use
-        // wrp_cte::core::kCtePoolId. Blob store tests on the new GPU pool
-        // create their own per-test tags via g_gpu_cte_client.
+        // for test_cpu_client.cc which routes through WRP_CTE_CLIENT.
         auto tag_task = WRP_CTE_CLIENT->AsyncGetOrCreateTag("gpu_cte_test_tag");
         tag_task.Wait();
         g_gpu_cte_tag_id = tag_task->tag_id_;
         g_gpu_cte_pool_id = gpu_pool_id;
+
+        // Create a tag on the GPU-enabled pool (513, 0) for kernel-side and
+        // host-side ops that need a GPU container. test_gpu_kernel.cu's
+        // PutBlob/GetBlob target this pool/tag; blob_store/typed/container
+        // tests create their own per-test tags via g_gpu_cte_client.
+        auto gpu_tag_task =
+            g_gpu_cte_client->AsyncGetOrCreateTag("gpu_pool_test_tag");
+        gpu_tag_task.Wait();
+        g_gpu_pool_tag_id = gpu_tag_task->tag_id_;
 
         // Let the GPU orchestrator fully finish processing the LocalGpuBcast
         // RegisterTarget task before any subsequent test pauses the
