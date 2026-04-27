@@ -293,8 +293,11 @@ struct ManagedAllocFixture {
     bool Setup() {
         size_t alloc_size = kHeapSize + 3 * hshm::ipc::kBackendHeaderSize;
 
+        auto* gpu_ipc = CHI_CPU_IPC->GetGpuIpcManager();
+        gpu_ipc->PauseGpuOrchestrator();
         cudaError_t err = cudaMallocManaged(
             reinterpret_cast<void**>(&memory), alloc_size);
+        gpu_ipc->ResumeGpuOrchestrator();
         if (err != cudaSuccess) return false;
 
         memset(memory, 0, alloc_size);
@@ -310,7 +313,10 @@ struct ManagedAllocFixture {
 
     void Teardown() {
         if (memory) {
+            auto* gpu_ipc = CHI_CPU_IPC->GetGpuIpcManager();
+            gpu_ipc->PauseGpuOrchestrator();
             cudaFree(memory);
+            gpu_ipc->ResumeGpuOrchestrator();
             memory    = nullptr;
             allocator = nullptr;
         }
@@ -337,7 +343,10 @@ struct ManagedContainerBox {
 
     bool Setup(GpuCteBlobStore blob_store, AllocatorImpl* alloc) {
         void* raw = nullptr;
+        auto* gpu_ipc = CHI_CPU_IPC->GetGpuIpcManager();
+        gpu_ipc->PauseGpuOrchestrator();
         cudaError_t err = cudaMallocManaged(&raw, sizeof(ContainerT));
+        gpu_ipc->ResumeGpuOrchestrator();
         if (err != cudaSuccess) return false;
 
         // Placement-new: ctor calls AllocateId + PutGroup for root group
@@ -349,7 +358,10 @@ struct ManagedContainerBox {
     void Teardown() {
         if (ptr) {
             ptr->~ContainerT();
+            auto* gpu_ipc = CHI_CPU_IPC->GetGpuIpcManager();
+            gpu_ipc->PauseGpuOrchestrator();
             cudaFree(ptr);
+            gpu_ipc->ResumeGpuOrchestrator();
             ptr = nullptr;
         }
     }
