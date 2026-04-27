@@ -58,7 +58,7 @@ set(WRP_CORE_ENABLE_DOCKER_CI  OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     iowarp_core
     GIT_REPOSITORY https://github.com/abscosmos/iowarp-core.git
-    GIT_TAG        c2c0abffb5a51045da100662ec4f56b9c4df7159
+    GIT_TAG        4044637747625d9b8cf1d8ab18d0ec768be6b0a8
     GIT_SUBMODULES ""
 )
 # FetchContent_Populate(<name>) is deprecated in CMake 3.30+ (CMP0169).
@@ -79,7 +79,7 @@ if(NOT iowarp_core_POPULATED)
 
     add_subdirectory(${iowarp_core_SOURCE_DIR} ${iowarp_core_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
-message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ c2c0abff)")
+message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ 40446377)")
 
 FetchContent_Declare(
     cccl
