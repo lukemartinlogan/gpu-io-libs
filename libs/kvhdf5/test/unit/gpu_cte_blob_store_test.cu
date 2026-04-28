@@ -268,11 +268,9 @@ static BlobTestResult RunGpuBlobTest(
     // Poll pinned memory until kernel signals completion (status != 0) or
     // timeout. cudaStreamSynchronize would deadlock against the persistent
     // orchestrator kernel.
-    constexpr int kTimeoutUs = 30 * 1000 * 1000;  // 30 s
-    int elapsed_us = 0;
-    while (d_result->status == 0 && elapsed_us < kTimeoutUs) {
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (d_result->status == 0 && std::chrono::steady_clock::now() < deadline) {
         std::this_thread::sleep_for(std::chrono::microseconds(100));
-        elapsed_us += 100;
     }
 
     BlobTestResult result{d_result->status, d_result->data_match};
