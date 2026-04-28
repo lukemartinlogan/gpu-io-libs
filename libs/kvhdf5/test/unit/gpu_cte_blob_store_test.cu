@@ -412,12 +412,9 @@ __global__ void kernel_empty_value(
     if (!store.PutBlob(key, empty_value)) { d_result->status = -1; return; }
 
     // Semantic contract: key should exist after Put with empty value.
-    // Current tombstone-by-zero-prefix design returns false — this test will
-    // FAIL to document that bug.
     if (!store.Exists(key)) { d_result->status = -2; return; }
 
     // Semantic contract: GetBlob on empty value should succeed with size==0.
-    // Current design returns NotExist (zero prefix sentinel) — failure is expected.
     byte_t out_dummy = byte_t{0};
     cstd::span<byte_t> empty_out(&out_dummy, 0);
     auto result = store.GetBlob(key, empty_out);
@@ -665,8 +662,6 @@ TEST_CASE("GpuCteBlobStore - Empty (zero-byte) value",
     auto result = RunGpuBlobTest(kernel_empty_value, store);
     store.Destroy();
 
-    // Documenting expected failure: zero-prefix sentinel design conflates
-    // "deleted" with "empty value", so status will be -2 on current impl.
     INFO("kernel status: " << result.status);
     REQUIRE(result.status == 1);
 }

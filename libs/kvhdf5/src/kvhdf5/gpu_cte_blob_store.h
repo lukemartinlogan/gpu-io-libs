@@ -53,8 +53,11 @@ namespace kvhdf5 {
  * ### Delete / Exists sentinel
  *
  * CTE does not truncate on overwrite and has no GPU-callable DelBlob. Delete
- * is implemented by writing a zero-size sentinel (a blob whose 8-byte size
- * prefix is 0). Exists reads the prefix and returns true iff real_size != 0.
+ * is implemented by writing a tombstone sentinel: an 8-byte size prefix of
+ * UINT64_MAX (kTombstoneSize). Real-value sizes can never reach UINT64_MAX
+ * (the scratch buffer caps at sub-petabyte), so the sentinel is unambiguous
+ * even when a stored blob legitimately has zero payload bytes. Exists reads
+ * the prefix and returns true iff real_size != kTombstoneSize.
  */
 class GpuCteBlobStore {
     wrp_cte::core::TagId tag_id_;
@@ -67,6 +70,10 @@ class GpuCteBlobStore {
 
     // Size prefix stored before every blob value (same as CpuCteBlobStore).
     static constexpr size_t kPrefixSize = sizeof(uint64_t);
+
+    // Tombstone sentinel: a size_prefix of UINT64_MAX marks a deleted entry.
+    // Distinct from a real zero-size value, which stores prefix == 0.
+    static constexpr uint64_t kTombstoneSize = ~uint64_t{0};
 
     // Encoded blob name: exactly kNameLen null-free characters plus a trailing
     // '\0'. See KeyToName() below for why the length must stay <= 10.
@@ -274,13 +281,18 @@ public:
         uint64_t real_size;
         cstd::memcpy(&real_size, scratch_buf_, kPrefixSize);
 
-        // Sentinel: real_size == 0 means "deleted"
-        if (real_size == 0) {
+        // Sentinel: real_size == kTombstoneSize means "deleted"
+        if (real_size == kTombstoneSize) {
             return cstd::unexpected<BlobStoreError>(BlobStoreError::NotExist);
         }
 
         if (value_out.size() < real_size) {
             return cstd::unexpected<BlobStoreError>(BlobStoreError::NotEnoughSpace);
+        }
+
+        // Zero-size value: probe already confirmed presence; no payload to fetch.
+        if (real_size == 0) {
+            return cstd::span<byte_t>(value_out.data(), 0);
         }
 
         size_t fetch_size = kPrefixSize + real_size;
@@ -311,14 +323,14 @@ public:
     CROSS_FUN bool DeleteBlob(cstd::span<const byte_t> key) {
         if (scratch_buf_ == nullptr) return false;
 
-        // Sentinel delete: overwrite blob with real_size=0
+        // Sentinel delete: overwrite blob with the tombstone size prefix.
         char name_buf[kMaxKeyNameBuf];
         KeyToName(key, name_buf);
 
         if (kPrefixSize > scratch_size_) return false;
 
-        uint64_t zero = 0;
-        cstd::memcpy(scratch_buf_, &zero, kPrefixSize);
+        uint64_t tombstone = kTombstoneSize;
+        cstd::memcpy(scratch_buf_, &tombstone, kPrefixSize);
 
         hipc::ShmPtr<> shm = hipc::ShmPtr<>::FromRaw(scratch_buf_);
 #if HSHM_IS_GPU
@@ -386,7 +398,7 @@ public:
 
         uint64_t real_size;
         cstd::memcpy(&real_size, scratch_buf_, kPrefixSize);
-        return real_size != 0;
+        return real_size != kTombstoneSize;
     }
 
 private:
