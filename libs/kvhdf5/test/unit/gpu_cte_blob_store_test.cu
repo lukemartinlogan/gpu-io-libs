@@ -253,8 +253,11 @@ static BlobTestResult RunGpuBlobTest(
 
     cudaError_t launch_err = cudaGetLastError();
     if (launch_err != cudaSuccess) {
-        gpu_ipc->ResumeGpuOrchestrator();
+        // Stream destruction and pinned-host free both synchronize the
+        // device, so they must run while the orchestrator is still paused.
         hshm::GpuApi::DestroyStream(stream);
+        cudaFreeHost(const_cast<BlobTestResult *>(d_result));
+        gpu_ipc->ResumeGpuOrchestrator();
         return {-201, 0};
     }
 
@@ -277,8 +280,14 @@ static BlobTestResult RunGpuBlobTest(
         result.status = -300;  // timeout sentinel
     }
 
-    // Intentionally leak the pinned buffer and stream: cudaFreeHost and
-    // cudaStreamDestroy can block on the persistent orchestrator kernel.
+    // Pause the orchestrator around cleanup: cudaStreamSynchronize,
+    // cudaStreamDestroy, and cudaFreeHost all device-sync and would
+    // otherwise deadlock against the persistent orchestrator kernel.
+    gpu_ipc->PauseGpuOrchestrator();
+    cudaStreamSynchronize(static_cast<cudaStream_t>(stream));
+    hshm::GpuApi::DestroyStream(stream);
+    cudaFreeHost(const_cast<BlobTestResult *>(d_result));
+    gpu_ipc->ResumeGpuOrchestrator();
     return result;
 }
 

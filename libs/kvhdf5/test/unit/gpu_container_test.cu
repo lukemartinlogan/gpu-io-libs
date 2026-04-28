@@ -399,8 +399,11 @@ static ContainerTestResult RunContainerTest(
 
     cudaError_t launch_err = cudaGetLastError();
     if (launch_err != cudaSuccess) {
-        gpu_ipc->ResumeGpuOrchestrator();
+        // Stream destruction and pinned-host free both synchronize the
+        // device, so they must run while the orchestrator is still paused.
         hshm::GpuApi::DestroyStream(stream);
+        cudaFreeHost(const_cast<ContainerTestResult*>(d_result));
+        gpu_ipc->ResumeGpuOrchestrator();
         return {-201, 0};
     }
 
@@ -456,8 +459,11 @@ static ContainerTestResult RunGroupIdKernel(
 
     cudaError_t launch_err = cudaGetLastError();
     if (launch_err != cudaSuccess) {
-        gpu_ipc->ResumeGpuOrchestrator();
+        // Stream destruction and pinned-host free both synchronize the
+        // device, so they must run while the orchestrator is still paused.
         hshm::GpuApi::DestroyStream(stream);
+        cudaFreeHost(const_cast<ContainerTestResult*>(d_result));
+        gpu_ipc->ResumeGpuOrchestrator();
         return {-201, 0};
     }
 
@@ -513,8 +519,11 @@ static ContainerTestResult RunDatasetIdKernel(
 
     cudaError_t launch_err = cudaGetLastError();
     if (launch_err != cudaSuccess) {
-        gpu_ipc->ResumeGpuOrchestrator();
+        // Stream destruction and pinned-host free both synchronize the
+        // device, so they must run while the orchestrator is still paused.
         hshm::GpuApi::DestroyStream(stream);
+        cudaFreeHost(const_cast<ContainerTestResult*>(d_result));
+        gpu_ipc->ResumeGpuOrchestrator();
         return {-201, 0};
     }
 
