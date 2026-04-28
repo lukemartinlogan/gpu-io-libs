@@ -188,7 +188,11 @@ public:
 
         // 4. Submit put task directly with a raw-UVA ShmPtr.
         hipc::ShmPtr<> shm = hipc::ShmPtr<>::FromRaw(scratch_buf_);
+#if HSHM_IS_GPU
         auto *ipc = CHI_IPC;
+#else
+        auto *ipc = CHI_CPU_IPC;
+#endif
         auto task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
             chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
             tag_id_, name_buf, chi::u64(0), chi::u64(total),
@@ -221,7 +225,11 @@ public:
         cstd::memset(scratch_buf_, 0, kPrefixSize);
 
         hipc::ShmPtr<> shm = hipc::ShmPtr<>::FromRaw(scratch_buf_);
+#if HSHM_IS_GPU
         auto *ipc = CHI_IPC;
+#else
+        auto *ipc = CHI_CPU_IPC;
+#endif
 
         auto probe_task = ipc->template NewTask<wrp_cte::core::GetBlobTask>(
             chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
@@ -286,7 +294,11 @@ public:
         cstd::memcpy(scratch_buf_, &zero, kPrefixSize);
 
         hipc::ShmPtr<> shm = hipc::ShmPtr<>::FromRaw(scratch_buf_);
+#if HSHM_IS_GPU
         auto *ipc = CHI_IPC;
+#else
+        auto *ipc = CHI_CPU_IPC;
+#endif
         auto task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
             chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
             tag_id_, name_buf, chi::u64(0), chi::u64(kPrefixSize),
@@ -311,7 +323,11 @@ public:
         cstd::memset(scratch_buf_, 0, kPrefixSize);
 
         hipc::ShmPtr<> shm = hipc::ShmPtr<>::FromRaw(scratch_buf_);
+#if HSHM_IS_GPU
         auto *ipc = CHI_IPC;
+#else
+        auto *ipc = CHI_CPU_IPC;
+#endif
         auto task = ipc->template NewTask<wrp_cte::core::GetBlobTask>(
             chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
             tag_id_, name_buf, chi::u64(0), chi::u64(kPrefixSize),
