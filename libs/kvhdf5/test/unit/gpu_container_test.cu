@@ -415,7 +415,13 @@ static ContainerTestResult RunContainerTest(
 
     ContainerTestResult result{d_result->status, d_result->data_match};
     if (result.status == 0) result.status = -300;
+    // cudaFreeHost performs device-wide synchronization which deadlocks against
+    // the persistent GPU orchestrator kernel. Pause around the host cleanup.
+    gpu_ipc->PauseGpuOrchestrator();
+    cudaStreamSynchronize(static_cast<cudaStream_t>(stream));
+    hshm::GpuApi::DestroyStream(stream);
     cudaFreeHost(const_cast<ContainerTestResult*>(d_result));
+    gpu_ipc->ResumeGpuOrchestrator();
     return result;
 }
 
@@ -468,7 +474,13 @@ static ContainerTestResult RunGroupIdKernel(
 
     ContainerTestResult result{d_result->status, d_result->data_match};
     if (result.status == 0) result.status = -300;
+    // cudaFreeHost performs device-wide synchronization which deadlocks against
+    // the persistent GPU orchestrator kernel. Pause around the host cleanup.
+    gpu_ipc->PauseGpuOrchestrator();
+    cudaStreamSynchronize(static_cast<cudaStream_t>(stream));
+    hshm::GpuApi::DestroyStream(stream);
     cudaFreeHost(const_cast<ContainerTestResult*>(d_result));
+    gpu_ipc->ResumeGpuOrchestrator();
     return result;
 }
 
@@ -521,7 +533,13 @@ static ContainerTestResult RunDatasetIdKernel(
 
     ContainerTestResult result{d_result->status, d_result->data_match};
     if (result.status == 0) result.status = -300;
+    // cudaFreeHost performs device-wide synchronization which deadlocks against
+    // the persistent GPU orchestrator kernel. Pause around the host cleanup.
+    gpu_ipc->PauseGpuOrchestrator();
+    cudaStreamSynchronize(static_cast<cudaStream_t>(stream));
+    hshm::GpuApi::DestroyStream(stream);
     cudaFreeHost(const_cast<ContainerTestResult*>(d_result));
+    gpu_ipc->ResumeGpuOrchestrator();
     return result;
 }
 
