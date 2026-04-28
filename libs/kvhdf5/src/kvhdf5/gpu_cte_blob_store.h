@@ -190,19 +190,46 @@ public:
         hipc::ShmPtr<> shm = hipc::ShmPtr<>::FromRaw(scratch_buf_);
 #if HSHM_IS_GPU
         auto *ipc = CHI_IPC;
-#else
-        auto *ipc = CHI_CPU_IPC;
-#endif
         auto task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
             chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
             tag_id_, name_buf, chi::u64(0), chi::u64(total),
             shm, -1.0f, wrp_cte::core::Context(), chi::u32(0));
         if (task.IsNull()) return false;
         auto future = ipc->Send(task);
-
         future.Wait();
-        int rc = static_cast<int>(task->GetReturnCode());
-        return rc == 0;
+        return static_cast<int>(task->GetReturnCode()) == 0;
+#else
+        // Host-side dual-send: chi::IpcManager::Send() only routes to the GPU
+        // runtime for RoutingMode::LocalGpuBcast / ToLocalGpu; every other
+        // mode (including PoolQuery::Local() and Broadcast()) goes through
+        // IpcCpu2Cpu and reaches the CPU runtime only. Since the CPU and
+        // GPU runtimes hold independent CTE blob_map_ / targets_ state, a
+        // single host-side Send leaves the GPU runtime's view unchanged —
+        // a kernel-side Exists/GetBlob then misses, even though the CPU
+        // side has the blob. Issue both: PoolQuery::Local() to populate
+        // CPU CTE, then PoolQuery::LocalGpuBcast() to populate GPU CTE.
+        // The Cpu2Gpu transport uses pinned-host pools with no
+        // device-synchronizing calls (see ipc_cpu2gpu_impl.h), so this is
+        // safe to issue while the persistent orchestrator kernel runs.
+        auto *ipc = CHI_CPU_IPC;
+        auto cpu_task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
+            chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
+            tag_id_, name_buf, chi::u64(0), chi::u64(total),
+            shm, -1.0f, wrp_cte::core::Context(), chi::u32(0));
+        if (cpu_task.IsNull()) return false;
+        auto cpu_future = ipc->Send(cpu_task);
+        cpu_future.Wait();
+        if (static_cast<int>(cpu_task->GetReturnCode()) != 0) return false;
+
+        auto gpu_task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
+            chi::CreateTaskId(), pool_id_, chi::PoolQuery::LocalGpuBcast(),
+            tag_id_, name_buf, chi::u64(0), chi::u64(total),
+            shm, -1.0f, wrp_cte::core::Context(), chi::u32(0));
+        if (gpu_task.IsNull()) return false;
+        auto gpu_future = ipc->Send(gpu_task);
+        gpu_future.Wait();
+        return static_cast<int>(gpu_task->GetReturnCode()) == 0;
+#endif
     }
 
     CROSS_FUN cstd::expected<cstd::span<byte_t>, BlobStoreError>
@@ -296,19 +323,37 @@ public:
         hipc::ShmPtr<> shm = hipc::ShmPtr<>::FromRaw(scratch_buf_);
 #if HSHM_IS_GPU
         auto *ipc = CHI_IPC;
-#else
-        auto *ipc = CHI_CPU_IPC;
-#endif
         auto task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
             chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
             tag_id_, name_buf, chi::u64(0), chi::u64(kPrefixSize),
             shm, -1.0f, wrp_cte::core::Context(), chi::u32(0));
         if (task.IsNull()) return false;
         auto future = ipc->Send(task);
-
         future.Wait();
-        int rc = static_cast<int>(task->GetReturnCode());
-        return rc == 0;
+        return static_cast<int>(task->GetReturnCode()) == 0;
+#else
+        // Host-side dual-send: see PutBlob for the rationale. Apply the
+        // sentinel delete to both runtimes so kernel-side and host-side
+        // reads agree.
+        auto *ipc = CHI_CPU_IPC;
+        auto cpu_task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
+            chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
+            tag_id_, name_buf, chi::u64(0), chi::u64(kPrefixSize),
+            shm, -1.0f, wrp_cte::core::Context(), chi::u32(0));
+        if (cpu_task.IsNull()) return false;
+        auto cpu_future = ipc->Send(cpu_task);
+        cpu_future.Wait();
+        if (static_cast<int>(cpu_task->GetReturnCode()) != 0) return false;
+
+        auto gpu_task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
+            chi::CreateTaskId(), pool_id_, chi::PoolQuery::LocalGpuBcast(),
+            tag_id_, name_buf, chi::u64(0), chi::u64(kPrefixSize),
+            shm, -1.0f, wrp_cte::core::Context(), chi::u32(0));
+        if (gpu_task.IsNull()) return false;
+        auto gpu_future = ipc->Send(gpu_task);
+        gpu_future.Wait();
+        return static_cast<int>(gpu_task->GetReturnCode()) == 0;
+#endif
     }
 
     CROSS_FUN bool Exists(cstd::span<const byte_t> key) {
