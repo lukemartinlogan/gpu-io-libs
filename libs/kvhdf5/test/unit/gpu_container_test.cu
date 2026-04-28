@@ -406,11 +406,9 @@ static ContainerTestResult RunContainerTest(
 
     gpu_ipc->ResumeGpuOrchestrator();
 
-    constexpr int kTimeoutUs = 30 * 1000 * 1000;
-    int elapsed_us = 0;
-    while (d_result->status == 0 && elapsed_us < kTimeoutUs) {
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (d_result->status == 0 && std::chrono::steady_clock::now() < deadline) {
         std::this_thread::sleep_for(std::chrono::microseconds(100));
-        elapsed_us += 100;
     }
 
     ContainerTestResult result{d_result->status, d_result->data_match};
@@ -465,11 +463,9 @@ static ContainerTestResult RunGroupIdKernel(
 
     gpu_ipc->ResumeGpuOrchestrator();
 
-    constexpr int kTimeoutUs = 30 * 1000 * 1000;
-    int elapsed_us = 0;
-    while (d_result->status == 0 && elapsed_us < kTimeoutUs) {
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (d_result->status == 0 && std::chrono::steady_clock::now() < deadline) {
         std::this_thread::sleep_for(std::chrono::microseconds(100));
-        elapsed_us += 100;
     }
 
     ContainerTestResult result{d_result->status, d_result->data_match};
@@ -524,11 +520,9 @@ static ContainerTestResult RunDatasetIdKernel(
 
     gpu_ipc->ResumeGpuOrchestrator();
 
-    constexpr int kTimeoutUs = 30 * 1000 * 1000;
-    int elapsed_us = 0;
-    while (d_result->status == 0 && elapsed_us < kTimeoutUs) {
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (d_result->status == 0 && std::chrono::steady_clock::now() < deadline) {
         std::this_thread::sleep_for(std::chrono::microseconds(100));
-        elapsed_us += 100;
     }
 
     ContainerTestResult result{d_result->status, d_result->data_match};
