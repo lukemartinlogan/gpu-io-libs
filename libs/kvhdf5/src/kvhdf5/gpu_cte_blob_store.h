@@ -196,15 +196,29 @@ public:
         // 4. Submit put task directly with a raw-UVA ShmPtr.
         hipc::ShmPtr<> shm = hipc::ShmPtr<>::FromRaw(scratch_buf_);
 #if HSHM_IS_GPU
+        // Kernel-side dual-send mirror of the host branch below: kernel
+        // PoolQuery::Local() reaches GPU CTE only, leaving CPU CTE blind to
+        // kernel-initiated writes. Issue a second send with
+        // PoolQuery::ToLocalCpu() so host-side readers (CpuCteBlobStore,
+        // WRP_CTE_CLIENT with Local()) see the same blob.
         auto *ipc = CHI_IPC;
-        auto task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
+        auto gpu_task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
             chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
             tag_id_, name_buf, chi::u64(0), chi::u64(total),
             shm, -1.0f, wrp_cte::core::Context(), chi::u32(0));
-        if (task.IsNull()) return false;
-        auto future = ipc->Send(task);
-        future.Wait();
-        return static_cast<int>(task->GetReturnCode()) == 0;
+        if (gpu_task.IsNull()) return false;
+        auto gpu_future = ipc->Send(gpu_task);
+        gpu_future.Wait();
+        if (static_cast<int>(gpu_task->GetReturnCode()) != 0) return false;
+
+        auto cpu_task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
+            chi::CreateTaskId(), pool_id_, chi::PoolQuery::ToLocalCpu(),
+            tag_id_, name_buf, chi::u64(0), chi::u64(total),
+            shm, -1.0f, wrp_cte::core::Context(), chi::u32(0));
+        if (cpu_task.IsNull()) return false;
+        auto cpu_future = ipc->Send(cpu_task);
+        cpu_future.Wait();
+        return static_cast<int>(cpu_task->GetReturnCode()) == 0;
 #else
         // Host-side dual-send: chi::IpcManager::Send() only routes to the GPU
         // runtime for RoutingMode::LocalGpuBcast / ToLocalGpu; every other
@@ -334,15 +348,25 @@ public:
 
         hipc::ShmPtr<> shm = hipc::ShmPtr<>::FromRaw(scratch_buf_);
 #if HSHM_IS_GPU
+        // Kernel-side dual-send mirror of the host branch below.
         auto *ipc = CHI_IPC;
-        auto task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
+        auto gpu_task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
             chi::CreateTaskId(), pool_id_, chi::PoolQuery::Local(),
             tag_id_, name_buf, chi::u64(0), chi::u64(kPrefixSize),
             shm, -1.0f, wrp_cte::core::Context(), chi::u32(0));
-        if (task.IsNull()) return false;
-        auto future = ipc->Send(task);
-        future.Wait();
-        return static_cast<int>(task->GetReturnCode()) == 0;
+        if (gpu_task.IsNull()) return false;
+        auto gpu_future = ipc->Send(gpu_task);
+        gpu_future.Wait();
+        if (static_cast<int>(gpu_task->GetReturnCode()) != 0) return false;
+
+        auto cpu_task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
+            chi::CreateTaskId(), pool_id_, chi::PoolQuery::ToLocalCpu(),
+            tag_id_, name_buf, chi::u64(0), chi::u64(kPrefixSize),
+            shm, -1.0f, wrp_cte::core::Context(), chi::u32(0));
+        if (cpu_task.IsNull()) return false;
+        auto cpu_future = ipc->Send(cpu_task);
+        cpu_future.Wait();
+        return static_cast<int>(cpu_task->GetReturnCode()) == 0;
 #else
         // Host-side dual-send: see PutBlob for the rationale. Apply the
         // sentinel delete to both runtimes so kernel-side and host-side
