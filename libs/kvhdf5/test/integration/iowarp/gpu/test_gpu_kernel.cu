@@ -2,7 +2,12 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "gpu_cte_fixture.h"
+#include "kvhdf5/gpu_cte_blob_store.h"
 #include <cstring>
+#include <thread>
+#include <chrono>
+
+using kvhdf5::byte_t;
 
 // 256-byte blobs fit within the default FutureShm copy space so the GPU→CPU
 // path can transfer results without a secondary allocation.
@@ -352,6 +357,105 @@ extern "C" int run_host_put_gpu_get_test(chi::PoolId pool_id,
     return 1;
 }
 
+// ---- Kernel 4: kernel PutBlob via GpuCteBlobStore -> host GetBlob -----------
+//
+// Verifies the kernel-side dual-send: when a kernel calls
+// GpuCteBlobStore::PutBlob, the value is replicated to both the GPU CTE
+// (PoolQuery::Local) and the CPU CTE (PoolQuery::ToLocalCpu) so a host-side
+// reader can fetch it through the CPU runtime.
+
+struct StoreCrossResult {
+    int status;     // 1 = kernel finished, negative = error
+};
+
+__global__ void kernel_store_put_pattern(chi::IpcManagerGpu gpu_info,
+                                          kvhdf5::GpuCteBlobStore store,
+                                          StoreCrossResult *d_result) {
+    d_result->status = 0;
+    CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
+
+    cstd::array<byte_t, 4> key = {byte_t{0x91}, byte_t{0x92},
+                                   byte_t{0x93}, byte_t{0x94}};
+    cstd::array<byte_t, 8> value = {
+        byte_t{0xCA}, byte_t{0xFE}, byte_t{0xBA}, byte_t{0xBE},
+        byte_t{0x01}, byte_t{0x02}, byte_t{0x03}, byte_t{0x04}
+    };
+
+    if (!store.PutBlob(cstd::span<const byte_t>(key.data(), key.size()),
+                       cstd::span<const byte_t>(value.data(), value.size()))) {
+        d_result->status = -1;
+        return;
+    }
+    d_result->status = 1;
+}
+
+__global__ void kernel_store_delete_key(chi::IpcManagerGpu gpu_info,
+                                         kvhdf5::GpuCteBlobStore store,
+                                         StoreCrossResult *d_result) {
+    d_result->status = 0;
+    CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
+
+    cstd::array<byte_t, 4> key = {byte_t{0xA1}, byte_t{0xA2},
+                                   byte_t{0xA3}, byte_t{0xA4}};
+    if (!store.DeleteBlob(cstd::span<const byte_t>(key.data(), key.size()))) {
+        d_result->status = -1;
+        return;
+    }
+    d_result->status = 1;
+}
+
+// Run a single kernel launch that invokes CTE tasks (so the orchestrator must
+// run while the kernel is in flight). Polls a pinned status word instead of
+// cudaStreamSynchronize, which would deadlock against the persistent CDP
+// orchestrator. Mirrors RunGpuBlobTest in gpu_cte_blob_store_test.cu.
+static int LaunchStoreKernel(
+    void (*kernel)(chi::IpcManagerGpu, kvhdf5::GpuCteBlobStore,
+                   StoreCrossResult *),
+    kvhdf5::GpuCteBlobStore store) {
+    auto *gpu_ipc = CHI_CPU_IPC->GetGpuIpcManager();
+    chi::IpcManagerGpuInfo gpu_info = gpu_ipc->GetClientGpuInfo(0);
+
+    gpu_ipc->PauseGpuOrchestrator();
+
+    volatile StoreCrossResult *d_result = nullptr;
+    if (cudaMallocHost(const_cast<StoreCrossResult **>(&d_result),
+                       sizeof(StoreCrossResult)) != cudaSuccess) {
+        gpu_ipc->ResumeGpuOrchestrator();
+        return -100;
+    }
+    d_result->status = 0;
+
+    cudaGetLastError();
+    void *stream = hshm::GpuApi::CreateStream();
+    kernel<<<1, 32, 0, static_cast<cudaStream_t>(stream)>>>(
+        gpu_info, store, const_cast<StoreCrossResult *>(d_result));
+
+    if (cudaGetLastError() != cudaSuccess) {
+        hshm::GpuApi::DestroyStream(stream);
+        cudaFreeHost(const_cast<StoreCrossResult *>(d_result));
+        gpu_ipc->ResumeGpuOrchestrator();
+        return -201;
+    }
+
+    gpu_ipc->ResumeGpuOrchestrator();
+
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (d_result->status == 0
+           && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
+    }
+    int status = d_result->status == 0 ? -300 : d_result->status;
+
+    gpu_ipc->PauseGpuOrchestrator();
+    cudaStreamSynchronize(static_cast<cudaStream_t>(stream));
+    hshm::GpuApi::DestroyStream(stream);
+    cudaFreeHost(const_cast<StoreCrossResult *>(d_result));
+    gpu_ipc->ResumeGpuOrchestrator();
+    return status;
+}
+
 // ---- Catch2 test cases (host-only, hidden from device compilation pass) ------
 
 #if !HSHM_IS_GPU
@@ -378,6 +482,90 @@ TEST_CASE("Host PutBlob, host GetBlob, kernel verifies pattern via UVA",
                                        &data_match);
     REQUIRE(rc == 1);
     REQUIRE(data_match);
+}
+
+// Cross-boundary: kernel PutBlob via GpuCteBlobStore -> host GetBlob via the
+// same store. The kernel-side dual-send (PoolQuery::Local + ToLocalCpu) must
+// land the value in CPU CTE so the host's CHI_CPU_IPC GetBlob succeeds.
+TEST_CASE("Kernel PutBlob -> host GetBlob via GpuCteBlobStore (kernel dual-send)",
+          "[integration][iowarp][cte_gpu][gpu_kernel]") {
+    EnsureGpuCteRuntime();
+
+    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag(
+        "gpu_kernel_put_host_get");
+    tag_task.Wait();
+    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+
+    kvhdf5::GpuCteBlobStore store =
+        kvhdf5::GpuCteBlobStore::Create(tag_id, g_gpu_cte_pool_id);
+    REQUIRE(store.IsValid());
+
+    int rc = LaunchStoreKernel(kernel_store_put_pattern, store);
+    INFO("kernel status: " << rc);
+    REQUIRE(rc == 1);
+
+    cstd::array<byte_t, 4> key = {byte_t{0x91}, byte_t{0x92},
+                                   byte_t{0x93}, byte_t{0x94}};
+    cstd::array<byte_t, 8> expected = {
+        byte_t{0xCA}, byte_t{0xFE}, byte_t{0xBA}, byte_t{0xBE},
+        byte_t{0x01}, byte_t{0x02}, byte_t{0x03}, byte_t{0x04}
+    };
+
+    cstd::array<byte_t, 8> output{};
+    auto get_result = store.GetBlob(
+        cstd::span<const byte_t>(key.data(), key.size()),
+        cstd::span<byte_t>(output.data(), output.size()));
+    REQUIRE(get_result.has_value());
+    REQUIRE(get_result->size() == expected.size());
+    for (size_t i = 0; i < expected.size(); ++i) {
+        REQUIRE(output[i] == expected[i]);
+    }
+
+    store.Destroy();
+}
+
+// Cross-boundary: kernel DeleteBlob via GpuCteBlobStore -> host Exists==false.
+// Host Put first (host dual-send populates both CTE runtimes), kernel Delete
+// (kernel dual-send writes the tombstone to both), then host Exists must see
+// the tombstone in CPU CTE.
+TEST_CASE("Kernel DeleteBlob -> host Exists==false via GpuCteBlobStore",
+          "[integration][iowarp][cte_gpu][gpu_kernel]") {
+    EnsureGpuCteRuntime();
+
+    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag(
+        "gpu_kernel_delete_host_exists");
+    tag_task.Wait();
+    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+
+    kvhdf5::GpuCteBlobStore store =
+        kvhdf5::GpuCteBlobStore::Create(tag_id, g_gpu_cte_pool_id);
+    REQUIRE(store.IsValid());
+
+    cstd::array<byte_t, 4> key = {byte_t{0xA1}, byte_t{0xA2},
+                                   byte_t{0xA3}, byte_t{0xA4}};
+    cstd::array<byte_t, 4> value = {byte_t{0x55}, byte_t{0x66},
+                                     byte_t{0x77}, byte_t{0x88}};
+
+    REQUIRE(store.PutBlob(
+        cstd::span<const byte_t>(key.data(), key.size()),
+        cstd::span<const byte_t>(value.data(), value.size())));
+    REQUIRE(store.Exists(cstd::span<const byte_t>(key.data(), key.size())));
+
+    int rc = LaunchStoreKernel(kernel_store_delete_key, store);
+    INFO("kernel status: " << rc);
+    REQUIRE(rc == 1);
+
+    REQUIRE_FALSE(
+        store.Exists(cstd::span<const byte_t>(key.data(), key.size())));
+
+    cstd::array<byte_t, 4> output{};
+    auto get_result = store.GetBlob(
+        cstd::span<const byte_t>(key.data(), key.size()),
+        cstd::span<byte_t>(output.data(), output.size()));
+    REQUIRE_FALSE(get_result.has_value());
+    REQUIRE(get_result.error() == kvhdf5::BlobStoreError::NotExist);
+
+    store.Destroy();
 }
 #endif  // !HSHM_IS_GPU
 
