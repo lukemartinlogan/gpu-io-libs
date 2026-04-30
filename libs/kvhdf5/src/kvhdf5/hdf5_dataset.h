@@ -182,10 +182,16 @@ public:
     CROSS_FUN Dataset(DatasetId id, Ref<Container<B>> container)
         : id_(id), container_(container) {}
 
-    // Maximum stack buffer size for chunk data (64KB)
+    // Default maximum stack buffer size for chunk data (64 KB).
+    // Callers may instantiate Write<N>/Read<N> with a tighter bound; this is
+    // important on GPU kernels where every chunk_buf is allocated in
+    // per-thread local memory and the 64 KB default is wasteful for tiny
+    // chunks. The runtime KVHDF5_ASSERT below catches mismatch with actual
+    // dataset chunk size.
     static constexpr size_t kMaxChunkBytes = 64 * 1024;
 
     // --- Write (SelectAll + Hyperslab, multi-chunk) ---
+    template<size_t MaxChunkBytes = kMaxChunkBytes>
     CROSS_FUN expected<void> Write(
         const Datatype& mem_type,
         const Dataspace& mem_space,
@@ -260,10 +266,10 @@ public:
             }
 
             uint64_t chunk_bytes = chunk_total_elems * elem_size;
-            KVHDF5_ASSERT(chunk_bytes <= kMaxChunkBytes,
+            KVHDF5_ASSERT(chunk_bytes <= MaxChunkBytes,
                           "chunk too large for stack buffer");
 
-            byte_t chunk_buf[kMaxChunkBytes];
+            byte_t chunk_buf[MaxChunkBytes];
 
             if (file_space.GetSelectionType() == SelectionType::All) {
                 // SelectAll: every element in this chunk is written from the
@@ -384,6 +390,7 @@ advance_write:
     }
 
     // --- Read (SelectAll + Hyperslab, multi-chunk) ---
+    template<size_t MaxChunkBytes = kMaxChunkBytes>
     CROSS_FUN expected<void> Read(
         const Datatype& mem_type,
         const Dataspace& mem_space,
@@ -455,12 +462,12 @@ advance_write:
             }
 
             uint64_t chunk_bytes = chunk_total_elems * elem_size;
-            KVHDF5_ASSERT(chunk_bytes <= kMaxChunkBytes,
+            KVHDF5_ASSERT(chunk_bytes <= MaxChunkBytes,
                           "chunk too large for stack buffer");
 
             ChunkKey key(id_, cstd::span<const uint64_t>(chunk_coords, ndims));
 
-            byte_t chunk_buf[kMaxChunkBytes];
+            byte_t chunk_buf[MaxChunkBytes];
 
             // Try to load chunk data directly; zero-fill if it doesn't exist.
             // This avoids the redundant ChunkExists call (extra CTE round-trip).
