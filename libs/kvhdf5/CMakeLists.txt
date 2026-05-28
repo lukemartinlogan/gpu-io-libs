@@ -125,3 +125,6 @@ add_subdirectory(test)
 
 # Benchmarks
 add_subdirectory(bench)
+
+# Examples
+add_subdirectory(examples)
