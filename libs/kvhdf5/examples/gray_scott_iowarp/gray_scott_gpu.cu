@@ -42,6 +42,7 @@ extern chi::PoolId g_gpu_cte_pool_id;
 #include <chimaera/chimaera.h>
 
 #include "gray_scott_host.h"
+#include "heatmap.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -301,38 +302,6 @@ static int LaunchAndPoll(Fn&& fn) {
 }
 
 // ---------------------------------------------------------------------------
-// Tiny ASCII heatmap. Maps V-concentration to an ASCII shade ramp.
-// ---------------------------------------------------------------------------
-
-static void DumpHeatmap(const float* v, unsigned n, const char* title) {
-    std::printf("\n%s (V concentration, %ux%u)\n", title, n, n);
-
-    float vmin = v[0], vmax = v[0];
-    for (size_t i = 0; i < static_cast<size_t>(n) * n; ++i) {
-        if (v[i] < vmin) vmin = v[i];
-        if (v[i] > vmax) vmax = v[i];
-    }
-    float range = vmax - vmin;
-    if (range < 1e-6f) range = 1e-6f;
-
-    static const char shades[] = " .:-=+*#%@";
-    constexpr int n_shades = sizeof(shades) - 1;
-
-    for (unsigned y = 0; y < n; ++y) {
-        for (unsigned x = 0; x < n; ++x) {
-            float t = (v[y * n + x] - vmin) / range;
-            int s = static_cast<int>(t * (n_shades - 1));
-            if (s < 0) s = 0;
-            if (s >= n_shades) s = n_shades - 1;
-            std::putchar(shades[s]);
-            std::putchar(shades[s]);
-        }
-        std::putchar('\n');
-    }
-    std::printf("range: [%g .. %g]\n", vmin, vmax);
-}
-
-// ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 
@@ -450,7 +419,7 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "final v read failed\n");
         return 1;
     }
-    DumpHeatmap(v_final.data(), gs_cfg::kN, "Final state");
+    gs_common::DumpHeatmap(v_final.data(), gs_cfg::kN, "Final state");
 
     // Snapshot readback through the same Container/Dataset abstractions.
     for (size_t s = 0; s < snap_steps.size(); ++s) {
@@ -461,7 +430,7 @@ int main(int argc, char** argv) {
             continue;
         }
         std::string title = "Snapshot @ step " + std::to_string(snap_steps[s]);
-        DumpHeatmap(snap_v.data(), gs_cfg::kN, title.c_str());
+        gs_common::DumpHeatmap(snap_v.data(), gs_cfg::kN, title.c_str());
     }
 
     cont_box.Teardown();

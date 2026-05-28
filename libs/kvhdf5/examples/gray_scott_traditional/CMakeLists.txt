@@ -21,6 +21,10 @@ set_target_properties(kvhdf5_gray_scott_traditional PROPERTIES
 # in older setups). Use CUDA::cudart for both include paths and link.
 find_package(CUDAToolkit REQUIRED)
 
+target_include_directories(kvhdf5_gray_scott_traditional PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../common
+)
+
 target_link_libraries(kvhdf5_gray_scott_traditional PRIVATE
     CUDA::cudart
 )

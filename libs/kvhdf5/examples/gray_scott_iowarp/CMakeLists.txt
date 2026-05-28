@@ -25,6 +25,7 @@ set_source_files_properties(gray_scott_gpu.cu
 target_include_directories(kvhdf5_gray_scott PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../test/integration/iowarp/gpu
     ${CMAKE_CURRENT_SOURCE_DIR}/../../test/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/../common
 )
 
 target_link_libraries(kvhdf5_gray_scott PRIVATE kvhdf5)
