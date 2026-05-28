@@ -456,6 +456,165 @@ static int LaunchStoreKernel(
     return status;
 }
 
+// ---- Kernel 6: AllocateBuffer + PutBlob roundtrip ---------------------------
+//
+// Verifies the iowarp-core fix that registers the orchestrator scratch backend
+// in gpu_alloc_map_ (commit 40705023). Without that registration, ShmPtrs
+// returned by CHI_IPC->AllocateBuffer() inside a kernel are unresolvable on
+// the host, and PutBlobTask silently no-ops the data copy.
+//
+// The kernel:
+//   1. Allocates a buffer via CHI_IPC->AllocateBuffer (kernel-side allocator).
+//   2. Writes a deterministic pattern.
+//   3. Submits PutBlobTask using the FullPtr's ShmPtr (NOT FromRaw — this is
+//      the path that needs server-side resolution via gpu_alloc_map_).
+//   4. Dual-sends to ToLocalCpu so a host GetBlob can read it back.
+//
+// The host then reads the blob into a separate cudaMallocManaged buffer (via
+// the known-working FromRaw path) and verifies the pattern. If the bytes
+// match, the orchestrator-backend registration's offset math is correct and
+// kvhdf5 can refactor GpuCteBlobStore to use AllocateBuffer per-call.
+
+__global__ void kernel_alloc_buffer_put_pattern(
+    chi::IpcManagerGpu gpu_info,
+    chi::PoolId pool_id,
+    wrp_cte::core::TagId tag_id,
+    int *d_status)
+{
+    *d_status = 0;
+    CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
+
+    constexpr size_t kAllocSize = 256;
+
+    auto buf = CHI_IPC->AllocateBuffer(kAllocSize);
+    if (buf.IsNull()) { *d_status = -1; return; }
+
+    for (size_t i = 0; i < kAllocSize; ++i) {
+        buf.ptr_[i] = static_cast<char>(i & 0xFF);
+    }
+
+    auto *ipc = CHI_IPC;
+    hipc::ShmPtr<> shm = buf.shm_.template Cast<void>();
+
+    // GPU CTE put.
+    auto gpu_task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
+        chi::CreateTaskId(), pool_id, chi::PoolQuery::Local(),
+        tag_id, "abuf_test", chi::u64(0), chi::u64(kAllocSize),
+        shm, -1.0f, wrp_cte::core::Context(), chi::u32(0));
+    if (gpu_task.IsNull()) { *d_status = -2; return; }
+    auto gpu_future = ipc->Send(gpu_task);
+    gpu_future.Wait();
+    if (static_cast<int>(gpu_task->GetReturnCode()) != 0) {
+        *d_status = -3; return;
+    }
+
+    // Dual-send to CPU CTE so a host-side GetBlob via Local() can see it.
+    auto cpu_task = ipc->template NewTask<wrp_cte::core::PutBlobTask>(
+        chi::CreateTaskId(), pool_id, chi::PoolQuery::ToLocalCpu(),
+        tag_id, "abuf_test", chi::u64(0), chi::u64(kAllocSize),
+        shm, -1.0f, wrp_cte::core::Context(), chi::u32(0));
+    if (cpu_task.IsNull()) { *d_status = -4; return; }
+    auto cpu_future = ipc->Send(cpu_task);
+    cpu_future.Wait();
+    if (static_cast<int>(cpu_task->GetReturnCode()) != 0) {
+        *d_status = -5; return;
+    }
+
+    CHI_IPC->FreeBuffer(buf);
+    *d_status = 1;
+}
+
+extern "C" int run_gpu_alloc_buffer_put_test(chi::PoolId pool_id,
+                                              wrp_cte::core::TagId tag_id,
+                                              bool *bytes_match) {
+    *bytes_match = false;
+    constexpr size_t kAllocSize = 256;
+
+    auto *gpu_ipc = CHI_CPU_IPC->GetGpuIpcManager();
+    chi::IpcManagerGpuInfo gpu_info = gpu_ipc->GetClientGpuInfo(0);
+
+    gpu_ipc->PauseGpuOrchestrator();
+
+    volatile int *d_status = nullptr;
+    if (cudaMallocHost(const_cast<int **>(&d_status), sizeof(int))
+            != cudaSuccess) {
+        gpu_ipc->ResumeGpuOrchestrator();
+        return -100;
+    }
+    *d_status = 0;
+
+    cudaGetLastError();
+    void *stream = hshm::GpuApi::CreateStream();
+    kernel_alloc_buffer_put_pattern<<<1, 32, 0,
+                                       static_cast<cudaStream_t>(stream)>>>(
+        gpu_info, pool_id, tag_id, const_cast<int *>(d_status));
+
+    if (cudaGetLastError() != cudaSuccess) {
+        hshm::GpuApi::DestroyStream(stream);
+        cudaFreeHost(const_cast<int *>(d_status));
+        gpu_ipc->ResumeGpuOrchestrator();
+        return -201;
+    }
+
+    gpu_ipc->ResumeGpuOrchestrator();
+
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (*d_status == 0
+           && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
+    }
+    int kernel_rc = *d_status == 0 ? -300 : *d_status;
+
+    gpu_ipc->PauseGpuOrchestrator();
+    cudaStreamSynchronize(static_cast<cudaStream_t>(stream));
+    hshm::GpuApi::DestroyStream(stream);
+    cudaFreeHost(const_cast<int *>(d_status));
+
+    if (kernel_rc != 1) {
+        gpu_ipc->ResumeGpuOrchestrator();
+        return kernel_rc;
+    }
+
+    // Host-side GetBlob via FromRaw (known-working path).
+    char *recv = nullptr;
+    if (cudaMallocManaged(reinterpret_cast<void **>(&recv), kAllocSize)
+            != cudaSuccess) {
+        gpu_ipc->ResumeGpuOrchestrator();
+        return -101;
+    }
+    std::memset(recv, 0, kAllocSize);
+    gpu_ipc->ResumeGpuOrchestrator();
+
+    auto *cpu_ipc = CHI_CPU_IPC;
+    hipc::ShmPtr<> get_shm = hipc::ShmPtr<>::FromRaw(recv);
+    auto get_task = cpu_ipc->template NewTask<wrp_cte::core::GetBlobTask>(
+        chi::CreateTaskId(), pool_id, chi::PoolQuery::Local(),
+        tag_id, "abuf_test", chi::u64(0), chi::u64(kAllocSize),
+        chi::u32(0), get_shm);
+    auto get_future = cpu_ipc->Send(get_task);
+    get_future.Wait();
+    int get_rc = static_cast<int>(get_task->GetReturnCode());
+
+    if (get_rc == 0) {
+        bool match = true;
+        for (size_t i = 0; i < kAllocSize; ++i) {
+            if (static_cast<unsigned char>(recv[i]) !=
+                static_cast<unsigned char>(i & 0xFF)) {
+                match = false;
+                break;
+            }
+        }
+        *bytes_match = match;
+    }
+
+    gpu_ipc->PauseGpuOrchestrator();
+    cudaFree(recv);
+    gpu_ipc->ResumeGpuOrchestrator();
+
+    return get_rc == 0 ? 1 : -200;
+}
+
 // ---- Catch2 test cases (host-only, hidden from device compilation pass) ------
 
 #if !HSHM_IS_GPU
@@ -566,6 +725,26 @@ TEST_CASE("Kernel DeleteBlob -> host Exists==false via GpuCteBlobStore",
     REQUIRE(get_result.error() == kvhdf5::BlobStoreError::NotExist);
 
     store.Destroy();
+}
+
+// Verifies that buffers allocated inside a kernel via CHI_IPC->AllocateBuffer
+// are correctly resolvable on the host side after submitting a PutBlobTask
+// with the resulting ShmPtr. Passes as of iowarp-core 40705023 (orchestrator
+// backend registration in gpu_alloc_map_). Note: the blob name is kept <=10
+// chars so we stay inside chi::priv::string's SSO and don't trigger an
+// unrelated kernel-side heap-transition bug — see the explanation in
+// gpu_cte_blob_store.h about MakeCompoundKey's reserve(22 + blob_name_len).
+TEST_CASE("Kernel AllocateBuffer + PutBlob -> host GetBlob roundtrip",
+          "[integration][iowarp][cte_gpu][gpu_kernel][alloc_buffer]") {
+    EnsureGpuCteRuntime();
+
+    bool bytes_match = false;
+    int rc = run_gpu_alloc_buffer_put_test(g_gpu_cte_pool_id,
+                                            g_gpu_pool_tag_id,
+                                            &bytes_match);
+    INFO("kernel/host roundtrip rc: " << rc);
+    REQUIRE(rc == 1);
+    REQUIRE(bytes_match);
 }
 #endif  // !HSHM_IS_GPU
 

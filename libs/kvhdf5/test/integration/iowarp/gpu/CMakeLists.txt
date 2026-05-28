@@ -9,6 +9,10 @@ add_executable(kvhdf5_gpu_cte_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_cte_blob_store_test.cu
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_blob_store_typed_test.cu
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_container_test.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_dataset_test.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_group_test.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_file_test.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_integration_test.cu
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_container_helpers.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/clang18_repro_test.cu
 )
@@ -26,6 +30,10 @@ set_source_files_properties(
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_cte_blob_store_test.cu
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_blob_store_typed_test.cu
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_container_test.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_dataset_test.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_group_test.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_file_test.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../test/unit/gpu_integration_test.cu
     PROPERTIES COMPILE_FLAGS "-gline-tables-only"
 )
 
