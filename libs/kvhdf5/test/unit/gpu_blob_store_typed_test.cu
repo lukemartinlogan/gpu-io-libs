@@ -268,6 +268,64 @@ __global__ void kernel_typed_delete(
 }
 
 // ---------------------------------------------------------------------------
+// Test F — Custom serializer / deserializer lambda overloads of PutBlob /
+// GetBlob.  This is the exact code path Container uses: PutGroup builds an
+// inline lambda that calls GroupMetadata::Serialize, GetGroup builds an
+// inline lambda that calls GroupMetadata::Deserialize.  We exercise the
+// lambda path directly by writing fields in a deliberately non-natural order
+// and reading them back; if the lambda is somehow bypassed by the implicit
+// bit-cast overload, the values would mismatch.
+// ---------------------------------------------------------------------------
+
+struct ReversedSerdeType {
+    uint32_t a;
+    uint16_t b;
+    uint8_t  c;
+};
+
+__global__ void kernel_typed_custom_serde(
+    chi::IpcManagerGpuInfo gpu_info,
+    GpuCteBlobStore store,
+    TypedBlobTestResult *d_result)
+{
+    d_result->status = 0;
+    d_result->data_match = 0;
+    CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
+
+    BlobStore<GpuCteBlobStore> bs(&store);
+
+    uint64_t key = 0xC0FFEE00C0FFEE00ULL;
+    ReversedSerdeType value = {0xDEADBEEFu, 0xCAFEu, 0xAAu};
+
+    auto serialize_fn = [](serde::BufferReaderWriter& w, const ReversedSerdeType& v) {
+        // Reversed field order: c, b, a.
+        serde::Write(w, v.c);
+        serde::Write(w, v.b);
+        serde::Write(w, v.a);
+    };
+    auto deserialize_fn = [](serde::BufferDeserializer& r) -> ReversedSerdeType {
+        ReversedSerdeType v;
+        v.c = serde::Read<uint8_t>(r);
+        v.b = serde::Read<uint16_t>(r);
+        v.a = serde::Read<uint32_t>(r);
+        return v;
+    };
+
+    bool put_ok = bs.PutBlob<uint64_t, ReversedSerdeType>(key, value, serialize_fn);
+    if (!put_ok) { d_result->status = -1; return; }
+
+    auto result = bs.GetBlob<uint64_t, ReversedSerdeType>(key, deserialize_fn);
+    if (!result.has_value())     { d_result->status = -2; return; }
+    if (result->a != value.a)    { d_result->status = -3; return; }
+    if (result->b != value.b)    { d_result->status = -4; return; }
+    if (result->c != value.c)    { d_result->status = -5; return; }
+
+    d_result->data_match = 1;
+    d_result->status = 1;
+}
+
+// ---------------------------------------------------------------------------
 // Helper: launch a typed-blob-store kernel and poll for completion.
 // Named RunTypedBlobTest to stay distinct from RunGpuBlobTest in the
 // existing gpu_cte_blob_store_test.cu — do NOT rename/merge the two.
@@ -434,6 +492,25 @@ TEST_CASE("BlobStore<GpuCteBlobStore> - Typed Delete from kernel",
     GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
     REQUIRE(store.IsValid());
     auto result = RunTypedBlobTest(kernel_typed_delete, store);
+    store.Destroy();
+
+    INFO("kernel status: " << result.status);
+    REQUIRE(result.status == 1);
+    REQUIRE(result.data_match == 1);
+}
+
+TEST_CASE("BlobStore<GpuCteBlobStore> - Custom serializer/deserializer lambdas from kernel",
+          "[gpu_typed_blob_store_custom_serde]") {
+    EnsureGpuCteRuntime();
+    chi::PoolId pool_id = g_gpu_cte_pool_id;
+
+    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_typed_custom_serde");
+    tag_task.Wait();
+    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+
+    GpuCteBlobStore store = GpuCteBlobStore::Create(tag_id, pool_id);
+    REQUIRE(store.IsValid());
+    auto result = RunTypedBlobTest(kernel_typed_custom_serde, store);
     store.Destroy();
 
     INFO("kernel status: " << result.status);
