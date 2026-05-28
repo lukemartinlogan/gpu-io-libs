@@ -26,12 +26,26 @@ add_executable(kvhdf5_benchmarks
     ${CMAKE_CURRENT_SOURCE_DIR}/../examples/gray_scott_traditional/gs_kernel.cu
     ${CMAKE_CURRENT_SOURCE_DIR}/../examples/gray_scott_traditional/ram_backend.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/../examples/gray_scott_traditional/disk_backend.cc
+    iowarp_full_bench.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../examples/gray_scott_iowarp/iowarp_step.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../examples/gray_scott_iowarp/gray_scott_host.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../examples/gray_scott_iowarp/gray_scott_init.cc
+)
+
+# Same -gline-tables-only workaround the iowarp example uses (see
+# examples/gray_scott_iowarp/CMakeLists.txt for the reason).
+set_source_files_properties(
+    iowarp_full_bench.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../examples/gray_scott_iowarp/iowarp_step.cu
+    PROPERTIES COMPILE_FLAGS "-gline-tables-only"
 )
 
 target_include_directories(kvhdf5_benchmarks PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/common
     ${CMAKE_CURRENT_SOURCE_DIR}/../test/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/../test/integration/iowarp/gpu
     ${CMAKE_CURRENT_SOURCE_DIR}/../examples/gray_scott_traditional
+    ${CMAKE_CURRENT_SOURCE_DIR}/../examples/gray_scott_iowarp
     ${CMAKE_CURRENT_SOURCE_DIR}/../examples/common
 )
 
@@ -43,8 +57,10 @@ target_link_libraries(kvhdf5_benchmarks PRIVATE
 
 set_target_properties(kvhdf5_benchmarks PROPERTIES
     CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+    CUDA_SEPARABLE_COMPILATION ON
 )
 
 target_compile_definitions(kvhdf5_benchmarks PRIVATE
     KVHDF5_CHIMAERA_CONF="${KVHDF5_CHIMAERA_CONF_PATH}"
+    HSHM_ENABLE_CUDA=1
 )

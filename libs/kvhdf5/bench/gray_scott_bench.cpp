@@ -115,4 +115,102 @@ BENCHMARK_REGISTER_F(GsDiskFixture, BM_GrayScott_TraditionalDisk)
     ->Arg(1)->Arg(2)->Arg(4)->Arg(8)->Arg(16)->Arg(32)
     ->Unit(benchmark::kMicrosecond);
 
+// ---------------------------------------------------------------------------
+// Full-simulation variants — same shape as the iowarp full benchmark for an
+// apples-to-apples comparison. n_grids=1, kFullSteps steps per iter with a
+// snapshot every kFullSnapInterval steps (matching the iowarp fixture).
+// ---------------------------------------------------------------------------
+
+constexpr int kFullSteps        = 105;
+constexpr int kFullSnapInterval = 15;
+
+class GsRamFullFixture : public benchmark::Fixture {
+public:
+    void SetUp(benchmark::State&) override {
+        backend_.Setup(1, kBenchParams);
+        backend_.SeedInitial();
+    }
+    void TearDown(benchmark::State&) override {
+        backend_.Teardown();
+    }
+protected:
+    gs_trad::RamBackend backend_;
+};
+
+BENCHMARK_DEFINE_F(GsRamFullFixture, BM_GrayScott_Full_TraditionalRam)
+(benchmark::State& state) {
+    for (auto _ : state) {
+        for (int step = 1; step <= kFullSteps; ++step) {
+            backend_.StepAll();
+            if (step % kFullSnapInterval == 0) {
+                backend_.Snapshot(step);
+            }
+        }
+    }
+    int n_snaps = kFullSteps / kFullSnapInterval;
+    size_t bytes_per_iter =
+        (static_cast<size_t>(kFullSteps) * 2 +
+         static_cast<size_t>(n_snaps) * 2) *
+        gs_trad::kBytesPerGrid;
+    state.SetBytesProcessed(state.iterations() *
+                            static_cast<int64_t>(bytes_per_iter));
+    state.SetItemsProcessed(state.iterations() * kFullSteps);
+}
+BENCHMARK_REGISTER_F(GsRamFullFixture, BM_GrayScott_Full_TraditionalRam)
+    ->Unit(benchmark::kMillisecond)
+    ->MinTime(0.1);
+
+class GsDiskFullFixture : public benchmark::Fixture {
+public:
+    void SetUp(benchmark::State& state) override {
+        char tmpl[] = "/tmp/gs_bench_disk_full_XXXXXX";
+        const char* dir = ::mkdtemp(tmpl);
+        if (!dir) {
+            state.SkipWithError("mkdtemp failed");
+            return;
+        }
+        out_dir_ = dir;
+        backend_ = std::make_unique<gs_trad::DiskBackend>(out_dir_);
+        backend_->Setup(1, kBenchParams);
+        backend_->SeedInitial();
+    }
+    void TearDown(benchmark::State&) override {
+        if (backend_) {
+            backend_->Teardown();
+            backend_.reset();
+        }
+        if (!out_dir_.empty()) {
+            std::string cmd = "rm -rf '" + out_dir_ + "'";
+            (void)std::system(cmd.c_str());
+            out_dir_.clear();
+        }
+    }
+protected:
+    std::unique_ptr<gs_trad::DiskBackend> backend_;
+    std::string out_dir_;
+};
+
+BENCHMARK_DEFINE_F(GsDiskFullFixture, BM_GrayScott_Full_TraditionalDisk)
+(benchmark::State& state) {
+    for (auto _ : state) {
+        for (int step = 1; step <= kFullSteps; ++step) {
+            backend_->StepAll();
+            if (step % kFullSnapInterval == 0) {
+                backend_->Snapshot(step);
+            }
+        }
+    }
+    int n_snaps = kFullSteps / kFullSnapInterval;
+    size_t bytes_per_iter =
+        (static_cast<size_t>(kFullSteps) * 2 +
+         static_cast<size_t>(n_snaps) * 2) *
+        gs_trad::kBytesPerGrid;
+    state.SetBytesProcessed(state.iterations() *
+                            static_cast<int64_t>(bytes_per_iter));
+    state.SetItemsProcessed(state.iterations() * kFullSteps);
+}
+BENCHMARK_REGISTER_F(GsDiskFullFixture, BM_GrayScott_Full_TraditionalDisk)
+    ->Unit(benchmark::kMillisecond)
+    ->MinTime(0.1);
+
 } // namespace
