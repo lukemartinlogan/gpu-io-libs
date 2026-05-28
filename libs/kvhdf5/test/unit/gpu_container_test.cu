@@ -267,6 +267,147 @@ __global__ void kernel_root_group(
 }
 
 // ---------------------------------------------------------------------------
+// Kernel G — DatasetExists / DeleteDataset / DatasetExists on device.
+//
+// Mirrors kernel E for datasets.  The host TEST_CASE puts the dataset via
+// HostPutDataset (CXX TU) before launching this kernel.
+// ---------------------------------------------------------------------------
+
+__global__ void kernel_dataset_exists_delete(
+    chi::IpcManagerGpuInfo gpu_info,
+    Container<GpuCteBlobStore>* container,
+    DatasetId did,
+    ContainerTestResult* d_result)
+{
+    d_result->status    = 0;
+    d_result->data_match = 0;
+
+    CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
+
+    if (!container->DatasetExists(did)) { d_result->status = -1; return; }
+
+    bool del_ok = container->DeleteDataset(did);
+    if (!del_ok)                         { d_result->status = -2; return; }
+
+    if (container->DatasetExists(did))   { d_result->status = -3; return; }
+
+    d_result->data_match = 1;
+    d_result->status     = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Kernel H — PutChunk overwrite at the same ChunkKey.
+//
+// Two PutChunk calls on the same ChunkKey with payloads of equal size; the
+// final GetChunk must return the second payload.  Exercises the implicit
+// overwrite semantics of BlobStore::PutRawBlob through the Container layer.
+// ---------------------------------------------------------------------------
+
+__global__ void kernel_chunk_overwrite(
+    chi::IpcManagerGpuInfo gpu_info,
+    Container<GpuCteBlobStore>* container,
+    ContainerTestResult* d_result)
+{
+    d_result->status    = 0;
+    d_result->data_match = 0;
+
+    CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
+
+    DatasetId did(uint64_t{77});
+    cstd::array<uint64_t, 2> coords_arr = {uint64_t{1}, uint64_t{2}};
+    cstd::span<const uint64_t> coords_span(coords_arr.data(), 2);
+    ChunkKey key(did, coords_span);
+
+    cstd::array<byte_t, 16> first_payload = {
+        byte_t{0xA1}, byte_t{0xA2}, byte_t{0xA3}, byte_t{0xA4},
+        byte_t{0xA5}, byte_t{0xA6}, byte_t{0xA7}, byte_t{0xA8},
+        byte_t{0xA9}, byte_t{0xAA}, byte_t{0xAB}, byte_t{0xAC},
+        byte_t{0xAD}, byte_t{0xAE}, byte_t{0xAF}, byte_t{0xB0}
+    };
+    if (!container->PutChunk(
+            key, cstd::span<const byte_t>(first_payload.data(), first_payload.size()))) {
+        d_result->status = -1; return;
+    }
+
+    cstd::array<byte_t, 16> second_payload = {
+        byte_t{0x11}, byte_t{0x22}, byte_t{0x33}, byte_t{0x44},
+        byte_t{0x55}, byte_t{0x66}, byte_t{0x77}, byte_t{0x88},
+        byte_t{0x99}, byte_t{0xAA}, byte_t{0xBB}, byte_t{0xCC},
+        byte_t{0xDD}, byte_t{0xEE}, byte_t{0xFF}, byte_t{0x00}
+    };
+    if (!container->PutChunk(
+            key, cstd::span<const byte_t>(second_payload.data(), second_payload.size()))) {
+        d_result->status = -2; return;
+    }
+
+    cstd::array<byte_t, 16> out_buf;
+    auto result = container->GetChunk(
+        key, cstd::span<byte_t>(out_buf.data(), out_buf.size()));
+    if (!result.has_value())   { d_result->status = -3; return; }
+    if (result->size() != 16)  { d_result->status = -4; return; }
+
+    d_result->data_match = 1;
+    for (size_t i = 0; i < 16; ++i) {
+        if (out_buf[i] != second_payload[i]) {
+            d_result->data_match = 0;
+            d_result->status     = -5;
+            return;
+        }
+    }
+    d_result->status = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Kernel I — Container::Open on a pre-seeded blob store.
+//
+// The host TEST_CASE seeds the CTE tag via a fixture-owned Container (root
+// group + one extra group at seeded_gid).  This kernel constructs a fresh
+// Container via Container::Open over a separate blob store on the same tag
+// and verifies:
+//   - RootGroup() returns kRootGroupId and exists
+//   - GroupExists(seeded_gid) sees the host-seeded group
+//   - AllocateId() honors the next_object_id_hint exactly (returns hint, hint+1)
+//
+// Open is CROSS_FUN and routes to the 3-arg private constructor that does NOT
+// touch GroupMetadata, so the clang-18 isspacep.shared codegen bug is not
+// triggered.
+// ---------------------------------------------------------------------------
+
+__global__ void kernel_container_open(
+    chi::IpcManagerGpuInfo gpu_info,
+    GpuCteBlobStore store,
+    AllocatorImpl* alloc,
+    uint64_t hint,
+    GroupId seeded_gid,
+    ContainerTestResult* d_result)
+{
+    d_result->status    = 0;
+    d_result->data_match = 0;
+
+    CHIMAERA_GPU_INIT(gpu_info);
+    if (threadIdx.x != 0) return;
+
+    auto container = Container<GpuCteBlobStore>::Open(
+        cstd::move(store), alloc, hint);
+
+    GroupId root = container.RootGroup();
+    if (!root.IsValid())                    { d_result->status = -1; return; }
+    if (root.Id() != kRootGroupId)          { d_result->status = -2; return; }
+    if (!container.GroupExists(root))       { d_result->status = -3; return; }
+    if (!container.GroupExists(seeded_gid)) { d_result->status = -4; return; }
+
+    ObjectId first  = container.AllocateId();
+    if (first.id != hint)                   { d_result->status = -5; return; }
+    ObjectId second = container.AllocateId();
+    if (second.id != hint + 1)              { d_result->status = -6; return; }
+
+    d_result->data_match = 1;
+    d_result->status     = 1;
+}
+
+// ---------------------------------------------------------------------------
 // Host-only section: setup helpers, run helpers, and TEST_CASEs.
 // ---------------------------------------------------------------------------
 
@@ -547,6 +688,64 @@ static ContainerTestResult RunDatasetIdKernel(
 }
 
 // ---------------------------------------------------------------------------
+// RunContainerOpenKernel — launcher for kernel_container_open.
+//
+// Distinct from RunContainerTest because the kernel takes a GpuCteBlobStore
+// by value (the kernel constructs Container::Open on the device stack) and
+// extra parameters (alloc / hint / seeded_gid). Mirrors the Pause/Resume
+// orchestration of the other launchers in this file.
+// ---------------------------------------------------------------------------
+
+static ContainerTestResult RunContainerOpenKernel(
+    GpuCteBlobStore store,
+    AllocatorImpl*  alloc,
+    uint64_t        hint,
+    GroupId         seeded_gid)
+{
+    auto* gpu_ipc = CHI_CPU_IPC->GetGpuIpcManager();
+    chi::IpcManagerGpuInfo gpu_info = gpu_ipc->GetClientGpuInfo(0);
+
+    gpu_ipc->PauseGpuOrchestrator();
+
+    volatile ContainerTestResult* d_result;
+    cudaMallocHost(const_cast<ContainerTestResult**>(&d_result),
+                   sizeof(ContainerTestResult));
+    d_result->status     = 0;
+    d_result->data_match = 0;
+
+    cudaGetLastError();
+    void* stream = hshm::GpuApi::CreateStream();
+    kernel_container_open<<<1, 32, 0, static_cast<cudaStream_t>(stream)>>>(
+        gpu_info, store, alloc, hint, seeded_gid,
+        const_cast<ContainerTestResult*>(d_result));
+
+    cudaError_t launch_err = cudaGetLastError();
+    if (launch_err != cudaSuccess) {
+        hshm::GpuApi::DestroyStream(stream);
+        cudaFreeHost(const_cast<ContainerTestResult*>(d_result));
+        gpu_ipc->ResumeGpuOrchestrator();
+        return {-201, 0};
+    }
+
+    gpu_ipc->ResumeGpuOrchestrator();
+
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (d_result->status == 0 && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
+    }
+
+    ContainerTestResult result{d_result->status, d_result->data_match};
+    if (result.status == 0) result.status = -300;
+
+    gpu_ipc->PauseGpuOrchestrator();
+    cudaStreamSynchronize(static_cast<cudaStream_t>(stream));
+    hshm::GpuApi::DestroyStream(stream);
+    cudaFreeHost(const_cast<ContainerTestResult*>(d_result));
+    gpu_ipc->ResumeGpuOrchestrator();
+    return result;
+}
+
+// ---------------------------------------------------------------------------
 // Per-test fixture.
 // ---------------------------------------------------------------------------
 
@@ -742,6 +941,99 @@ TEST_CASE("Container<GpuCteBlobStore> - RootGroup is valid and accessible on dev
     REQUIRE(root_gid.IsValid());
     REQUIRE(fx.ContainerPtr()->GroupExists(root_gid));
 
+    fx.Teardown();
+
+    INFO("kernel status: " << result.status);
+    REQUIRE(result.status == 1);
+    REQUIRE(result.data_match == 1);
+}
+
+// ---------------------------------------------------------------------------
+// TEST_CASE G — DatasetExists / DeleteDataset / DatasetExists on device.
+// Host puts the dataset, kernel removes it.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Container<GpuCteBlobStore> - DatasetExists and DeleteDataset on device",
+          "[gpu_container_dataset_exists_delete]")
+{
+    EnsureGpuCteRuntime();
+
+    ContainerTestFixture fx;
+    REQUIRE(fx.Setup("gpu_container_dataset_exists_delete"));
+
+    DatasetId did = DatasetId(fx.ContainerPtr()->AllocateId());
+
+    bool put_ok = kvhdf5::test::HostPutDataset(
+        fx.ContainerPtr(), did, fx.Allocator());
+    REQUIRE(put_ok);
+
+    auto result = RunDatasetIdKernel(kernel_dataset_exists_delete,
+                                      fx.ContainerPtr(), did);
+    fx.Teardown();
+
+    INFO("kernel status: " << result.status);
+    REQUIRE(result.status == 1);
+    REQUIRE(result.data_match == 1);
+}
+
+// ---------------------------------------------------------------------------
+// TEST_CASE H — PutChunk overwrite at the same ChunkKey on device.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Container<GpuCteBlobStore> - PutChunk overwrite at the same ChunkKey",
+          "[gpu_container_chunk_overwrite]")
+{
+    EnsureGpuCteRuntime();
+
+    ContainerTestFixture fx;
+    REQUIRE(fx.Setup("gpu_container_chunk_overwrite"));
+
+    auto result = RunContainerTest(kernel_chunk_overwrite, fx.ContainerPtr());
+    fx.Teardown();
+
+    INFO("kernel status: " << result.status);
+    REQUIRE(result.status == 1);
+    REQUIRE(result.data_match == 1);
+}
+
+// ---------------------------------------------------------------------------
+// TEST_CASE I — Container::Open on a pre-seeded blob store, kernel verifies.
+//
+// Setup: ContainerTestFixture creates the seeding Container (auto-seeds root
+// group via PutGroup).  Host then HostPutGroups an additional group at
+// seeded_gid.  A SECOND blob store is created over the same CTE tag with a
+// fresh scratch buffer; the kernel passes that store into Container::Open
+// (with a hint well past any allocated id) and verifies the seeded state is
+// visible and AllocateId honors the hint.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Container<GpuCteBlobStore> - Open on pre-seeded blob store, kernel verifies state",
+          "[gpu_container_open]")
+{
+    EnsureGpuCteRuntime();
+
+    ContainerTestFixture fx;
+    REQUIRE(fx.Setup("gpu_container_open"));
+
+    GroupId seeded_gid = GroupId(fx.ContainerPtr()->AllocateId());
+    REQUIRE(kvhdf5::test::HostPutGroup(
+        fx.ContainerPtr(), seeded_gid, fx.Allocator()));
+
+    // hint is far past any id allocated by the seeding container
+    constexpr uint64_t kOpenHint = 100;
+
+    // Second store over the same CTE tag — fresh scratch, shared CTE state.
+    auto tag_task = g_gpu_cte_client->AsyncGetOrCreateTag("gpu_container_open");
+    tag_task.Wait();
+    wrp_cte::core::TagId tag_id = tag_task->tag_id_;
+
+    GpuCteBlobStore kernel_store = GpuCteBlobStore::Create(tag_id, g_gpu_cte_pool_id);
+    REQUIRE(kernel_store.IsValid());
+
+    auto result = RunContainerOpenKernel(
+        kernel_store, fx.alloc_fixture.allocator, kOpenHint, seeded_gid);
+
+    kernel_store.Destroy();
     fx.Teardown();
 
     INFO("kernel status: " << result.status);
