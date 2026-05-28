@@ -7,6 +7,7 @@ add_executable(kvhdf5_gray_scott
     gray_scott_gpu.cu
     gray_scott_host.cc
     gray_scott_init.cc
+    iowarp_step.cu
 )
 
 set_target_properties(kvhdf5_gray_scott PROPERTIES
@@ -18,7 +19,7 @@ set_target_properties(kvhdf5_gray_scott PROPERTIES
 # trips two ptxas bugs (dot-in-symbol-name from cuda::std::span and typed-
 # pointer isspacep.shared from hshm::priv::vector). Line tables only avoids
 # both.
-set_source_files_properties(gray_scott_gpu.cu
+set_source_files_properties(gray_scott_gpu.cu iowarp_step.cu
     PROPERTIES COMPILE_FLAGS "-gline-tables-only"
 )
 
