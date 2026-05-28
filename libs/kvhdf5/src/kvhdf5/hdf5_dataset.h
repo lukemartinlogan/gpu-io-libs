@@ -609,7 +609,7 @@ advance_write:
         if (!meta_result.has_value()) {
             return make_error(ErrorCode::InvalidArgument, "dataset not found");
         }
-        auto meta = meta_result.value();
+        auto& meta = meta_result.value();
 
         if (new_dims.size() != meta.shape.Ndims()) {
             return make_error(ErrorCode::InvalidArgument, "rank mismatch");
