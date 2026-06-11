@@ -60,6 +60,8 @@ set(CLIO_CTE_ENABLE_POSIX_ADAPTER OFF CACHE BOOL "" FORCE)
 set(CLIO_CTE_ENABLE_VFD           OFF CACHE BOOL "" FORCE)
 set(CLIO_CTE_ENABLE_HDF5_VOL      OFF CACHE BOOL "" FORCE)
 
+# During local dev can point FetchContent at a working tree to skip re-cloning:
+#   -DFETCHCONTENT_SOURCE_DIR_IOWARP_CORE=/path/to/iowarp-core
 FetchContent_Declare(
     iowarp_core
     GIT_REPOSITORY https://github.com/abscosmos/iowarp-core.git
