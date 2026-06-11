@@ -1,6 +1,6 @@
 #include "bench_fixture.h"
 #include "kvhdf5/container.h"
-#include "kvhdf5/cte_blob_store.h"
+#include "kvhdf5/cpu_cte_blob_store.h"
 #include <vector>
 
 using namespace kvhdf5;
@@ -21,7 +21,7 @@ public:
         bench::CteFixture::TearDown(state);
     }
 protected:
-    std::optional<Container<CteBlobStore>> container_;
+    std::optional<Container<CpuCteBlobStore>> container_;
 };
 
 BENCHMARK_DEFINE_F(AllocateIdFixture, BM_AllocateId)(benchmark::State& state) {
@@ -67,7 +67,7 @@ public:
         bench::CteFixture::TearDown(state);
     }
 protected:
-    std::optional<Container<CteBlobStore>> container_;
+    std::optional<Container<CpuCteBlobStore>> container_;
     GroupId group_id_;
     int64_t num_children_ = 0;
     std::vector<GroupId> child_ids_;
@@ -127,7 +127,7 @@ public:
         bench::CteFixture::TearDown(state);
     }
 protected:
-    std::optional<Container<CteBlobStore>> container_;
+    std::optional<Container<CpuCteBlobStore>> container_;
     DatasetId dataset_id_;
 };
 
@@ -184,7 +184,7 @@ public:
         bench::CteFixture::TearDown(state);
     }
 protected:
-    std::optional<Container<CteBlobStore>> container_;
+    std::optional<Container<CpuCteBlobStore>> container_;
     DatasetId dataset_id_;
     ChunkKey key_;
     std::vector<byte_t> data_;
@@ -254,7 +254,7 @@ public:
         bench::CteFixture::TearDown(state);
     }
 protected:
-    std::optional<Container<CteBlobStore>> container_;
+    std::optional<Container<CpuCteBlobStore>> container_;
     DatasetId dataset_id_;
     ChunkKey key_exists_;
     ChunkKey key_missing_;

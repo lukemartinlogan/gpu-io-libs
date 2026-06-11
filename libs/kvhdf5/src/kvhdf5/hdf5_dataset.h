@@ -114,7 +114,7 @@ class Dataset {
     /// Row-copy between a chunk buffer and a contiguous user buffer.
     /// When writing: copies user buffer rows → chunk_buf.
     /// When reading:  copies chunk_buf rows → user buffer.
-    static void CopyChunkRows(
+    static CROSS_FUN void CopyChunkRows(
         byte_t* chunk_buf,
         byte_t* user_buf,
         cstd::span<const uint64_t> chunk_start,
@@ -182,11 +182,17 @@ public:
     CROSS_FUN Dataset(DatasetId id, Ref<Container<B>> container)
         : id_(id), container_(container) {}
 
-    // Maximum stack buffer size for chunk data (64KB)
+    // Default maximum stack buffer size for chunk data (64 KB).
+    // Callers may instantiate Write<N>/Read<N> with a tighter bound; this is
+    // important on GPU kernels where every chunk_buf is allocated in
+    // per-thread local memory and the 64 KB default is wasteful for tiny
+    // chunks. The runtime KVHDF5_ASSERT below catches mismatch with actual
+    // dataset chunk size.
     static constexpr size_t kMaxChunkBytes = 64 * 1024;
 
     // --- Write (SelectAll + Hyperslab, multi-chunk) ---
-    expected<void> Write(
+    template<size_t MaxChunkBytes = kMaxChunkBytes>
+    CROSS_FUN expected<void> Write(
         const Datatype& mem_type,
         const Dataspace& mem_space,
         const Dataspace& file_space,
@@ -260,10 +266,10 @@ public:
             }
 
             uint64_t chunk_bytes = chunk_total_elems * elem_size;
-            KVHDF5_ASSERT(chunk_bytes <= kMaxChunkBytes,
+            KVHDF5_ASSERT(chunk_bytes <= MaxChunkBytes,
                           "chunk too large for stack buffer");
 
-            byte_t chunk_buf[kMaxChunkBytes];
+            byte_t chunk_buf[MaxChunkBytes];
 
             if (file_space.GetSelectionType() == SelectionType::All) {
                 // SelectAll: every element in this chunk is written from the
@@ -384,7 +390,8 @@ advance_write:
     }
 
     // --- Read (SelectAll + Hyperslab, multi-chunk) ---
-    expected<void> Read(
+    template<size_t MaxChunkBytes = kMaxChunkBytes>
+    CROSS_FUN expected<void> Read(
         const Datatype& mem_type,
         const Dataspace& mem_space,
         const Dataspace& file_space,
@@ -455,12 +462,12 @@ advance_write:
             }
 
             uint64_t chunk_bytes = chunk_total_elems * elem_size;
-            KVHDF5_ASSERT(chunk_bytes <= kMaxChunkBytes,
+            KVHDF5_ASSERT(chunk_bytes <= MaxChunkBytes,
                           "chunk too large for stack buffer");
 
             ChunkKey key(id_, cstd::span<const uint64_t>(chunk_coords, ndims));
 
-            byte_t chunk_buf[kMaxChunkBytes];
+            byte_t chunk_buf[MaxChunkBytes];
 
             // Try to load chunk data directly; zero-fill if it doesn't exist.
             // This avoids the redundant ChunkExists call (extra CTE round-trip).
@@ -554,7 +561,7 @@ advance_write:
 
     // --- Query ---
 
-    expected<Dataspace> GetSpace() const {
+    CROSS_FUN expected<Dataspace> GetSpace() const {
         auto meta_result = container_->GetDataset(id_);
         if (!meta_result.has_value()) {
             return make_error(ErrorCode::InvalidArgument, "dataset not found");
@@ -564,7 +571,7 @@ advance_write:
         return Dataspace::CreateSimple(dims_span);
     }
 
-    Datatype GetType() const {
+    CROSS_FUN Datatype GetType() const {
         auto meta_result = container_->GetDataset(id_);
         KVHDF5_ASSERT(meta_result.has_value(), "Dataset::GetType: dataset not found");
         auto& meta = meta_result.value();
@@ -597,12 +604,12 @@ advance_write:
     /// Updates metadata only; existing chunks are not modified.
     /// Growing adds empty space (reads return zero).
     /// Shrinking leaves orphaned chunks (acceptable for now).
-    expected<void> SetExtent(cstd::span<const uint64_t> new_dims) {
+    CROSS_FUN expected<void> SetExtent(cstd::span<const uint64_t> new_dims) {
         auto meta_result = container_->GetDataset(id_);
         if (!meta_result.has_value()) {
             return make_error(ErrorCode::InvalidArgument, "dataset not found");
         }
-        auto meta = meta_result.value();
+        auto& meta = meta_result.value();
 
         if (new_dims.size() != meta.shape.Ndims()) {
             return make_error(ErrorCode::InvalidArgument, "rank mismatch");
@@ -617,10 +624,10 @@ advance_write:
     }
 
     // --- Attributes (declarations; defined in hdf5_attribute.h) ---
-    expected<void> SetAttribute(gpu_string_view name, const Datatype& type, const void* data);
-    expected<void> GetAttribute(gpu_string_view name, const Datatype& type, void* data) const;
-    bool HasAttribute(gpu_string_view name) const;
-    AttributeHandle<B> OpenAttribute(gpu_string_view name);
+    CROSS_FUN expected<void> SetAttribute(gpu_string_view name, const Datatype& type, const void* data);
+    CROSS_FUN expected<void> GetAttribute(gpu_string_view name, const Datatype& type, void* data) const;
+    CROSS_FUN bool HasAttribute(gpu_string_view name) const;
+    CROSS_FUN AttributeHandle<B> OpenAttribute(gpu_string_view name);
 
     // --- ChunkIter ---
 
@@ -631,7 +638,7 @@ advance_write:
     /// Iterate over all existing chunks in the dataset.
     /// For each chunk that exists, calls the callback with the ChunkKey and
     /// the chunk data size in bytes.
-    expected<void> ChunkIter(ChunkIterCallback callback, void* user_data) const {
+    CROSS_FUN expected<void> ChunkIter(ChunkIterCallback callback, void* user_data) const {
         auto meta_result = container_->GetDataset(id_);
         if (!meta_result.has_value()) {
             return make_error(ErrorCode::InvalidArgument, "dataset not found");
@@ -690,7 +697,7 @@ advance_write:
 // Defined here because they return Dataset<B>, which is now complete.
 
 template<RawBlobStore B>
-expected<Dataset<B>> Group<B>::CreateDataset(
+CROSS_FUN expected<Dataset<B>> Group<B>::CreateDataset(
     gpu_string_view name, const Datatype& type,
     const Dataspace& space, const DatasetCreateProps& props
 ) {
@@ -742,7 +749,7 @@ expected<Dataset<B>> Group<B>::CreateDataset(
 }
 
 template<RawBlobStore B>
-expected<Dataset<B>> Group<B>::OpenDataset(gpu_string_view name) {
+CROSS_FUN expected<Dataset<B>> Group<B>::OpenDataset(gpu_string_view name) {
     auto meta_result = container_->GetGroup(id_);
     if (!meta_result.has_value()) {
         return make_error(ErrorCode::InvalidArgument, "group not found");

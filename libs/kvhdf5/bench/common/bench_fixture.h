@@ -2,7 +2,7 @@
 
 #include "cuda_compat.h"
 #include "cte_runtime.h"
-#include "kvhdf5/cte_blob_store.h"
+#include "kvhdf5/cpu_cte_blob_store.h"
 #include "kvhdf5/container.h"
 #include "kvhdf5/hdf5.h"
 #include "hermes_shm/memory/backend/array_backend.h"
@@ -67,28 +67,28 @@ public:
         allocator_ = backend_.MakeAlloc<kvhdf5::AllocatorImpl>();
     }
 
-    kvhdf5::Container<kvhdf5::CteBlobStore> CreateContainer() {
+    kvhdf5::Container<kvhdf5::CpuCteBlobStore> CreateContainer() {
         auto tag = UniqueTagName();
-        kvhdf5::CteBlobStore store(tag);
-        return kvhdf5::Container<kvhdf5::CteBlobStore>(
+        kvhdf5::CpuCteBlobStore store(tag);
+        return kvhdf5::Container<kvhdf5::CpuCteBlobStore>(
             std::move(store), GetAllocator());
     }
 
-    kvhdf5::File<kvhdf5::CteBlobStore> CreateFile() {
+    kvhdf5::File<kvhdf5::CpuCteBlobStore> CreateFile() {
         auto tag = UniqueTagName();
-        kvhdf5::CteBlobStore store(tag);
+        kvhdf5::CpuCteBlobStore store(tag);
         kvhdf5::Context ctx(GetAllocator());
-        auto result = kvhdf5::File<kvhdf5::CteBlobStore>::Create(
+        auto result = kvhdf5::File<kvhdf5::CpuCteBlobStore>::Create(
             std::move(store), ctx);
         assert(result.has_value());
         return std::move(result.value());
     }
 
-    void DestroyContainer(kvhdf5::Container<kvhdf5::CteBlobStore>& c) {
+    void DestroyContainer(kvhdf5::Container<kvhdf5::CpuCteBlobStore>& c) {
         c.GetBlobStore().GetStore()->Destroy();
     }
 
-    void DestroyFile(kvhdf5::File<kvhdf5::CteBlobStore>& f) {
+    void DestroyFile(kvhdf5::File<kvhdf5::CpuCteBlobStore>& f) {
         f.GetContainer().GetBlobStore().GetStore()->Destroy();
     }
 };

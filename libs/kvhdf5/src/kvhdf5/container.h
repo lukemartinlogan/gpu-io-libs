@@ -12,6 +12,8 @@
 
 namespace kvhdf5 {
 
+// Root group is always GroupId(1); it's the first ID AllocateId() returns.
+inline constexpr uint64_t kRootGroupId = 1;
 
 template<RawBlobStore BlobStoreImpl>
 class Container {
@@ -27,7 +29,7 @@ public:
      * Accepts a pre-built blob store and an allocator.
      * Initializes the root group and sets up ID allocation.
      */
-    explicit Container(BlobStoreImpl&& blob_store, AllocatorImpl* alloc)
+    explicit CROSS_FUN Container(BlobStoreImpl&& blob_store, AllocatorImpl* alloc)
         : raw_store_(cstd::move(blob_store))
         , store_(&raw_store_)
         , context_(alloc)
@@ -51,10 +53,30 @@ public:
     }
 
     /**
+     * Open an existing container over an already-seeded blob store.
+     * Skips root-group initialization — caller guarantees the root group
+     * metadata already exists in the blob store (e.g., seeded by a host-side
+     * Container before handing off to a GPU-side GpuCteBlobStore).
+     *
+     * next_object_id_hint must be > kRootGroupId and >= the highest ID
+     * previously allocated by the seeding Container, so newly-allocated IDs
+     * don't collide.
+     */
+    CROSS_FUN static Container Open(BlobStoreImpl&& blob_store,
+                                    AllocatorImpl* alloc,
+                                    uint64_t next_object_id_hint)
+    {
+        KVHDF5_ASSERT(alloc != nullptr, "Container::Open: allocator is null");
+        KVHDF5_ASSERT(next_object_id_hint > kRootGroupId,
+                      "Container::Open: next_object_id_hint must be > root id");
+        return Container(cstd::move(blob_store), alloc, next_object_id_hint);
+    }
+
+    /**
      * Move constructor.
      * store_ must point to this->raw_store_, not the moved-from object.
      */
-    Container(Container&& other) noexcept
+    CROSS_FUN Container(Container&& other) noexcept
         : raw_store_(cstd::move(other.raw_store_))
         , store_(&raw_store_)
         , context_(other.context_)
@@ -267,6 +289,17 @@ public:
     CROSS_FUN const BlobStore<BlobStoreImpl>& GetBlobStore() const {
         return store_;
     }
+
+private:
+    // 3-arg constructor used exclusively by Open(). Skips root-group init.
+    CROSS_FUN Container(BlobStoreImpl&& blob_store, AllocatorImpl* alloc,
+                        uint64_t next_object_id_hint)
+        : raw_store_(cstd::move(blob_store))
+        , store_(&raw_store_)
+        , context_(alloc)
+        , root_group_(GroupId(kRootGroupId))
+        , next_object_id_(next_object_id_hint)
+    {}
 };
 
 } // namespace kvhdf5

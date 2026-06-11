@@ -27,9 +27,10 @@
     }
   },
   "runArgs": [
+    "--privileged",
     "--gpus=all",
-    "--shm-size=2gb"
+    "--shm-size=4gb"
   ],
-  "postCreateCommand": "git config --global --add safe.directory /IdeaProjects/gpu-io-libs && git config --global --add safe.directory /workspace",
+  "postCreateCommand": "git config --global --add safe.directory /workspace",
   "remoteUser": "iowarp"
 }

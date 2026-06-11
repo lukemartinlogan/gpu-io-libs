@@ -1,0 +1,51 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Debug (clang++-18, CUDA)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_COMPILER": "clang++-18",
+        "CMAKE_CUDA_HOST_COMPILER": "clang++-18",
+        "CMAKE_CUDA_COMPILER": "/usr/local/cuda/bin/nvcc"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release (clang++-18, CUDA)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_COMPILER": "clang++-18",
+        "CMAKE_CUDA_HOST_COMPILER": "clang++-18",
+        "CMAKE_CUDA_COMPILER": "/usr/local/cuda/bin/nvcc"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "targets": ["kvhdf5", "kvhdf5_tests", "kvhdf5_gpu_cte_tests"]
+    },
+    {
+      "name": "dev-bench",
+      "configurePreset": "dev",
+      "targets": ["kvhdf5_benchmarks"]
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "targets": ["kvhdf5", "kvhdf5_tests", "kvhdf5_gpu_cte_tests"]
+    },
+    {
+      "name": "release-bench",
+      "configurePreset": "release",
+      "targets": ["kvhdf5_benchmarks"]
+    }
+  ]
+}

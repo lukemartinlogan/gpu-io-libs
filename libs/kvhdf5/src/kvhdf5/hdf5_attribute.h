@@ -19,7 +19,7 @@ class AttributeHandle {
 
     // --- shared attribute write logic ---
 
-    expected<void> WriteToAttributes(
+    CROSS_FUN expected<void> WriteToAttributes(
         vector<Attribute>& attrs,
         const Datatype& type,
         const void* data
@@ -39,7 +39,7 @@ class AttributeHandle {
         return {};
     }
 
-    expected<void> ReadFromAttributes(
+    CROSS_FUN expected<void> ReadFromAttributes(
         const vector<Attribute>& attrs,
         const Datatype& type,
         void* data
@@ -73,7 +73,7 @@ public:
 
     gpu_string_view GetName() const { return gpu_string_view(name_); }
 
-    expected<void> Write(const Datatype& type, const void* data) {
+    CROSS_FUN expected<void> Write(const Datatype& type, const void* data) {
         if (parent_is_group_) {
             GroupId gid(parent_id_);
             auto meta_result = container_->GetGroup(gid);
@@ -99,7 +99,7 @@ public:
         }
     }
 
-    expected<void> Read(const Datatype& type, void* data) const {
+    CROSS_FUN expected<void> Read(const Datatype& type, void* data) const {
         if (parent_is_group_) {
             GroupId gid(parent_id_);
             auto meta_result = container_->GetGroup(gid);

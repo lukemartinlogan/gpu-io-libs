@@ -4,6 +4,7 @@
 # Build directories
 build/
 build_cte/
+build-release/
 **/build/
 cmake-build-*/
 

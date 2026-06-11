@@ -40,7 +40,7 @@ public:
      * @param ctx         Context providing an allocator.
      * @return            The new File on success, or an Error.
      */
-    static expected<File> Create(B&& blob_store, Context ctx) {
+    static CROSS_FUN expected<File> Create(B&& blob_store, Context ctx) {
         Container<B> c(cstd::move(blob_store), ctx.allocator_);
         return File(cstd::move(c));
     }
@@ -49,7 +49,7 @@ public:
      * Open the root group.
      * Declared here; defined in hdf5_group.h after Group<B> is complete.
      */
-    Group<B> OpenRootGroup();
+    CROSS_FUN Group<B> OpenRootGroup();
 
     /**
      * Get mutable access to the underlying Container.

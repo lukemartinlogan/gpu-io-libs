@@ -32,10 +32,16 @@ set(WRP_CORE_ENABLE_CEREAL     ON  CACHE BOOL "" FORCE)
 set(WRP_CORE_ENABLE_IO_URING   ON  CACHE BOOL "" FORCE)
 set(WRP_CORE_ENABLE_RPATH      ON  CACHE BOOL "" FORCE)
 set(WRP_CORE_ENABLE_ASAN       OFF CACHE BOOL "" FORCE)
-set(HSHM_LOG_LEVEL             "0" CACHE STRING "" FORCE)
+set(HSHM_LOG_LEVEL             "3" CACHE STRING "" FORCE)
 
-# Off for our use
-set(WRP_CORE_ENABLE_CUDA       OFF CACHE BOOL "" FORCE)
+# Enable CUDA in iowarp-core when CUDA compiler is available
+if(KVHDF5_HAS_CUDA)
+    set(WRP_CORE_ENABLE_CUDA   ON  CACHE BOOL "" FORCE)
+    # Set architecture before iowarp-core configures (RTX 4090 = sm_89)
+    set(CMAKE_CUDA_ARCHITECTURES "89" CACHE STRING "CUDA architectures" FORCE)
+else()
+    set(WRP_CORE_ENABLE_CUDA   OFF CACHE BOOL "" FORCE)
+endif()
 set(WRP_CORE_ENABLE_ELF        OFF CACHE BOOL "" FORCE)
 set(WRP_CORE_ENABLE_LIBFABRIC  OFF CACHE BOOL "" FORCE)
 set(WRP_CORE_ENABLE_MPI        OFF CACHE BOOL "" FORCE)
@@ -52,7 +58,8 @@ set(WRP_CORE_ENABLE_DOCKER_CI  OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     iowarp_core
     GIT_REPOSITORY https://github.com/abscosmos/iowarp-core.git
-    GIT_TAG        8631a307e67204aec528ec7d4334bd2f5cb3d4ba
+    GIT_TAG        40705023cbce769bdd6c9df9ac1120739d33b4da
+    GIT_SUBMODULES ""
 )
 # FetchContent_Populate(<name>) is deprecated in CMake 3.30+ (CMP0169).
 # We need it here to interject the cmake file copy between fetch and
@@ -69,19 +76,20 @@ if(NOT iowarp_core_POPULATED)
         "${iowarp_core_SOURCE_DIR}/cmake/IowarpCoreCommon.cmake"
         DESTINATION "${CMAKE_SOURCE_DIR}/cmake/"
     )
-    add_subdirectory(${iowarp_core_SOURCE_DIR} ${iowarp_core_BINARY_DIR})
+
+    add_subdirectory(${iowarp_core_SOURCE_DIR} ${iowarp_core_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
-message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ 8631a30)")
+message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ 40705023)")
 
 FetchContent_Declare(
     cccl
     GIT_REPOSITORY https://github.com/NVIDIA/cccl.git
-    GIT_TAG e5ed71c7dce1130e582db831fffc61f562203884
+    GIT_TAG        e5ed71c7dce1130e582db831fffc61f562203884
 )
 FetchContent_MakeAvailable(cccl)
 
 add_library(kvhdf5 STATIC
-    src/kvhdf5/cte_blob_store.cpp
+    src/kvhdf5/cpu_cte_blob_store.cpp
 )
 
 target_include_directories(kvhdf5 PUBLIC
@@ -89,6 +97,7 @@ target_include_directories(kvhdf5 PUBLIC
 )
 
 if(KVHDF5_HAS_CUDA)
+    target_compile_definitions(kvhdf5 PUBLIC HSHM_ENABLE_CUDA=1)
     target_link_libraries(kvhdf5 PUBLIC
         CUDA::cudart
         CCCL::CCCL
@@ -116,3 +125,6 @@ add_subdirectory(test)
 
 # Benchmarks
 add_subdirectory(bench)
+
+# Examples
+add_subdirectory(examples)

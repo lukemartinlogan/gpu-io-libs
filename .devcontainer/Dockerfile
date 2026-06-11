@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     gcc-13 \
     g++-13 \
+    clang-18 \
     ninja-build \
     git \
     wget \

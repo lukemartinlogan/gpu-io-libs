@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include <kvhdf5/cte_blob_store.h>
+#include <kvhdf5/cpu_cte_blob_store.h>
 #include <kvhdf5/blob_store.h>
 #include <kvhdf5/types.h>
 #include <kvhdf5/group.h>
@@ -10,9 +10,9 @@
 using namespace kvhdf5;
 using AllocatorFixture = test::AllocatorFixture<AllocatorImpl>;
 
-TEST_CASE("CteBlobStore - Raw API", "[cte][blob_store]") {
+TEST_CASE("CpuCteBlobStore - Raw API", "[cte][blob_store]") {
     EnsureCteRuntime();
-    CteBlobStore store("cte_raw_api_test");
+    CpuCteBlobStore store("cte_raw_api_test");
 
     SECTION("Basic put and get") {
         std::array<byte_t, 4> key = {byte_t{1}, byte_t{2}, byte_t{3}, byte_t{4}};
@@ -48,7 +48,7 @@ TEST_CASE("CteBlobStore - Raw API", "[cte][blob_store]") {
 
     SECTION("Overwrite with smaller value") {
         // CTE doesn't truncate blobs on overwrite at offset 0,
-        // so CteBlobStore must delete-then-put to handle this correctly.
+        // so CpuCteBlobStore must delete-then-put to handle this correctly.
         std::array<byte_t, 4> key = {byte_t{9}, byte_t{10}, byte_t{11}, byte_t{12}};
         std::array<byte_t, 8> large_value = {
             byte_t{1}, byte_t{2}, byte_t{3}, byte_t{4},
@@ -261,9 +261,9 @@ TEST_CASE("CteBlobStore - Raw API", "[cte][blob_store]") {
     }
 }
 
-TEST_CASE("CteBlobStore - Large data", "[cte][blob_store]") {
+TEST_CASE("CpuCteBlobStore - Large data", "[cte][blob_store]") {
     EnsureCteRuntime();
-    CteBlobStore store("cte_raw_large_test");
+    CpuCteBlobStore store("cte_raw_large_test");
 
     SECTION("Put and get large blob") {
         std::array<byte_t, 4> key = {byte_t{1}, byte_t{0}, byte_t{0}, byte_t{0}};
@@ -286,9 +286,9 @@ TEST_CASE("CteBlobStore - Large data", "[cte][blob_store]") {
     }
 }
 
-TEST_CASE("CteBlobStore - Empty value", "[cte][blob_store]") {
+TEST_CASE("CpuCteBlobStore - Empty value", "[cte][blob_store]") {
     EnsureCteRuntime();
-    CteBlobStore store("cte_edge_empty_value");
+    CpuCteBlobStore store("cte_edge_empty_value");
 
     // CTE's GetBlob requires data_size > 0, so the implementation
     // must handle zero-length values specially (e.g. sentinel byte).
@@ -304,9 +304,9 @@ TEST_CASE("CteBlobStore - Empty value", "[cte][blob_store]") {
     REQUIRE(result->size() == 0);
 }
 
-TEST_CASE("CteBlobStore - Empty key", "[cte][blob_store]") {
+TEST_CASE("CpuCteBlobStore - Empty key", "[cte][blob_store]") {
     EnsureCteRuntime();
-    CteBlobStore store("cte_edge_empty_key");
+    CpuCteBlobStore store("cte_edge_empty_key");
 
     // Empty key → empty hex string → empty CTE blob name.
     // Implementation may reject this or handle it; test documents behavior.
@@ -322,13 +322,13 @@ TEST_CASE("CteBlobStore - Empty key", "[cte][blob_store]") {
     REQUIRE(cstd::equal(result->begin(), result->end(), value.begin()));
 }
 
-TEST_CASE("CteBlobStore - Two instances sharing a tag", "[cte][blob_store]") {
+TEST_CASE("CpuCteBlobStore - Two instances sharing a tag", "[cte][blob_store]") {
     EnsureCteRuntime();
 
-    // Two CteBlobStore objects pointing at the same CTE tag
+    // Two CpuCteBlobStore objects pointing at the same CTE tag
     // should see each other's data.
-    CteBlobStore store_a("cte_edge_shared_tag");
-    CteBlobStore store_b("cte_edge_shared_tag");
+    CpuCteBlobStore store_a("cte_edge_shared_tag");
+    CpuCteBlobStore store_b("cte_edge_shared_tag");
 
     std::array<byte_t, 4> key = {byte_t{1}, byte_t{2}, byte_t{3}, byte_t{4}};
     std::array<byte_t, 4> value = {byte_t{10}, byte_t{20}, byte_t{30}, byte_t{40}};
@@ -344,10 +344,10 @@ TEST_CASE("CteBlobStore - Two instances sharing a tag", "[cte][blob_store]") {
     REQUIRE(cstd::equal(result->begin(), result->end(), value.begin()));
 }
 
-TEST_CASE("BlobStore<CteBlobStore> - POD types", "[cte][blob_store][typed]") {
+TEST_CASE("BlobStore<CpuCteBlobStore> - POD types", "[cte][blob_store][typed]") {
     EnsureCteRuntime();
-    CteBlobStore raw_store("cte_typed_pod_test");
-    BlobStore<CteBlobStore> store(&raw_store);
+    CpuCteBlobStore raw_store("cte_typed_pod_test");
+    BlobStore<CpuCteBlobStore> store(&raw_store);
 
     SECTION("Put and get POD key-value") {
         ObjectId key(42);
@@ -421,10 +421,10 @@ TEST_CASE("BlobStore<CteBlobStore> - POD types", "[cte][blob_store][typed]") {
     }
 }
 
-TEST_CASE("BlobStore<CteBlobStore> - Custom value serialization", "[cte][blob_store][typed]") {
+TEST_CASE("BlobStore<CpuCteBlobStore> - Custom value serialization", "[cte][blob_store][typed]") {
     EnsureCteRuntime();
-    CteBlobStore raw_store("cte_typed_custom_test");
-    BlobStore<CteBlobStore> store(&raw_store);
+    CpuCteBlobStore raw_store("cte_typed_custom_test");
+    BlobStore<CpuCteBlobStore> store(&raw_store);
 
     AllocatorFixture fixture;
     REQUIRE(fixture.IsValid());
@@ -503,10 +503,10 @@ TEST_CASE("BlobStore<CteBlobStore> - Custom value serialization", "[cte][blob_st
     }
 }
 
-TEST_CASE("BlobStore<CteBlobStore> - ChunkKey with POD value", "[cte][blob_store][typed]") {
+TEST_CASE("BlobStore<CpuCteBlobStore> - ChunkKey with POD value", "[cte][blob_store][typed]") {
     EnsureCteRuntime();
-    CteBlobStore raw_store("cte_typed_chunk_test");
-    BlobStore<CteBlobStore> store(&raw_store);
+    CpuCteBlobStore raw_store("cte_typed_chunk_test");
+    BlobStore<CpuCteBlobStore> store(&raw_store);
 
     SECTION("Put and get with ChunkKey") {
         DatasetId dataset(1);
@@ -546,4 +546,4 @@ TEST_CASE("BlobStore<CteBlobStore> - ChunkKey with POD value", "[cte][blob_store
     }
 }
 
-static_assert(RawBlobStore<CteBlobStore>);
+static_assert(RawBlobStore<CpuCteBlobStore>);
