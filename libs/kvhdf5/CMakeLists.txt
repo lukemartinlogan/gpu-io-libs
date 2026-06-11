@@ -95,43 +95,11 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(cccl)
 
-add_library(kvhdf5 STATIC
-    src/kvhdf5/cpu_cte_blob_store.cpp
-)
-
-target_include_directories(kvhdf5 PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-
-if(KVHDF5_HAS_CUDA)
-    target_compile_definitions(kvhdf5 PUBLIC HSHM_ENABLE_CUDA=1)
-    target_link_libraries(kvhdf5 PUBLIC
-        CUDA::cudart
-        CCCL::CCCL
-        hshm::cxx
-        hshm::serialize
-        hshm::lightbeam
-        wrp_cte_core_runtime
-        chimaera_cxx
-    )
-else()
-    target_link_libraries(kvhdf5 PUBLIC
-        CCCL::CCCL
-        hshm::cxx
-        hshm::serialize
-        hshm::lightbeam
-        wrp_cte_core_runtime
-        chimaera_cxx
-    )
-endif()
-
-set(KVHDF5_CHIMAERA_CONF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/config/chimaera_ram.yaml")
-
-# Tests
+enable_testing()
 add_subdirectory(test)
 
 # Benchmarks
-add_subdirectory(bench)
+# add_subdirectory(bench)
 
 # Examples
-add_subdirectory(examples)
+# add_subdirectory(examples)
