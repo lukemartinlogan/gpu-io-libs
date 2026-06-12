@@ -18,7 +18,9 @@ endif()
 # DO_COPY=FALSE: compile the .cu in place. Sets CUDA_SEPARABLE_COMPILATION + PIC.
 add_cuda_executable(iowarp_cte_integration_tests FALSE
     cte_putget_test.cu
+    dataset_gpu_putget_test.cu
     INCLUDE_DIRS
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../src
         ${iowarp_core_SOURCE_DIR}/context-runtime/include
         ${iowarp_core_SOURCE_DIR}/context-runtime/modules/admin/include
         ${iowarp_core_SOURCE_DIR}/context-transfer-engine/core/include
