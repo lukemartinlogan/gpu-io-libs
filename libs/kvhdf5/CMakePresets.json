@@ -30,12 +30,12 @@
     {
       "name": "dev",
       "configurePreset": "dev",
-      "targets": ["iowarp_cte_integration_tests"]
+      "targets": ["kvhdf5_unit_tests", "iowarp_cte_integration_tests"]
     },
     {
       "name": "release",
       "configurePreset": "release",
-      "targets": ["iowarp_cte_integration_tests"]
+      "targets": ["kvhdf5_unit_tests", "iowarp_cte_integration_tests"]
     }
   ]
 }
