@@ -12,4 +12,6 @@ include(Catch)
 # Match the GPU available in the dev container (RTX 4090 = compute 8.9).
 set(CMAKE_CUDA_ARCHITECTURES "89" CACHE STRING "CUDA architectures" FORCE)
 
+add_subdirectory(unit)
+
 add_subdirectory(integration/iowarp/gpu)
