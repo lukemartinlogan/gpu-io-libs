@@ -19,6 +19,7 @@ endif()
 add_cuda_executable(iowarp_cte_integration_tests FALSE
     cte_putget_test.cu
     dataset_gpu_putget_test.cu
+    gray_scott_gpu_test.cu
     INCLUDE_DIRS
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../../src
         ${iowarp_core_SOURCE_DIR}/context-runtime/include
