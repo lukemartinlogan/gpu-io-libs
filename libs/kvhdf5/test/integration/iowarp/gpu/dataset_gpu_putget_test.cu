@@ -38,11 +38,13 @@ constexpr chi::u32 kPatternSeed = 0x5Au;
 
 }  // namespace
 
+using kvhdf5::byte_t;  // raw blob-payload bytes (codebase convention)
+
 /** Fill the device blob buffer with the byte pattern (separate kernel). */
-__global__ void DsFillKernel(char *buf, chi::u32 size, chi::u32 seed) {
+__global__ void DsFillKernel(byte_t *buf, chi::u32 size, chi::u32 seed) {
   chi::u32 i = blockIdx.x * blockDim.x + threadIdx.x;
   if (i >= size) return;
-  buf[i] = static_cast<char>((seed ^ i) & 0xFFu);
+  buf[i] = static_cast<byte_t>((seed ^ i) & 0xFFu);
 }
 
 /** Submit the pre-built PutBlob task from the kernel via the handle. */
@@ -67,7 +69,7 @@ __global__ void DsFillAndWriteKernel(kvhdf5::GpuDatasetHandle h, chi::u32 seed) 
   CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
   (void)g_ipc_manager;
   for (uint64_t i = threadIdx.x; i < h.Size(); i += blockDim.x)
-    h.Data()[i] = static_cast<char>((seed ^ i) & 0xFFu);
+    h.Data()[i] = static_cast<byte_t>((seed ^ i) & 0xFFu);
   __threadfence_system();  // flush each thread's fills to system scope
   __syncthreads();         // all fills done before the producer Sends
   h.Write();               // thread-0 only (internal guard)
@@ -76,12 +78,12 @@ __global__ void DsFillAndWriteKernel(kvhdf5::GpuDatasetHandle h, chi::u32 seed) 
 #if !CTP_IS_DEVICE_PASS
 
 /** Verify the device buffer holds the pattern (host reads it back via D2H). */
-static chi::u32 DsVerifyDevicePattern(const char *device_buf, chi::u32 size,
+static chi::u32 DsVerifyDevicePattern(const byte_t *device_buf, chi::u32 size,
                                       chi::u32 seed) {
-  std::vector<char> host(size);
+  std::vector<byte_t> host(size);
   ctp::GpuApi::Memcpy(host.data(), device_buf, size);
   for (chi::u32 i = 0; i < size; ++i) {
-    char want = static_cast<char>((seed ^ i) & 0xFFu);
+    byte_t want = static_cast<byte_t>((seed ^ i) & 0xFFu);
     if (host[i] != want) return i;
   }
   return size;  // all match
@@ -108,7 +110,7 @@ TEST_CASE("GPU Dataset handle PutBlob+GetBlob round trip",
   kvhdf5::GpuCteDataset ds(ipc, gpu_info, /*gpu_id=*/0, env.tag_id, name,
                            kBlobBytes);
   kvhdf5::GpuDatasetHandle h = ds.Handle();
-  char *data = ds.DeviceData();
+  byte_t *data = ds.DeviceData();
 
   // ---- Fill the buffer (separate kernel) then sync so PutBlob sees it. ----
   chi::u32 threads = 256;
@@ -122,7 +124,7 @@ TEST_CASE("GPU Dataset handle PutBlob+GetBlob round trip",
   ctp::GpuApi::Synchronize();
 
   // ---- Zero the buffer so the GetBlob readback is verifiable. ----
-  std::vector<char> zeros(kBlobBytes, 0);
+  std::vector<byte_t> zeros(kBlobBytes);
   ctp::GpuApi::Memcpy(data, zeros.data(), kBlobBytes);
 
   // ---- Submit GetBlob from a kernel via the handle. ----
@@ -161,7 +163,7 @@ TEST_CASE("GPU Dataset handle fused fill+write round trip",
   kvhdf5::GpuCteDataset ds(ipc, gpu_info, /*gpu_id=*/0, env.tag_id, name,
                            kBlobBytes);
   kvhdf5::GpuDatasetHandle h = ds.Handle();
-  char *data = ds.DeviceData();
+  byte_t *data = ds.DeviceData();
 
   // ---- Fill + submit PutBlob in a single launch (no host sync between). ----
   std::fprintf(stderr, "[put] launching DsFillAndWriteKernel (fused)\n");
@@ -169,7 +171,7 @@ TEST_CASE("GPU Dataset handle fused fill+write round trip",
   ctp::GpuApi::Synchronize();
 
   // ---- Zero, read back via the handle, verify. ----
-  std::vector<char> zeros(kBlobBytes, 0);
+  std::vector<byte_t> zeros(kBlobBytes);
   ctp::GpuApi::Memcpy(data, zeros.data(), kBlobBytes);
   DsReadKernel<<<1, 32>>>(h);
   ctp::GpuApi::Synchronize();

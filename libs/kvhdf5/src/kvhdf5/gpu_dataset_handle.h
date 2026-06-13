@@ -32,11 +32,11 @@ struct GpuDatasetHandle {
     chi::IpcManagerGpuInfo info_;
     ctp::ipc::FullPtr<cte::PutBlobTask> put_fp_;
     ctp::ipc::FullPtr<cte::GetBlobTask> get_fp_;
-    char* data_ = nullptr;       // registered device blob buffer
+    byte_t* data_ = nullptr;     // registered device blob buffer
     uint64_t size_ = 0;
 
 #if CTP_IS_GPU_COMPILER
-    __device__ char* Data() const { return data_; }
+    __device__ byte_t* Data() const { return data_; }
     __device__ uint64_t Size() const { return size_; }
 
     // Submit the pre-built PutBlob task and wait. Thread-0 of the block enqueues;

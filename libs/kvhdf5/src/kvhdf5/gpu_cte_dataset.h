@@ -40,8 +40,8 @@ class GpuCteDataset {
 
     ctp::ipc::AllocatorId task_alloc_{};  // task slots + co-located futures
     ctp::ipc::AllocatorId data_alloc_{};  // blob data buffer
-    char* task_base_ = nullptr;
-    char* data_base_ = nullptr;
+    byte_t* task_base_ = nullptr;
+    byte_t* data_base_ = nullptr;
     uint64_t bytes_ = 0;
 
     GpuDatasetHandle handle_{};
@@ -65,14 +65,20 @@ public:
         if (name_buf[chunking::kMaxBlobNameLen] != '\0')
             throw std::runtime_error("GpuCteDataset: blob name too long");
 
+        // iowarp hands back the registered base as char*; we keep raw-byte
+        // buffers as byte_t* (the codebase convention; names stay char*).
+        char* task_base = nullptr;
         const uint32_t task_bytes = kPutSlot + kGetSlot + 64;
         task_alloc_ = ipc_->AllocateAndRegisterGpuBackend(
-            gpu_id_, MemKind::kDeviceMem, task_bytes, &task_base_);
+            gpu_id_, MemKind::kDeviceMem, task_bytes, &task_base);
+        task_base_ = reinterpret_cast<byte_t*>(task_base);
         if (task_alloc_.IsNull() || task_base_ == nullptr)
             throw std::runtime_error("GpuCteDataset: task backend alloc failed");
 
+        char* data_base = nullptr;
         data_alloc_ = ipc_->AllocateAndRegisterGpuBackend(
-            gpu_id_, MemKind::kDeviceMem, bytes_, &data_base_);
+            gpu_id_, MemKind::kDeviceMem, bytes_, &data_base);
+        data_base_ = reinterpret_cast<byte_t*>(data_base);
         if (data_alloc_.IsNull() || data_base_ == nullptr) {
             ipc_->FreeGpuBackend(gpu_id_, task_alloc_);
             throw std::runtime_error("GpuCteDataset: data backend alloc failed");
@@ -96,7 +102,7 @@ public:
     }
 
     [[nodiscard]] GpuDatasetHandle Handle() const { return handle_; }
-    [[nodiscard]] char* DeviceData() const { return data_base_; }
+    [[nodiscard]] byte_t* DeviceData() const { return data_base_; }
     [[nodiscard]] uint64_t Bytes() const { return bytes_; }
 
 private:
@@ -108,7 +114,7 @@ private:
         blob_shm.alloc_id_.SetNull();
         blob_shm.off_ = reinterpret_cast<chi::u64>(data_base_);
 
-        alignas(64) char put_proto[kPutSlot];
+        alignas(64) byte_t put_proto[kPutSlot];
         std::memset(put_proto, 0, sizeof(put_proto));
         auto* put = new (put_proto) cte::PutBlobTask(
             chi::CreateTaskId(), cte::kCtePoolId, chi::PoolQuery::ToLocalCpu(),
@@ -118,7 +124,7 @@ private:
         new (put_proto + sizeof(cte::PutBlobTask)) chi::gpu::FutureShm();
         ctp::GpuApi::Memcpy(task_base_, put_proto, sizeof(put_proto));
 
-        alignas(64) char get_proto[kGetSlot];
+        alignas(64) byte_t get_proto[kGetSlot];
         std::memset(get_proto, 0, sizeof(get_proto));
         auto* get = new (get_proto) cte::GetBlobTask(
             chi::CreateTaskId(), cte::kCtePoolId, chi::PoolQuery::ToLocalCpu(),
@@ -130,7 +136,7 @@ private:
     }
 
     template<typename TaskT>
-    static ctp::ipc::FullPtr<TaskT> MakeFullPtr(char* device_addr) {
+    static ctp::ipc::FullPtr<TaskT> MakeFullPtr(byte_t* device_addr) {
         ctp::ipc::FullPtr<TaskT> fp;
         fp.shm_.alloc_id_.SetNull();
         fp.shm_.off_ = reinterpret_cast<chi::u64>(device_addr);
