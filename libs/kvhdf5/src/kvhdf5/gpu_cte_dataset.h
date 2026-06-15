@@ -1,17 +1,25 @@
 #pragma once
 
-// Host control plane for one GPU-resident, single-chunk dataset on the new
-// iowarp producer-only CTE model. Lifts the proven mechanics of the integration
-// reference (test_cte_devmem_putget): preallocate registered kDeviceMem backends
-// for the PutBlob/GetBlob tasks (+ co-located FutureShm) and the blob data
-// buffer, stamp the task prototypes onto the device once, and hand out a
-// trivially-copyable GpuDatasetHandle the user's kernel submits.
+// Host control plane for a GPU-resident dataset on the new iowarp producer-only
+// CTE model. Lifts the proven mechanics of the integration reference
+// (test_cte_devmem_putget): preallocate registered kDeviceMem backends for the
+// per-chunk PutBlob/GetBlob tasks (+ co-located FutureShm) and the blob data
+// buffers, stamp the task prototypes onto the device once, build a device-side
+// ChunkDesc array, and hand out a small by-value GpuDatasetHandle the user's
+// kernel submits.
+//
+// Generalized to N chunks (Phase 2): the single-chunk case is just N==1. Each
+// chunk gets its own task slot pair and its own distinct region of the data
+// backend (concurrent multi-chunk Put/Get can't alias one buffer). The handle
+// carries a pointer to the device ChunkDesc array + the count, so its size is
+// independent of N.
 //
 // This is NOT a BlobBackend — its surface is Handle(), not WriteChunk/ReadChunk.
-// It owns two device allocations, so it is move-only and frees them in the dtor.
+// It owns three device allocations, so it is move-only and frees them in the dtor.
 
 #include "../defines.h"
 #include "chunking.h"
+#include "cpu_dataset.h"  // Layout
 #include "gpu_dataset_handle.h"
 
 #include <clio_runtime/ipc_manager.h>
@@ -26,6 +34,8 @@
 #include <cstring>
 #include <new>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 // Host-only control plane: guarded out of the nvcc device pass (kernels need
 // only GpuDatasetHandle, included above). Mirrors how the reference guards its
@@ -38,11 +48,15 @@ class GpuCteDataset {
     chi::IpcManager* ipc_ = nullptr;
     uint32_t gpu_id_ = 0;
 
-    ctp::ipc::AllocatorId task_alloc_{};  // task slots + co-located futures
-    ctp::ipc::AllocatorId data_alloc_{};  // blob data buffer
+    ctp::ipc::AllocatorId task_alloc_{};  // N task slots + co-located futures
+    ctp::ipc::AllocatorId data_alloc_{};  // N distinct blob data regions
+    ctp::ipc::AllocatorId desc_alloc_{};  // device ChunkDesc array
     byte_t* task_base_ = nullptr;
     byte_t* data_base_ = nullptr;
-    uint64_t bytes_ = 0;
+    ChunkDesc* desc_base_ = nullptr;      // device array (count_ entries)
+
+    std::vector<ChunkDesc> host_descs_;   // host mirror (for host accessors + H2D)
+    uint32_t count_ = 0;
 
     GpuDatasetHandle handle_{};
 
@@ -50,44 +64,66 @@ class GpuCteDataset {
         sizeof(cte::PutBlobTask) + sizeof(chi::gpu::FutureShm);
     static constexpr uint32_t kGetSlot =
         sizeof(cte::GetBlobTask) + sizeof(chi::gpu::FutureShm);
+    static constexpr uint32_t kSlotPair = kPutSlot + kGetSlot;
 
     using MemKind = chi::gpu::IpcManager::MemKind;
 
+    // One chunk's blob name (NUL-terminated C-string) + raw byte count.
+    struct ChunkSpec {
+        const char* name;
+        uint64_t bytes;
+    };
+
 public:
-    // `name` must be a NUL-terminated chunk-blob name (<= kMaxBlobNameLen);
-    // `bytes` is the chunk's raw byte count. Throws on any iowarp failure.
+    // Single chunk: `name` is a NUL-terminated chunk-blob name (<= kMaxBlobNameLen),
+    // `bytes` the chunk's raw byte count. Throws on any iowarp failure.
     GpuCteDataset(chi::IpcManager* ipc, chi::IpcManagerGpuInfo info,
                   uint32_t gpu_id, cte::TagId tag, const char* name,
                   uint64_t bytes)
-        : ipc_(ipc), gpu_id_(gpu_id), bytes_(bytes) {
-        char name_buf[chunking::kMaxBlobNameLen + 1];
-        std::strncpy(name_buf, name, sizeof(name_buf));
-        if (name_buf[chunking::kMaxBlobNameLen] != '\0')
-            throw std::runtime_error("GpuCteDataset: blob name too long");
+        : ipc_(ipc), gpu_id_(gpu_id) {
+        ChunkSpec spec{name, bytes};
+        Init(info, tag, {&spec, 1});
+    }
 
-        // iowarp hands back the registered base as char*; we keep raw-byte
-        // buffers as byte_t* (the codebase convention; names stay char*).
-        char* task_base = nullptr;
-        const uint32_t task_bytes = kPutSlot + kGetSlot + 64;
-        task_alloc_ = ipc_->AllocateAndRegisterGpuBackend(
-            gpu_id_, MemKind::kDeviceMem, task_bytes, &task_base);
-        task_base_ = reinterpret_cast<byte_t*>(task_base);
-        if (task_alloc_.IsNull() || task_base_ == nullptr)
-            throw std::runtime_error("GpuCteDataset: task backend alloc failed");
+    // Multi-chunk: derive one chunk per layout chunk-coordinate. The blob name is
+    // the chunk coord text (chunking::ChunkCoordToName); the size is the (uniform)
+    // chunk byte count. Requires each dim divisible by its chunk dim (equal-size
+    // chunks; edge-chunk handling is deferred). Throws on any iowarp failure.
+    GpuCteDataset(chi::IpcManager* ipc, chi::IpcManagerGpuInfo info,
+                  uint32_t gpu_id, cte::TagId tag, const Layout& layout)
+        : ipc_(ipc), gpu_id_(gpu_id) {
+        if (!layout.Valid())
+            throw std::runtime_error("GpuCteDataset: invalid layout");
+        const size_t rank = layout.dims.size();
+        for (size_t i = 0; i < rank; ++i)
+            if (layout.dims[i] % layout.chunk_dims[i] != 0)
+                throw std::runtime_error(
+                    "GpuCteDataset: non-divisible dims (edge chunks unsupported)");
 
-        char* data_base = nullptr;
-        data_alloc_ = ipc_->AllocateAndRegisterGpuBackend(
-            gpu_id_, MemKind::kDeviceMem, bytes_, &data_base);
-        data_base_ = reinterpret_cast<byte_t*>(data_base);
-        if (data_alloc_.IsNull() || data_base_ == nullptr) {
-            ipc_->FreeGpuBackend(gpu_id_, task_alloc_);
-            throw std::runtime_error("GpuCteDataset: data backend alloc failed");
+        uint64_t chunk_elems = 1;
+        for (uint64_t cd : layout.chunk_dims) chunk_elems *= cd;
+        const uint64_t chunk_bytes = chunk_elems * layout.elem_size;
+        const uint64_t cc = layout.ChunkCount();
+
+        // Own the chunk-coord names so ChunkSpec's const char* stay valid through
+        // Init (vector<string> must not reallocate after we take .c_str()).
+        std::vector<std::string> names;
+        names.reserve(cc);
+        for (uint64_t idx = 0; idx < cc; ++idx) {
+            uint64_t coord[MAX_DIMS] = {};
+            chunking::ChunkIndexToCoord(idx, layout.Dims(), layout.ChunkDims(),
+                                        {coord, rank});
+            char buf[chunking::kMaxBlobNameLen + 1];
+            auto nm = chunking::ChunkCoordToName({coord, rank}, buf);
+            if (nm.empty())
+                throw std::runtime_error("GpuCteDataset: chunk name too long");
+            names.emplace_back(nm.data(), nm.size());
         }
+        std::vector<ChunkSpec> specs;
+        specs.reserve(cc);
+        for (const auto& n : names) specs.push_back({n.c_str(), chunk_bytes});
 
-        StampTasks(tag, name_buf);
-        handle_ = {info, MakeFullPtr<cte::PutBlobTask>(task_base_),
-                   MakeFullPtr<cte::GetBlobTask>(task_base_ + kPutSlot),
-                   data_base_, bytes_};
+        Init(info, tag, {specs.data(), specs.size()});
     }
 
     ~GpuCteDataset() { Free(); }
@@ -102,37 +138,115 @@ public:
     }
 
     [[nodiscard]] GpuDatasetHandle Handle() const { return handle_; }
-    [[nodiscard]] byte_t* DeviceData() const { return data_base_; }
-    [[nodiscard]] uint64_t Bytes() const { return bytes_; }
+    [[nodiscard]] uint32_t ChunkCount() const { return count_; }
+
+    // Indexed device-buffer / size accessors (host side, for zero/verify).
+    [[nodiscard]] byte_t* DeviceData(uint32_t c) const { return host_descs_[c].data; }
+    [[nodiscard]] uint64_t ChunkBytes(uint32_t c) const { return host_descs_[c].size; }
+
+    // Single-chunk convenience: chunk 0.
+    [[nodiscard]] byte_t* DeviceData() const { return host_descs_[0].data; }
+    [[nodiscard]] uint64_t Bytes() const { return host_descs_[0].size; }
 
 private:
-    // Placement-new each task prototype (+ its FutureShm) on the host and copy
-    // it into the registered device slot. shm.off_ carries the raw device data
-    // pointer with a null alloc_id (the kernel reads it as an absolute address).
-    void StampTasks(cte::TagId tag, const char* name) {
+    void Init(chi::IpcManagerGpuInfo info, cte::TagId tag,
+              cstd::span<const ChunkSpec> specs) {
+        count_ = static_cast<uint32_t>(specs.size());
+        if (count_ == 0)
+            throw std::runtime_error("GpuCteDataset: zero chunks");
+
+        // Validate names + total data bytes (prefix offsets into one backend).
+        uint64_t total_data = 0;
+        for (const auto& s : specs) {
+            if (std::strlen(s.name) > chunking::kMaxBlobNameLen)
+                throw std::runtime_error("GpuCteDataset: blob name too long");
+            total_data += s.bytes;
+        }
+
+        // (a) Task backend: count_ * (put-slot + get-slot), + pad.
+        char* task_base = nullptr;
+        const uint64_t task_bytes =
+            static_cast<uint64_t>(count_) * kSlotPair + 64;
+        task_alloc_ = ipc_->AllocateAndRegisterGpuBackend(
+            gpu_id_, MemKind::kDeviceMem, task_bytes, &task_base);
+        task_base_ = reinterpret_cast<byte_t*>(task_base);
+        if (task_alloc_.IsNull() || task_base_ == nullptr)
+            throw std::runtime_error("GpuCteDataset: task backend alloc failed");
+
+        // (b) Data backend: one buffer partitioned into N distinct regions.
+        char* data_base = nullptr;
+        data_alloc_ = ipc_->AllocateAndRegisterGpuBackend(
+            gpu_id_, MemKind::kDeviceMem, total_data, &data_base);
+        data_base_ = reinterpret_cast<byte_t*>(data_base);
+        if (data_alloc_.IsNull() || data_base_ == nullptr) {
+            ipc_->FreeGpuBackend(gpu_id_, task_alloc_);
+            throw std::runtime_error("GpuCteDataset: data backend alloc failed");
+        }
+
+        // (c) Descriptor array backend: count_ ChunkDescs the kernel reads.
+        char* desc_base = nullptr;
+        const uint64_t desc_bytes =
+            static_cast<uint64_t>(count_) * sizeof(ChunkDesc);
+        desc_alloc_ = ipc_->AllocateAndRegisterGpuBackend(
+            gpu_id_, MemKind::kDeviceMem, desc_bytes, &desc_base);
+        desc_base_ = reinterpret_cast<ChunkDesc*>(desc_base);
+        if (desc_alloc_.IsNull() || desc_base_ == nullptr) {
+            ipc_->FreeGpuBackend(gpu_id_, data_alloc_);
+            ipc_->FreeGpuBackend(gpu_id_, task_alloc_);
+            throw std::runtime_error("GpuCteDataset: desc backend alloc failed");
+        }
+
+        // Stamp each chunk's task pair and build the host ChunkDesc mirror.
+        host_descs_.resize(count_);
+        uint64_t data_off = 0;
+        for (uint32_t c = 0; c < count_; ++c) {
+            byte_t* put_slot = task_base_ + static_cast<uint64_t>(c) * kSlotPair;
+            byte_t* get_slot = put_slot + kPutSlot;
+            byte_t* chunk_data = data_base_ + data_off;
+            StampChunk(tag, specs[c].name, specs[c].bytes, put_slot, get_slot,
+                       chunk_data);
+            host_descs_[c] = {MakeFullPtr<cte::PutBlobTask>(put_slot),
+                              MakeFullPtr<cte::GetBlobTask>(get_slot),
+                              chunk_data, specs[c].bytes};
+            data_off += specs[c].bytes;
+        }
+
+        // Copy the descriptor array to the device once.
+        ctp::GpuApi::Memcpy(desc_base_, host_descs_.data(),
+                            count_ * sizeof(ChunkDesc));
+
+        handle_ = {info, desc_base_, count_};
+    }
+
+    // Placement-new this chunk's Put/Get prototypes (+ their FutureShm) on the
+    // host and copy them into its registered device task slots. shm.off_ carries
+    // the raw device data pointer with a null alloc_id (the kernel reads it as an
+    // absolute address).
+    void StampChunk(cte::TagId tag, const char* name, uint64_t bytes,
+                    byte_t* put_slot, byte_t* get_slot, byte_t* chunk_data) {
         ctp::ipc::ShmPtr<> blob_shm;
         blob_shm.alloc_id_.SetNull();
-        blob_shm.off_ = reinterpret_cast<chi::u64>(data_base_);
+        blob_shm.off_ = reinterpret_cast<chi::u64>(chunk_data);
 
         alignas(64) byte_t put_proto[kPutSlot];
         std::memset(put_proto, 0, sizeof(put_proto));
         auto* put = new (put_proto) cte::PutBlobTask(
             chi::CreateTaskId(), cte::kCtePoolId, chi::PoolQuery::ToLocalCpu(),
-            tag, name, /*offset=*/chi::u64(0), bytes_, blob_shm,
+            tag, name, /*offset=*/chi::u64(0), bytes, blob_shm,
             /*score=*/-1.0f, cte::Context(), /*flags=*/chi::u32(0));
         put->pod_size_ = sizeof(cte::PutBlobTask);
         new (put_proto + sizeof(cte::PutBlobTask)) chi::gpu::FutureShm();
-        ctp::GpuApi::Memcpy(task_base_, put_proto, sizeof(put_proto));
+        ctp::GpuApi::Memcpy(put_slot, put_proto, sizeof(put_proto));
 
         alignas(64) byte_t get_proto[kGetSlot];
         std::memset(get_proto, 0, sizeof(get_proto));
         auto* get = new (get_proto) cte::GetBlobTask(
             chi::CreateTaskId(), cte::kCtePoolId, chi::PoolQuery::ToLocalCpu(),
-            tag, name, /*offset=*/chi::u64(0), bytes_, /*flags=*/chi::u32(0),
+            tag, name, /*offset=*/chi::u64(0), bytes, /*flags=*/chi::u32(0),
             blob_shm);
         get->pod_size_ = sizeof(cte::GetBlobTask);
         new (get_proto + sizeof(cte::GetBlobTask)) chi::gpu::FutureShm();
-        ctp::GpuApi::Memcpy(task_base_ + kPutSlot, get_proto, sizeof(get_proto));
+        ctp::GpuApi::Memcpy(get_slot, get_proto, sizeof(get_proto));
     }
 
     template<typename TaskT>
@@ -145,6 +259,7 @@ private:
     }
 
     void Free() {
+        if (!desc_alloc_.IsNull()) ipc_->FreeGpuBackend(gpu_id_, desc_alloc_);
         if (!data_alloc_.IsNull()) ipc_->FreeGpuBackend(gpu_id_, data_alloc_);
         if (!task_alloc_.IsNull()) ipc_->FreeGpuBackend(gpu_id_, task_alloc_);
     }
@@ -154,14 +269,20 @@ private:
         gpu_id_ = o.gpu_id_;
         task_alloc_ = o.task_alloc_;
         data_alloc_ = o.data_alloc_;
+        desc_alloc_ = o.desc_alloc_;
         task_base_ = o.task_base_;
         data_base_ = o.data_base_;
-        bytes_ = o.bytes_;
+        desc_base_ = o.desc_base_;
+        host_descs_ = std::move(o.host_descs_);
+        count_ = o.count_;
         handle_ = o.handle_;
         o.task_alloc_.SetNull();
         o.data_alloc_.SetNull();
+        o.desc_alloc_.SetNull();
         o.task_base_ = nullptr;
         o.data_base_ = nullptr;
+        o.desc_base_ = nullptr;
+        o.count_ = 0;
     }
 };
 
