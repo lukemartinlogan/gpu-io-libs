@@ -201,6 +201,54 @@ TEST_CASE("GPU multi-chunk PutBlob+GetBlob round trip via dataset handle",
     RunAndVerify(ds, kSeedBase, "1d", /*grid=*/2);
 }
 
+// Phase 4 tag-wiring follow-up: build a GPU dataset straight from a DatasetMeta
+// (path + layout). FromDataset canonicalizes the path into the CTE tag and
+// resolves it to a TagId via get-or-create; the blob key stays the chunk coord.
+// Proves the full path -> TagId -> GPU-resident blobs round-trip without the
+// caller hand-resolving a tag.
+TEST_CASE("GPU dataset built from a DatasetMeta path resolves its tag end-to-end",
+          "[integration][gpu][cte][tagwire]") {
+    auto& env = kvhdf5::itest::SharedCteEnv();
+    (void)env;
+    auto* ipc = CLIO_CPU_IPC;
+    REQUIRE(ipc->GetGpuIpcManager() != nullptr);
+    chi::IpcManagerGpuInfo gpu_info =
+        ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
+    REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
+
+    kvhdf5::Layout layout{/*dims=*/{kChunkCount * kChunkBytes},
+                          /*chunk_dims=*/{kChunkBytes}, /*elem_size=*/1};
+    kvhdf5::DatasetMeta meta{"/results//snapshots/2026/pressure/", layout};
+    REQUIRE(meta.TagName() == "results/snapshots/2026/pressure");
+
+    auto ds = kvhdf5::GpuCteDataset::FromDataset(
+        ipc, gpu_info, /*gpu_id=*/0, CLIO_CTE_CLIENT, meta);
+    REQUIRE(ds.ChunkCount() == kChunkCount);
+    RunAndVerify(ds, /*seed_base=*/0xC0u, "tagwire", /*grid=*/2);
+}
+
+// Decoupled (minimal) surface: the GPU producer needs only a path (-> tag) and a
+// layout, NOT a host metadata struct. FromPath canonicalizes the path and resolves
+// the tag inline; no DatasetMeta / cpu_file directory model in sight.
+TEST_CASE("GPU dataset built from a bare path + layout (no metadata struct)",
+          "[integration][gpu][cte][tagwire]") {
+    auto& env = kvhdf5::itest::SharedCteEnv();
+    (void)env;
+    auto* ipc = CLIO_CPU_IPC;
+    REQUIRE(ipc->GetGpuIpcManager() != nullptr);
+    chi::IpcManagerGpuInfo gpu_info =
+        ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
+    REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
+
+    kvhdf5::Layout layout{/*dims=*/{kChunkCount * kChunkBytes},
+                          /*chunk_dims=*/{kChunkBytes}, /*elem_size=*/1};
+    auto ds = kvhdf5::GpuCteDataset::FromPath(
+        ipc, gpu_info, /*gpu_id=*/0, CLIO_CTE_CLIENT,
+        "results/snapshots/2026/velocity", layout);
+    REQUIRE(ds.ChunkCount() == kChunkCount);
+    RunAndVerify(ds, /*seed_base=*/0xD0u, "frompath", /*grid=*/2);
+}
+
 // Covers two things the 1-D case above doesn't: (a) the Layout ctor's
 // multi-dimensional chunk-coord name derivation (2-D -> "r_c" names via
 // ChunkIndexToCoord with rank>1), and (b) GpuCteDataset's MULTI-chunk move ctor

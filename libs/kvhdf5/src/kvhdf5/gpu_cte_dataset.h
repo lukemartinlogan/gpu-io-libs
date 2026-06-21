@@ -32,10 +32,13 @@
 #include <clio_cte/core/core_client.h>
 #include <clio_cte/core/core_tasks.h>
 
+#include "tag_path.h"  // CanonicalTag (path->tag string)
+
 #include <cstring>
 #include <new>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // Host-only control plane: guarded out of the nvcc device pass (kernels need
@@ -137,22 +140,32 @@ public:
         Init(info, tag, {specs.data(), specs.size()}, pool_size);
     }
 
-    // Build a GPU dataset directly from a DatasetMeta: its path is canonicalized
-    // into the CTE tag (DatasetMeta::TagName — the path->tag scheme) and resolved
-    // to a TagId via get-or-create on `cte_client`; its layout drives the chunks.
-    // The blob key stays the chunk coordinate, so chunks address as
-    // (path-tag, chunk-coord). Throws if the path has no valid segment or on any
-    // iowarp failure. pool_size forwards to the bounded-buffer pool (Phase 3).
+    // Primary path->GPU surface: the producer needs only a dataset `path` (-> tag)
+    // and a `layout` (chunk geometry) — no host metadata struct. `path` is
+    // canonicalized into the CTE tag (the path->tag scheme) and resolved to a TagId
+    // via get-or-create on `cte_client`; the blob key stays the chunk coordinate,
+    // so chunks address as (path-tag, chunk-coord). Throws if the path has no valid
+    // segment or on any iowarp failure. pool_size forwards to the Phase 3 pool.
+    static GpuCteDataset FromPath(chi::IpcManager* ipc,
+                                  chi::IpcManagerGpuInfo info, uint32_t gpu_id,
+                                  cte::Client* cte_client, std::string_view path,
+                                  const Layout& layout, uint32_t pool_size = 0) {
+        std::string tag_name = tagpath::CanonicalTag(path);
+        if (tag_name.empty())
+            throw std::runtime_error("GpuCteDataset::FromPath: empty/invalid tag path");
+        cte::TagId tag = ResolveTagId(cte_client, tag_name);
+        return GpuCteDataset(ipc, info, gpu_id, tag, layout, pool_size);
+    }
+
+    // Convenience over FromPath for callers that already hold a DatasetMeta (the
+    // host directory model). The GPU path itself depends only on path + layout.
     static GpuCteDataset FromDataset(chi::IpcManager* ipc,
                                      chi::IpcManagerGpuInfo info, uint32_t gpu_id,
                                      cte::Client* cte_client,
                                      const DatasetMeta& meta,
                                      uint32_t pool_size = 0) {
-        std::string tag_name = meta.TagName();
-        if (tag_name.empty())
-            throw std::runtime_error("GpuCteDataset::FromDataset: empty tag path");
-        cte::TagId tag = ResolveTagId(cte_client, tag_name);
-        return GpuCteDataset(ipc, info, gpu_id, tag, meta.layout, pool_size);
+        return FromPath(ipc, info, gpu_id, cte_client, meta.path, meta.layout,
+                        pool_size);
     }
 
     ~GpuCteDataset() { Free(); }
