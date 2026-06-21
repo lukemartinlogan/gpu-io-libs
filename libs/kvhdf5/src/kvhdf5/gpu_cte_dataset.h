@@ -57,6 +57,7 @@ class GpuCteDataset {
 
     std::vector<ChunkDesc> host_descs_;   // host mirror (for host accessors + H2D)
     uint32_t count_ = 0;
+    uint32_t pool_ = 0;                    // resident data buffers M (M==count_ if unpooled)
 
     GpuDatasetHandle handle_{};
 
@@ -89,8 +90,17 @@ public:
     // the chunk coord text (chunking::ChunkCoordToName); the size is the (uniform)
     // chunk byte count. Requires each dim divisible by its chunk dim (equal-size
     // chunks; edge-chunk handling is deferred). Throws on any iowarp failure.
+    //
+    // pool_size (Phase 3 "P"): bound the resident data buffers to M = pool_size,
+    // M < N. Chunk c reuses data buffer c % M; its task still has a distinct blob
+    // name, so N chunks stream through M buffers. pool_size == 0 (default) keeps
+    // one buffer per chunk (M == N). Pooling requires uniform chunk size (the
+    // Layout ctor already produces that). Buffer-exclusivity: the producer kernel
+    // MUST launch grid == M so each pooled buffer is owned by a single block and
+    // reuse is serialized by that block's Write() = Send().Wait().
     GpuCteDataset(chi::IpcManager* ipc, chi::IpcManagerGpuInfo info,
-                  uint32_t gpu_id, cte::TagId tag, const Layout& layout)
+                  uint32_t gpu_id, cte::TagId tag, const Layout& layout,
+                  uint32_t pool_size = 0)
         : ipc_(ipc), gpu_id_(gpu_id) {
         if (!layout.Valid())
             throw std::runtime_error("GpuCteDataset: invalid layout");
@@ -123,7 +133,7 @@ public:
         specs.reserve(cc);
         for (const auto& n : names) specs.push_back({n.c_str(), chunk_bytes});
 
-        Init(info, tag, {specs.data(), specs.size()});
+        Init(info, tag, {specs.data(), specs.size()}, pool_size);
     }
 
     ~GpuCteDataset() { Free(); }
@@ -139,6 +149,9 @@ public:
 
     [[nodiscard]] GpuDatasetHandle Handle() const { return handle_; }
     [[nodiscard]] uint32_t ChunkCount() const { return count_; }
+    // Resident data-buffer count M (== ChunkCount() when unpooled). The producer
+    // kernel must launch grid == PoolSize() so each buffer is owned by one block.
+    [[nodiscard]] uint32_t PoolSize() const { return pool_; }
 
     // Indexed device-buffer / size accessors (host side, for zero/verify).
     [[nodiscard]] byte_t* DeviceData(uint32_t c) const { return host_descs_[c].data; }
@@ -150,20 +163,37 @@ public:
 
 private:
     void Init(chi::IpcManagerGpuInfo info, cte::TagId tag,
-              cstd::span<const ChunkSpec> specs) {
+              cstd::span<const ChunkSpec> specs, uint32_t pool_size = 0) {
         count_ = static_cast<uint32_t>(specs.size());
         if (count_ == 0)
             throw std::runtime_error("GpuCteDataset: zero chunks");
 
-        // Validate names + total data bytes (prefix offsets into one backend).
+        // Bounded data-buffer pool (Phase 3 "P"): M resident buffers, chunk c uses
+        // buffer c % M. pool_size 0 or >= count_ means one buffer per chunk (M==N).
+        pool_ = (pool_size == 0 || pool_size >= count_) ? count_ : pool_size;
+        const bool pooling = pool_ < count_;
+
+        // Validate names + size the data backend. Non-pooled: prefix-offset every
+        // chunk into one backend (sizes may differ). Pooled: M uniform-size slots.
         uint64_t total_data = 0;
+        uint64_t slot_bytes = specs[0].bytes;
         for (const auto& s : specs) {
             if (std::strlen(s.name) > chunking::kMaxBlobNameLen)
                 throw std::runtime_error("GpuCteDataset: blob name too long");
             total_data += s.bytes;
+            if (pooling && s.bytes != slot_bytes)
+                throw std::runtime_error(
+                    "GpuCteDataset: buffer pool requires uniform chunk size");
         }
+        const uint64_t data_bytes =
+            pooling ? static_cast<uint64_t>(pool_) * slot_bytes : total_data;
 
         // (a) Task backend: count_ * (put-slot + get-slot), + pad.
+        // MUST be kDeviceMem: the kernel's FullPtr addressing + FutureShm
+        // poll rely on it. (Tried kPinnedHost to dodge the worker staging path —
+        // it BROKE even the 256 B case, so reverted. The concurrent-large-Put
+        // corruption is NOT fixable via the data/task MemKind; it's upstream in
+        // the gpu2cpu lane/worker path. See phase3-bounded-pool-plan.md.)
         char* task_base = nullptr;
         const uint64_t task_bytes =
             static_cast<uint64_t>(count_) * kSlotPair + 64;
@@ -173,10 +203,14 @@ private:
         if (task_alloc_.IsNull() || task_base_ == nullptr)
             throw std::runtime_error("GpuCteDataset: task backend alloc failed");
 
-        // (b) Data backend: one buffer partitioned into N distinct regions.
+        // (b) Data backend: one buffer partitioned into M distinct regions
+        // (M == N when not pooling; M == pool_ < N when pooling, chunks share).
+        // kDeviceMem (matches the reference). NOTE: switching this alone to
+        // kPinnedHost did NOT fix the concurrent-large-Put corruption (Phase 3) —
+        // the race is upstream, not in this MemKind choice.
         char* data_base = nullptr;
         data_alloc_ = ipc_->AllocateAndRegisterGpuBackend(
-            gpu_id_, MemKind::kDeviceMem, total_data, &data_base);
+            gpu_id_, MemKind::kDeviceMem, data_bytes, &data_base);
         data_base_ = reinterpret_cast<byte_t*>(data_base);
         if (data_alloc_.IsNull() || data_base_ == nullptr) {
             ipc_->FreeGpuBackend(gpu_id_, task_alloc_);
@@ -197,18 +231,22 @@ private:
         }
 
         // Stamp each chunk's task pair and build the host ChunkDesc mirror.
+        // Pooled: chunk c's data points at buffer c % pool_ (shared). Non-pooled:
+        // each chunk gets its own prefix-offset region.
         host_descs_.resize(count_);
         uint64_t data_off = 0;
         for (uint32_t c = 0; c < count_; ++c) {
             byte_t* put_slot = task_base_ + static_cast<uint64_t>(c) * kSlotPair;
             byte_t* get_slot = put_slot + kPutSlot;
-            byte_t* chunk_data = data_base_ + data_off;
+            byte_t* chunk_data =
+                pooling ? data_base_ + static_cast<uint64_t>(c % pool_) * slot_bytes
+                        : data_base_ + data_off;
             StampChunk(tag, specs[c].name, specs[c].bytes, put_slot, get_slot,
                        chunk_data);
             host_descs_[c] = {MakeFullPtr<cte::PutBlobTask>(put_slot),
                               MakeFullPtr<cte::GetBlobTask>(get_slot),
                               chunk_data, specs[c].bytes};
-            data_off += specs[c].bytes;
+            if (!pooling) data_off += specs[c].bytes;
         }
 
         // Copy the descriptor array to the device once.
@@ -275,6 +313,7 @@ private:
         desc_base_ = o.desc_base_;
         host_descs_ = std::move(o.host_descs_);
         count_ = o.count_;
+        pool_ = o.pool_;
         handle_ = o.handle_;
         o.task_alloc_.SetNull();
         o.data_alloc_.SetNull();
@@ -283,6 +322,7 @@ private:
         o.data_base_ = nullptr;
         o.desc_base_ = nullptr;
         o.count_ = 0;
+        o.pool_ = 0;
     }
 };
 
