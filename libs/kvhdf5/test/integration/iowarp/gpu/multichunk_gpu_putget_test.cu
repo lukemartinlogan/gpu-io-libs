@@ -341,9 +341,14 @@ TEST_CASE("GPU data-buffer pool: Wait gates buffer reuse (2 chunks, 1 buffer)",
     chi::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
+    // Tag = the dataset's full path, canonicalized (the path->tag scheme); the
+    // blob key stays the chunk coord. Proves a real path-tag round-trips iowarp.
+    std::string tag = kvhdf5::tagpath::CanonicalTag(
+        "/results//snapshots/2026/temperature/");
+    REQUIRE(tag == "results/snapshots/2026/temperature");
     RunPoolAndVerifyHost(ipc, gpu_info, /*chunks=*/2, /*pool=*/1,
                          /*chunk_bytes=*/kChunkBytes, 0x90u,
-                         "kvhdf5_pool_spike", "spike-2c-1b");
+                         tag.c_str(), "spike-2c-1b");
 }
 
 // P milestone: 8 chunks stream through 3 resident buffers (M < N). Each buffer is
@@ -356,9 +361,13 @@ TEST_CASE("GPU data-buffer pool: 8 chunks through 3 buffers",
     chi::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
+    // Distinct dataset path -> distinct tag (avoids chunk-coord blob-name
+    // collision with the other pool case while sharing the same scheme).
+    std::string tag = kvhdf5::tagpath::CanonicalTag(
+        "results/snapshots/2026/density");
     RunPoolAndVerifyHost(ipc, gpu_info, /*chunks=*/8, /*pool=*/3,
                          /*chunk_bytes=*/kChunkBytes, 0xA0u,
-                         "kvhdf5_pool_8c3b", "8c-3b");
+                         tag.c_str(), "8c-3b");
 }
 
 // Large-chunk diagnostics (HIDDEN: leading [.] keeps them out of the default

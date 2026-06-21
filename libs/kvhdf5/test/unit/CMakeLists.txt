@@ -4,6 +4,7 @@
 add_executable(kvhdf5_unit_tests
     chunking_test.cpp
     dataset_io_test.cpp
+    tag_path_test.cpp
 )
 
 set_target_properties(kvhdf5_unit_tests PROPERTIES
