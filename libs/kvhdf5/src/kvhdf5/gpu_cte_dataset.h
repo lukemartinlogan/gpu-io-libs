@@ -19,8 +19,9 @@
 
 #include "../defines.h"
 #include "chunking.h"
-#include "cpu_dataset.h"  // Layout
+#include "cpu_dataset.h"  // Layout, DatasetMeta
 #include "gpu_dataset_handle.h"
+#include "tag_resolve.h"  // ResolveTagId (path->TagId)
 
 #include <clio_runtime/ipc_manager.h>
 #include <clio_runtime/types.h>
@@ -134,6 +135,24 @@ public:
         for (const auto& n : names) specs.push_back({n.c_str(), chunk_bytes});
 
         Init(info, tag, {specs.data(), specs.size()}, pool_size);
+    }
+
+    // Build a GPU dataset directly from a DatasetMeta: its path is canonicalized
+    // into the CTE tag (DatasetMeta::TagName — the path->tag scheme) and resolved
+    // to a TagId via get-or-create on `cte_client`; its layout drives the chunks.
+    // The blob key stays the chunk coordinate, so chunks address as
+    // (path-tag, chunk-coord). Throws if the path has no valid segment or on any
+    // iowarp failure. pool_size forwards to the bounded-buffer pool (Phase 3).
+    static GpuCteDataset FromDataset(chi::IpcManager* ipc,
+                                     chi::IpcManagerGpuInfo info, uint32_t gpu_id,
+                                     cte::Client* cte_client,
+                                     const DatasetMeta& meta,
+                                     uint32_t pool_size = 0) {
+        std::string tag_name = meta.TagName();
+        if (tag_name.empty())
+            throw std::runtime_error("GpuCteDataset::FromDataset: empty tag path");
+        cte::TagId tag = ResolveTagId(cte_client, tag_name);
+        return GpuCteDataset(ipc, info, gpu_id, tag, meta.layout, pool_size);
     }
 
     ~GpuCteDataset() { Free(); }
