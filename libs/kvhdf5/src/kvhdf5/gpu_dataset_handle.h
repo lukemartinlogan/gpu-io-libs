@@ -63,18 +63,59 @@ struct GpuDatasetHandle {
     __device__ void Write(uint32_t c) const { Submit(chunks_[c].put_fp); }
     __device__ void Read(uint32_t c) const { Submit(chunks_[c].get_fp); }
 
+    // Async split of Write/Read (the "Phase 2" overlap path): *Async fires the
+    // chunk's pre-built task WITHOUT waiting; *Wait drains it later. Firing many
+    // chunks before draining lets the server's CPU-side IO of earlier chunks
+    // overlap the GPU-side compute of later ones. Requires a distinct buffer per
+    // in-flight chunk (i.e. an unpooled M==N dataset), so a chunk's fill can't
+    // clobber another chunk's buffer while its put is still draining. Thread-0
+    // only; pair every *Async(c) with exactly one *Wait(c) before the kernel
+    // exits (the host Synchronize waits the kernel, not the server's puts).
+    __device__ void WriteAsync(uint32_t c) const { SubmitAsync(chunks_[c].put_fp); }
+    __device__ void ReadAsync(uint32_t c) const { SubmitAsync(chunks_[c].get_fp); }
+    __device__ void WriteWait(uint32_t c) const { SubmitWait(chunks_[c].put_fp); }
+    __device__ void ReadWait(uint32_t c) const { SubmitWait(chunks_[c].get_fp); }
+
     // Single-chunk convenience: target chunk 0.
     __device__ byte_t* Data() const { return chunks_[0].data; }
     __device__ uint64_t Size() const { return chunks_[0].size; }
     __device__ void Write() const { Submit(chunks_[0].put_fp); }
     __device__ void Read() const { Submit(chunks_[0].get_fp); }
+    __device__ void WriteAsync() const { SubmitAsync(chunks_[0].put_fp); }
+    __device__ void WriteWait() const { SubmitWait(chunks_[0].put_fp); }
+    __device__ void ReadAsync() const { SubmitAsync(chunks_[0].get_fp); }
+    __device__ void ReadWait() const { SubmitWait(chunks_[0].get_fp); }
 
 private:
     template<typename TaskT>
     __device__ void Submit(const ctp::ipc::FullPtr<TaskT>& fp) const {
+        SubmitAsync(fp);
+        SubmitWait(fp);
+    }
+
+    // Fire fp's task; thread-0 enqueues, others no-op. Discards the returned
+    // future — SubmitWait rebuilds it from fp's slot (below), so nothing needs
+    // to be retained across the fire/drain gap.
+    template<typename TaskT>
+    __device__ void SubmitAsync(const ctp::ipc::FullPtr<TaskT>& fp) const {
         auto* ipc = chi::gpu::IpcManager::GetBlockIpcManager();
         if (chi::gpu::IpcManager::GetGpuThreadId() != 0) return;
-        auto fut = ipc->Send(fp);
+        (void)ipc->Send(fp);
+    }
+
+    // Drain fp's task: thread-0 polls FUTURE_COMPLETE on its FutureShm. The
+    // FutureShm is co-located immediately after the POD task (ClientSend builds
+    // it at task.ptr_ + sizeof(TaskT)), so the wait is reconstructed statelessly
+    // from fp alone — no stored future. Wait() only reads the FutureShm; the
+    // task_ptr the real future also carried is irrelevant to completion.
+    template<typename TaskT>
+    __device__ void SubmitWait(const ctp::ipc::FullPtr<TaskT>& fp) const {
+        if (chi::gpu::IpcManager::GetGpuThreadId() != 0) return;
+        ctp::ipc::ShmPtr<chi::gpu::FutureShm> fshm;
+        fshm.alloc_id_ = fp.shm_.alloc_id_;
+        fshm.off_ = reinterpret_cast<chi::u64>(
+            reinterpret_cast<char*>(fp.ptr_) + sizeof(TaskT));
+        chi::gpu::Future<TaskT> fut(fshm);
         fut.Wait();
     }
 #endif  // CTP_IS_GPU_COMPILER
