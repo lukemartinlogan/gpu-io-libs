@@ -54,6 +54,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -150,6 +151,17 @@ __global__ void TwDrainKernel(kvhdf5::GpuDatasetHandle h) {
     for (uint32_t c = 0; c < h.Count(); ++c) { h.WriteWait(c); __syncthreads(); }
 }
 
+// XOR the snapshot with a fixed random mask (word-wise) into a scratch buffer, so the
+// PERSISTED bytes are high-entropy / incompressible — otherwise the Gray-Scott field is
+// mostly zeros and a compressing filesystem (e.g. btrfs zstd) makes the "disk I/O" nearly
+// free, voiding any disk comparison. Deterministic (fixed mask) => byte-identical across
+// arms => checksums still match.
+__global__ void MaskKernel(uint32_t* dst, const uint32_t* src, const uint32_t* mask,
+                           unsigned words) {
+    unsigned i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < words) dst[i] = src[i] ^ mask[i];
+}
+
 #if !CTP_IS_DEVICE_PASS
 
 namespace {
@@ -186,6 +198,13 @@ struct Cfg {
     // write to commit). Without it, a buffered raw write just lands in RAM/page-cache and
     // isn't really persisted — doing less work than CLIO. Default on.
     unsigned raw_fsync    = EnvU("GSBENCH_RAW_FSYNC", 1);
+    // XOR each snapshot with a random mask so persisted bytes are incompressible (else the
+    // mostly-zero Gray-Scott field compresses away on btrfs zstd, voiding disk comparisons).
+    unsigned incompressible = EnvU("GSBENCH_INCOMPRESSIBLE", 1);
+    // Raw writer structure: 0 = background thread (I/O overlaps compute); 1 = inline
+    // synchronous (GPU idle during the write, matching host-CLIO / sync-CLIO). Use inline
+    // for a storage-path comparison free of this box's GPU-concurrent-I/O throttle.
+    unsigned raw_inline   = EnvU("GSBENCH_RAW_INLINE", 0);
 
     unsigned steps() const { return snaps * steps_per; }
     uint64_t cells() const { return uint64_t(N) * N; }
@@ -215,6 +234,38 @@ Grids MakeGrids(unsigned N) {
 void FreeGrids(Grids& g) {
     cudaFree(g.u_curr); cudaFree(g.u_next); cudaFree(g.v_curr); cudaFree(g.v_next);
 }
+
+// Makes each snapshot INCOMPRESSIBLE: Apply(v) XORs the grid with a fixed random mask into
+// a scratch device buffer and returns it, so the persisted bytes are high-entropy (the
+// mostly-zero Gray-Scott field would otherwise compress away on btrfs zstd). Mask is fixed
+// (seed) => byte-identical across arms => checksums still match. If disabled, Apply is a
+// pass-through. One shared scratch is safe: the MaskKernel and each arm's subsequent
+// copy/D2H are serialized on the default stream, so scratch is consumed before the next
+// Apply overwrites it.
+struct Masker {
+    bool on_;
+    unsigned cells_;
+    uint32_t* d_mask_ = nullptr;
+    uint32_t* d_scratch_ = nullptr;
+    Masker(unsigned N, bool on) : on_(on), cells_(N * N) {
+        if (!on_) return;
+        uint64_t bytes = uint64_t(cells_) * sizeof(uint32_t);
+        REQUIRE(cudaMalloc(&d_mask_, bytes) == cudaSuccess);
+        REQUIRE(cudaMalloc(&d_scratch_, bytes) == cudaSuccess);
+        std::vector<uint32_t> mask(cells_);
+        std::mt19937 rng(0xC0FFEEu);            // fixed => identical across arms
+        for (auto& x : mask) x = rng();
+        ctp::GpuApi::Memcpy(d_mask_, mask.data(), bytes);
+    }
+    ~Masker() { if (on_) { cudaFree(d_mask_); cudaFree(d_scratch_); } }
+    // Returns an incompressible view of v (scratch), or v itself if disabled.
+    float* Apply(float* v) {
+        if (!on_) return v;
+        unsigned t = 256, b = (cells_ + t - 1) / t;
+        MaskKernel<<<b, t>>>(d_scratch_, reinterpret_cast<uint32_t*>(v), d_mask_, cells_);
+        return reinterpret_cast<float*>(d_scratch_);
+    }
+};
 
 // FNV-1a over a host byte buffer (cross-arm "identical computation" proof).
 uint64_t Fnv1a(const void* data, size_t n, uint64_t h = 1469598103934665603ull) {
@@ -373,14 +424,65 @@ double RunClioArm(const Cfg& cfg, bool async, const char* prefix, uint64_t* chec
     std::vector<clio::cte::core::TagId> tags;
     MakeSnapDatasets(ipc, gpu_info, prefix, cfg, ds, tags);
 
+    Masker masker(cfg.N, cfg.incompressible != 0);
     Grids g = MakeGrids(cfg.N);
     auto snap = [&](unsigned si, float* v_curr) {
-        if (async) TwSnapFireKernel<<<1, 256>>>(ds[si].Handle(), v_curr);
-        else       TwSnapSyncKernel<<<1, 256>>>(ds[si].Handle(), v_curr);
+        float* src = masker.Apply(v_curr);   // incompressible view (or v_curr if disabled)
+        if (async) TwSnapFireKernel<<<1, 256>>>(ds[si].Handle(), src);
+        else       TwSnapSyncKernel<<<1, 256>>>(ds[si].Handle(), src);
     };
     auto finalize = [&]() {
         if (async) for (auto& d : ds) TwDrainKernel<<<1, 32>>>(d.Handle());
     };
+    double ms = RunSim(cfg, g, snap, finalize, nullptr);
+    FreeGrids(g);
+    *checksum = ChecksumSnapshots(tags, cfg);
+    return ms;
+}
+
+// Host-driven CLIO arm: the SAME host flow as the raw arm (synchronous D2H into a host
+// buffer, then a host-side write call), but the sink is a CLIO PutBlob instead of a
+// file write+fsync. It does NOT use the GPU-producer model — no device-side task
+// submission, no GpuCteDataset / registered device backends. So comparing it against:
+//   - the RAW arm      isolates the STORAGE-PATH cost (CLIO server+bdev vs a plain file);
+//   - the SYNC arm     isolates the SUBMISSION MODEL (host-orchestrated vs GPU-producer).
+// Durable like CLIO-sync: each PutBlob is waited (bdev write completion).
+double RunHostClioArm(const Cfg& cfg, const char* prefix, uint64_t* checksum) {
+    const uint64_t gbytes = cfg.grid_bytes();
+    const uint64_t chunk_bytes = gbytes / cfg.chunks;
+
+    // One tag per snapshot (distinct path -> tag), same key scheme as the CLIO arms so
+    // ChecksumSnapshots reads them back identically. No GPU backends => not bound by the
+    // ~16-large-backend ceiling, but we keep cfg.snaps equal for a matched comparison.
+    std::vector<clio::cte::core::TagId> tags;
+    tags.reserve(cfg.snaps);
+    for (unsigned s = 0; s < cfg.snaps; ++s) {
+        char path[160];
+        std::snprintf(path, sizeof(path), "%s/v/step_%04u", prefix, s);
+        tags.push_back(MakeTag(kvhdf5::tagpath::CanonicalTag(path).c_str()));
+    }
+
+    // Host staging buffer (shm) that PutBlob DMAs from — the host-side counterpart of raw's
+    // pinned D2H buffer.
+    ctp::ipc::FullPtr<char> buf = CLIO_CPU_IPC->AllocateBuffer(gbytes);
+    REQUIRE(!buf.IsNull());
+
+    Masker masker(cfg.N, cfg.incompressible != 0);
+    Grids g = MakeGrids(cfg.N);
+    auto snap = [&](unsigned si, float* v_curr) {
+        // Same host D2H as raw: pull the (incompressible) current grid into the host buffer.
+        cudaMemcpy(buf.ptr_, masker.Apply(v_curr), gbytes, cudaMemcpyDeviceToHost);
+        // Then persist each chunk to CLIO from the host (synchronous wait == durable).
+        for (unsigned c = 0; c < cfg.chunks; ++c) {
+            ctp::ipc::ShmPtr<> shm = buf.shm_.template Cast<void>();
+            shm.off_ += uint64_t(c) * chunk_bytes;   // point at chunk c within the buffer
+            auto t = CLIO_CTE_CLIENT->AsyncPutBlob(tags[si], std::to_string(c),
+                                                   chi::u64(0), chunk_bytes, shm);
+            t.Wait();
+            REQUIRE(t->GetReturnCode() == 0);
+        }
+    };
+    auto finalize = [&]() {};
     double ms = RunSim(cfg, g, snap, finalize, nullptr);
     FreeGrids(g);
     *checksum = ChecksumSnapshots(tags, cfg);
@@ -488,59 +590,92 @@ private:
     double writer_ms_ = 0;
 };
 
-// Raw arm (no CLIO): identical sim + timed loop; each snapshot D2Hs the v-grid into a
-// pooled pinned buffer and hands it to a background writer thread (O_DIRECT, cache-bypass
-// parity). The writer overlaps the next sim steps; the final drain is inside the timed
-// region. This is the FAIR baseline — a naive INLINE write here is throttled ~5x by
-// interleaving with GPU compute/D2H (measured), which is a harness artifact, not real cost.
+// Read the persisted checkpoint back and fold FNV in snapshot order — AFTER timing (a
+// scalar FNV over 1.9 GB is ~6 s and must NOT sit in the timed region; the CLIO arms
+// likewise checksum post-timing).
+uint64_t RawReadbackChecksum(const std::string& path, const Cfg& cfg,
+                             uint64_t gbytes, uint64_t wbytes) {
+    uint64_t h = 1469598103934665603ull;
+    int fd = open(path.c_str(), O_RDONLY);
+    REQUIRE(fd >= 0);
+    std::vector<uint8_t> rb(gbytes);
+    for (unsigned s = 0; s < cfg.snaps; ++s) {
+        off_t base = off_t(s) * off_t(wbytes);
+        size_t got = 0;
+        while (got < gbytes) {
+            ssize_t n = pread(fd, rb.data() + got, gbytes - got, base + off_t(got));
+            REQUIRE(n > 0);
+            got += size_t(n);
+        }
+        h = Fnv1a(rb.data(), gbytes, h);
+    }
+    close(fd);
+    return h;
+}
+
+// Raw arm (no CLIO): identical sim + timed loop; each snapshot D2Hs the (incompressible)
+// v-grid to host and persists it into one pre-allocated file. Two structures selected by
+// GSBENCH_RAW_INLINE:
+//   0 = background writer thread — I/O overlaps the next sim steps (the natural design, but
+//       this box throttles GPU-concurrent disk I/O ~5x, penalizing the overlap);
+//   1 = inline synchronous — GPU idle during the write, matching host-CLIO / sync-CLIO, for
+//       a storage-path comparison free of that throttle.
 double RunRawArm(const Cfg& cfg, uint64_t* checksum) {
     EnsureDir(cfg.disk_dir);
     const uint64_t gbytes = cfg.grid_bytes();
     constexpr uint64_t kAlign = 4096;
     const uint64_t wbytes = (gbytes + kAlign - 1) & ~(kAlign - 1);  // O_DIRECT length
-    BgWriter writer(cfg.disk_dir + "/checkpoint.bin", gbytes, wbytes, /*nbuf=*/3,
-                    cfg.snaps, /*odirect=*/cfg.raw_odirect != 0,
-                    /*do_fsync=*/cfg.raw_fsync != 0);  // one pre-allocated file, durable
+    const std::string path = cfg.disk_dir + "/checkpoint.bin";
+    Masker masker(cfg.N, cfg.incompressible != 0);
 
+    if (cfg.raw_inline) {
+        int flags = O_WRONLY | O_CREAT | O_TRUNC | (cfg.raw_odirect ? O_DIRECT : 0);
+        int fd = open(path.c_str(), flags, 0644);
+        REQUIRE(fd >= 0);
+        REQUIRE(ftruncate(fd, off_t(cfg.snaps) * off_t(wbytes)) == 0);
+        uint8_t* buf = nullptr;
+        REQUIRE(cudaMallocHost(reinterpret_cast<void**>(&buf), wbytes) == cudaSuccess);
+        std::memset(buf + gbytes, 0, wbytes - gbytes);
+        Grids g = MakeGrids(cfg.N);
+        double write_ms = 0;
+        auto snap = [&](unsigned si, float* v_curr) {
+            cudaMemcpy(buf, masker.Apply(v_curr), gbytes, cudaMemcpyDeviceToHost);
+            auto a = std::chrono::steady_clock::now();          // GPU idle during this write
+            WriteAllAt(fd, off_t(si) * off_t(wbytes), buf, wbytes);
+            if (cfg.raw_fsync) fdatasync(fd);
+            write_ms += std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - a).count();
+        };
+        auto finalize = [&]() {};
+        double ms = RunSim(cfg, g, snap, finalize, nullptr);
+        FreeGrids(g);
+        close(fd);
+        cudaFreeHost(buf);
+        std::fprintf(stderr, "[raw] total=%.1f ms  write=%.1f ms  (inline, GPU idle)\n",
+                     ms, write_ms);
+        *checksum = RawReadbackChecksum(path, cfg, gbytes, wbytes);
+        return ms;
+    }
+
+    BgWriter writer(path, gbytes, wbytes, /*nbuf=*/3, cfg.snaps,
+                    /*odirect=*/cfg.raw_odirect != 0, /*do_fsync=*/cfg.raw_fsync != 0);
     Grids g = MakeGrids(cfg.N);
     auto snap = [&](unsigned si, float* v_curr) {
         int idx;
         uint8_t* buf = writer.Acquire(&idx);
-        // SYNCHRONOUS D2H on the DEFAULT stream (ordered after the step that produced
-        // v_curr; a side stream would race the compute -> checksum divergence). Then hand
-        // the buffer to the writer, which writes it while the NEXT sim steps run.
-        cudaMemcpy(buf, v_curr, gbytes, cudaMemcpyDeviceToHost);
+        // SYNCHRONOUS D2H on the DEFAULT stream (ordered after the step / mask kernel), then
+        // hand the buffer to the writer, which writes it while the NEXT sim steps run.
+        cudaMemcpy(buf, masker.Apply(v_curr), gbytes, cudaMemcpyDeviceToHost);
         writer.Submit(idx, si);
     };
     double writer_ms = 0;
     auto finalize = [&]() { writer.Finish(&writer_ms); };  // drain inside timed region
     double ms = RunSim(cfg, g, snap, finalize, nullptr);
     FreeGrids(g);
-
-    // Checksum AFTER timing: read the persisted checkpoint back and fold FNV in snapshot
-    // order — mirrors the CLIO arms' post-timing ChecksumSnapshots (scalar FNV over 1.9 GB
-    // is ~6 s and must NOT be inside either arm's timed region).
-    uint64_t h = 1469598103934665603ull;
-    {
-        int fd = open((cfg.disk_dir + "/checkpoint.bin").c_str(), O_RDONLY);
-        REQUIRE(fd >= 0);
-        std::vector<uint8_t> rb(gbytes);
-        for (unsigned s = 0; s < cfg.snaps; ++s) {
-            off_t base = off_t(s) * off_t(wbytes);
-            size_t got = 0;
-            while (got < gbytes) {
-                ssize_t n = pread(fd, rb.data() + got, gbytes - got, base + off_t(got));
-                REQUIRE(n > 0);
-                got += size_t(n);
-            }
-            h = Fnv1a(rb.data(), gbytes, h);
-        }
-        close(fd);
-    }
     std::fprintf(stderr,
         "[raw] total=%.1f ms  writer-busy=%.1f ms (overlapped with compute)  nbuf=3\n",
         ms, writer_ms);
-    *checksum = h;
+    *checksum = RawReadbackChecksum(path, cfg, gbytes, wbytes);
     return ms;
 }
 
@@ -563,6 +698,17 @@ TEST_CASE("GSBENCH clio sync", "[.][integration][gpu][gsbench][gsbench_sync]") {
     uint64_t checksum = 0;
     double ms = RunClioArm(cfg, /*async=*/false, "results/gsbench/sync", &checksum);
     PrintResult("sync", cfg, ms, checksum);
+    REQUIRE(ms > 0.0);
+}
+
+// Host-driven CLIO (raw's flow, CLIO sink): isolates the storage path vs raw, and the
+// submission model vs the GPU-producer sync/async arms.
+TEST_CASE("GSBENCH clio host-driven", "[.][integration][gpu][gsbench][gsbench_hostclio]") {
+    Cfg cfg;
+    static BenchEnv env(cfg);
+    uint64_t checksum = 0;
+    double ms = RunHostClioArm(cfg, "results/gsbench/hostclio", &checksum);
+    PrintResult("hostclio", cfg, ms, checksum);
     REQUIRE(ms > 0.0);
 }
 
