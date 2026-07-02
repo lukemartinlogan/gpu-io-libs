@@ -24,6 +24,8 @@ add_cuda_executable(iowarp_cte_integration_tests FALSE
     async_overlap_test.cu
     dataset_lifecycle_test.cu
     gray_scott_async_e2e_test.cu
+    dataset_refire_probe_test.cu
+    gray_scott_threeway_bench.cu
     INCLUDE_DIRS
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../../src
         ${iowarp_core_SOURCE_DIR}/context-runtime/include

@@ -8,6 +8,9 @@ build-release/
 **/build/
 cmake-build-*/
 
+# testing run directories
+gsbench_raw_out/
+
 # CMake fetched dependencies
 **/_deps/
 
