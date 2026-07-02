@@ -98,21 +98,23 @@ run_arm() {  # $1 = catch tag, $2 = label
 
 for rep in $(seq 1 "${GSBENCH_REPEATS}"); do
     [[ "${GSBENCH_REPEATS}" -gt 1 ]] && echo "================ REPEAT ${rep}/${GSBENCH_REPEATS} ================"
-    run_arm "[gsbench_raw]"   "raw"
-    run_arm "[gsbench_sync]"  "sync"
-    run_arm "[gsbench_async]" "async"
+    run_arm "[gsbench_raw]"      "raw"
+    run_arm "[gsbench_hostclio]" "hostclio"
+    run_arm "[gsbench_sync]"     "sync"
+    run_arm "[gsbench_async]"    "async"
 done
 reset_state
 
 echo
-echo "================ THREE-WAY RESULT ================"
-cat "${logs}"/raw.log "${logs}"/sync.log "${logs}"/async.log 2>/dev/null | grep GSBENCH_RESULT
+echo "================ BENCHMARK RESULT ================"
+cat "${logs}"/raw.log "${logs}"/hostclio.log "${logs}"/sync.log "${logs}"/async.log \
+    2>/dev/null | grep GSBENCH_RESULT
 
 python3 - "${logs}" <<'PY' 2>/dev/null || true
 import re, sys, glob, os
 logs = sys.argv[1]
 rows = {}
-for f in ("raw", "sync", "async"):
+for f in ("raw", "hostclio", "sync", "async"):
     p = os.path.join(logs, f + ".log")
     if not os.path.exists(p):
         continue
@@ -123,13 +125,13 @@ for f in ("raw", "sync", "async"):
                                 mbps=float(m.group(4)), ck=m.group(5))
 if rows:
     base = rows.get("raw", {}).get("ms")
-    print(f"\n{'arm':<7}{'MB':>9}{'ms':>11}{'MB/s':>10}{'vs raw':>9}  checksum")
-    for a in ("raw", "sync", "async"):
+    print(f"\n{'arm':<10}{'MB':>9}{'ms':>11}{'MB/s':>10}{'vs raw':>9}  checksum")
+    for a in ("raw", "hostclio", "sync", "async"):
         r = rows.get(a)
         if not r:
             continue
         rel = f"{base / r['ms']:.2f}x" if base else "-"
-        print(f"{a:<7}{r['mb']:>9.1f}{r['ms']:>11.2f}{r['mbps']:>10.1f}{rel:>9}  {r['ck']}")
+        print(f"{a:<10}{r['mb']:>9.1f}{r['ms']:>11.2f}{r['mbps']:>10.1f}{rel:>9}  {r['ck']}")
     cks = {r['ck'] for r in rows.values()}
     print("\nchecksums", "MATCH (identical computation)" if len(cks) == 1 else f"DIFFER {cks}")
 PY
