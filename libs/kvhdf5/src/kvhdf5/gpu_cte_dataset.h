@@ -3,7 +3,7 @@
 // Host control plane for a GPU-resident dataset on the new iowarp producer-only
 // CTE model. Lifts the proven mechanics of the integration reference
 // (test_cte_devmem_putget): preallocate registered kDeviceMem backends for the
-// per-chunk PutBlob/GetBlob tasks (+ co-located FutureShm) and the blob data
+// per-chunk PodPutBlob/PodGetBlob tasks (self-contained, embedded fut_) and the blob data
 // buffers, stamp the task prototypes onto the device once, build a device-side
 // ChunkDesc array, and hand out a small by-value GpuDatasetHandle the user's
 // kernel submits.
@@ -49,7 +49,7 @@
 namespace kvhdf5 {
 
 class GpuCteDataset {
-    chi::IpcManager* ipc_ = nullptr;
+    clio::run::IpcManager* ipc_ = nullptr;
     uint32_t gpu_id_ = 0;
 
     ctp::ipc::AllocatorId task_alloc_{};  // N task slots + co-located futures
@@ -65,13 +65,13 @@ class GpuCteDataset {
 
     GpuDatasetHandle handle_{};
 
-    static constexpr uint32_t kPutSlot =
-        sizeof(cte::PutBlobTask) + sizeof(chi::gpu::FutureShm);
-    static constexpr uint32_t kGetSlot =
-        sizeof(cte::GetBlobTask) + sizeof(chi::gpu::FutureShm);
+    // Task is self-contained now (embedded fut_, no co-located gpu::FutureShm),
+    // so each slot is just the POD task itself.
+    static constexpr uint32_t kPutSlot = sizeof(cte::PodPutBlobTask);
+    static constexpr uint32_t kGetSlot = sizeof(cte::PodGetBlobTask);
     static constexpr uint32_t kSlotPair = kPutSlot + kGetSlot;
 
-    using MemKind = chi::gpu::IpcManager::MemKind;
+    using MemKind = clio::run::gpu::IpcManager::MemKind;
 
     // One chunk's blob name (NUL-terminated C-string) + raw byte count.
     struct ChunkSpec {
@@ -82,7 +82,7 @@ class GpuCteDataset {
 public:
     // Single chunk: `name` is a NUL-terminated chunk-blob name (<= kMaxBlobNameLen),
     // `bytes` the chunk's raw byte count. Throws on any iowarp failure.
-    GpuCteDataset(chi::IpcManager* ipc, chi::IpcManagerGpuInfo info,
+    GpuCteDataset(clio::run::IpcManager* ipc, clio::run::IpcManagerGpuInfo info,
                   uint32_t gpu_id, cte::TagId tag, const char* name,
                   uint64_t bytes)
         : ipc_(ipc), gpu_id_(gpu_id) {
@@ -102,7 +102,7 @@ public:
     // Layout ctor already produces that). Buffer-exclusivity: the producer kernel
     // MUST launch grid == M so each pooled buffer is owned by a single block and
     // reuse is serialized by that block's Write() = Send().Wait().
-    GpuCteDataset(chi::IpcManager* ipc, chi::IpcManagerGpuInfo info,
+    GpuCteDataset(clio::run::IpcManager* ipc, clio::run::IpcManagerGpuInfo info,
                   uint32_t gpu_id, cte::TagId tag, const Layout& layout,
                   uint32_t pool_size = 0)
         : ipc_(ipc), gpu_id_(gpu_id) {
@@ -146,8 +146,8 @@ public:
     // via get-or-create on `cte_client`; the blob key stays the chunk coordinate,
     // so chunks address as (path-tag, chunk-coord). Throws if the path has no valid
     // segment or on any iowarp failure. pool_size forwards to the Phase 3 pool.
-    static GpuCteDataset FromPath(chi::IpcManager* ipc,
-                                  chi::IpcManagerGpuInfo info, uint32_t gpu_id,
+    static GpuCteDataset FromPath(clio::run::IpcManager* ipc,
+                                  clio::run::IpcManagerGpuInfo info, uint32_t gpu_id,
                                   cte::Client* cte_client, std::string_view path,
                                   const Layout& layout, uint32_t pool_size = 0) {
         std::string tag_name = tagpath::CanonicalTag(path);
@@ -159,8 +159,8 @@ public:
 
     // Convenience over FromPath for callers that already hold a DatasetMeta (the
     // host directory model). The GPU path itself depends only on path + layout.
-    static GpuCteDataset FromDataset(chi::IpcManager* ipc,
-                                     chi::IpcManagerGpuInfo info, uint32_t gpu_id,
+    static GpuCteDataset FromDataset(clio::run::IpcManager* ipc,
+                                     clio::run::IpcManagerGpuInfo info, uint32_t gpu_id,
                                      cte::Client* cte_client,
                                      const DatasetMeta& meta,
                                      uint32_t pool_size = 0) {
@@ -194,7 +194,7 @@ public:
     [[nodiscard]] uint64_t Bytes() const { return host_descs_[0].size; }
 
 private:
-    void Init(chi::IpcManagerGpuInfo info, cte::TagId tag,
+    void Init(clio::run::IpcManagerGpuInfo info, cte::TagId tag,
               cstd::span<const ChunkSpec> specs, uint32_t pool_size = 0) {
         count_ = static_cast<uint32_t>(specs.size());
         if (count_ == 0)
@@ -221,25 +221,34 @@ private:
             pooling ? static_cast<uint64_t>(pool_) * slot_bytes : total_data;
 
         // (a) Task backend: count_ * (put-slot + get-slot), + pad.
-        // MUST be kDeviceMem: the kernel's FullPtr addressing + FutureShm
-        // poll rely on it. (Tried kPinnedHost to dodge the worker staging path —
-        // it BROKE even the 256 B case, so reverted. The concurrent-large-Put
-        // corruption is NOT fixable via the data/task MemKind; it's upstream in
-        // the gpu2cpu lane/worker path. See phase3-bounded-pool-plan.md.)
+        // MUST be kPinnedHost, matching the gpu_vector adapter reference.
+        // The kernel reaches the task via UVA (FullPtr addressing + the
+        // embedded fut_.is_complete_ poll both work on a pinned-host slot).
+        // Critically, this is what makes the async (many-in-flight) path
+        // correct: the server's gpu2cpu RecvIn treats a kDeviceMem task as
+        // device-resident and D2H-copies it into a SHARED thread_local
+        // scratch, then enqueues that scratch pointer non-owning for deferred
+        // execution — so with >1 put in flight, concurrent tasks alias and
+        // clobber the same scratch, and some never signal completion (drain
+        // hangs). A pinned-host task makes IsDevicePointer() false, so RecvIn
+        // skips the scratch entirely and each task keeps its own distinct
+        // slot. (The old note here — "kPinnedHost didn't help, race is
+        // upstream" — was against the pre-9266bd19 co-located-FutureShm model,
+        // which no longer exists.)
         char* task_base = nullptr;
         const uint64_t task_bytes =
             static_cast<uint64_t>(count_) * kSlotPair + 64;
         task_alloc_ = ipc_->AllocateAndRegisterGpuBackend(
-            gpu_id_, MemKind::kDeviceMem, task_bytes, &task_base);
+            gpu_id_, MemKind::kPinnedHost, task_bytes, &task_base);
         task_base_ = reinterpret_cast<byte_t*>(task_base);
         if (task_alloc_.IsNull() || task_base_ == nullptr)
             throw std::runtime_error("GpuCteDataset: task backend alloc failed");
 
         // (b) Data backend: one buffer partitioned into M distinct regions
         // (M == N when not pooling; M == pool_ < N when pooling, chunks share).
-        // kDeviceMem (matches the reference). NOTE: switching this alone to
-        // kPinnedHost did NOT fix the concurrent-large-Put corruption (Phase 3) —
-        // the race is upstream, not in this MemKind choice.
+        // Stays kDeviceMem: the blob payload is produced on-GPU and the bdev
+        // PutBlob handler D2H-copies it (matches the reference's HBM pages).
+        // The concurrency fix lives in the TASK MemKind above, not here.
         char* data_base = nullptr;
         data_alloc_ = ipc_->AllocateAndRegisterGpuBackend(
             gpu_id_, MemKind::kDeviceMem, data_bytes, &data_base);
@@ -275,8 +284,8 @@ private:
                         : data_base_ + data_off;
             StampChunk(tag, specs[c].name, specs[c].bytes, put_slot, get_slot,
                        chunk_data);
-            host_descs_[c] = {MakeFullPtr<cte::PutBlobTask>(put_slot),
-                              MakeFullPtr<cte::GetBlobTask>(get_slot),
+            host_descs_[c] = {MakeFullPtr<cte::PodPutBlobTask>(put_slot),
+                              MakeFullPtr<cte::PodGetBlobTask>(get_slot),
                               chunk_data, specs[c].bytes};
             if (!pooling) data_off += specs[c].bytes;
         }
@@ -288,34 +297,36 @@ private:
         handle_ = {info, desc_base_, count_};
     }
 
-    // Placement-new this chunk's Put/Get prototypes (+ their FutureShm) on the
-    // host and copy them into its registered device task slots. shm.off_ carries
-    // the raw device data pointer with a null alloc_id (the kernel reads it as an
+    // Placement-new this chunk's Pod Put/Get prototypes on the host and copy
+    // them into its registered device task slots. Each task is self-contained
+    // (its completion record lives in the embedded fut_, no co-located
+    // FutureShm), so the slot holds only the POD task. shm.off_ carries the raw
+    // device data pointer with a null alloc_id (the kernel reads it as an
     // absolute address).
     void StampChunk(cte::TagId tag, const char* name, uint64_t bytes,
                     byte_t* put_slot, byte_t* get_slot, byte_t* chunk_data) {
         ctp::ipc::ShmPtr<> blob_shm;
         blob_shm.alloc_id_.SetNull();
-        blob_shm.off_ = reinterpret_cast<chi::u64>(chunk_data);
+        blob_shm.off_ = reinterpret_cast<clio::run::u64>(chunk_data);
 
         alignas(64) byte_t put_proto[kPutSlot];
         std::memset(put_proto, 0, sizeof(put_proto));
-        auto* put = new (put_proto) cte::PutBlobTask(
-            chi::CreateTaskId(), cte::kCtePoolId, chi::PoolQuery::ToLocalCpu(),
-            tag, name, /*offset=*/chi::u64(0), bytes, blob_shm,
-            /*score=*/-1.0f, cte::Context(), /*flags=*/chi::u32(0));
-        put->pod_size_ = sizeof(cte::PutBlobTask);
-        new (put_proto + sizeof(cte::PutBlobTask)) chi::gpu::FutureShm();
+        auto* put = new (put_proto) cte::PodPutBlobTask(
+            clio::run::CreateTaskId(), cte::kCtePoolId,
+            clio::run::PoolQuery::ToLocalCpu(), tag, name,
+            /*offset=*/clio::run::u64(0), bytes, blob_shm,
+            /*score=*/-1.0f, cte::Context(), /*flags=*/clio::run::u32(0));
+        put->fut_.task_size_ = sizeof(cte::PodPutBlobTask);
         ctp::GpuApi::Memcpy(put_slot, put_proto, sizeof(put_proto));
 
         alignas(64) byte_t get_proto[kGetSlot];
         std::memset(get_proto, 0, sizeof(get_proto));
-        auto* get = new (get_proto) cte::GetBlobTask(
-            chi::CreateTaskId(), cte::kCtePoolId, chi::PoolQuery::ToLocalCpu(),
-            tag, name, /*offset=*/chi::u64(0), bytes, /*flags=*/chi::u32(0),
+        auto* get = new (get_proto) cte::PodGetBlobTask(
+            clio::run::CreateTaskId(), cte::kCtePoolId,
+            clio::run::PoolQuery::ToLocalCpu(), tag, name,
+            /*offset=*/clio::run::u64(0), bytes, /*flags=*/clio::run::u32(0),
             blob_shm);
-        get->pod_size_ = sizeof(cte::GetBlobTask);
-        new (get_proto + sizeof(cte::GetBlobTask)) chi::gpu::FutureShm();
+        get->fut_.task_size_ = sizeof(cte::PodGetBlobTask);
         ctp::GpuApi::Memcpy(get_slot, get_proto, sizeof(get_proto));
     }
 
@@ -323,7 +334,7 @@ private:
     static ctp::ipc::FullPtr<TaskT> MakeFullPtr(byte_t* device_addr) {
         ctp::ipc::FullPtr<TaskT> fp;
         fp.shm_.alloc_id_.SetNull();
-        fp.shm_.off_ = reinterpret_cast<chi::u64>(device_addr);
+        fp.shm_.off_ = reinterpret_cast<clio::run::u64>(device_addr);
         fp.ptr_ = reinterpret_cast<TaskT*>(device_addr);
         return fp;
     }

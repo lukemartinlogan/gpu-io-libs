@@ -33,29 +33,29 @@
 
 namespace {
 
-constexpr chi::u32 kBlobBytes = 256;
-constexpr chi::u32 kPatternSeed = 0x5Au;
+constexpr clio::run::u32 kBlobBytes = 256;
+constexpr clio::run::u32 kPatternSeed = 0x5Au;
 
 }  // namespace
 
 using kvhdf5::byte_t;  // raw blob-payload bytes (codebase convention)
 
 /** Fill the device blob buffer with the byte pattern (separate kernel). */
-__global__ void DsFillKernel(byte_t *buf, chi::u32 size, chi::u32 seed) {
-  chi::u32 i = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void DsFillKernel(byte_t *buf, clio::run::u32 size, clio::run::u32 seed) {
+  clio::run::u32 i = blockIdx.x * blockDim.x + threadIdx.x;
   if (i >= size) return;
   buf[i] = static_cast<byte_t>((seed ^ i) & 0xFFu);
 }
 
 /** Submit the pre-built PutBlob task from the kernel via the handle. */
 __global__ void DsWriteKernel(kvhdf5::GpuDatasetHandle h) {
-  CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);  // block-wide, has __syncthreads
+  CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);  // block-wide, has __syncthreads
   (void)g_ipc_manager;
   h.Write();  // internally thread-0 only
 }
 
 __global__ void DsReadKernel(kvhdf5::GpuDatasetHandle h) {
-  CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+  CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
   (void)g_ipc_manager;
   h.Read();
 }
@@ -65,8 +65,8 @@ __global__ void DsReadKernel(kvhdf5::GpuDatasetHandle h) {
 // fences its own fills system-wide before the barrier so the CPU-side PutBlob
 // (which D2H-copies the device buffer while this kernel is still resident,
 // thread-0 spinning in Wait) observes them.
-__global__ void DsFillAndWriteKernel(kvhdf5::GpuDatasetHandle h, chi::u32 seed) {
-  CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+__global__ void DsFillAndWriteKernel(kvhdf5::GpuDatasetHandle h, clio::run::u32 seed) {
+  CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
   (void)g_ipc_manager;
   for (uint64_t i = threadIdx.x; i < h.Size(); i += blockDim.x)
     h.Data()[i] = static_cast<byte_t>((seed ^ i) & 0xFFu);
@@ -78,11 +78,11 @@ __global__ void DsFillAndWriteKernel(kvhdf5::GpuDatasetHandle h, chi::u32 seed) 
 #if !CTP_IS_DEVICE_PASS
 
 /** Verify the device buffer holds the pattern (host reads it back via D2H). */
-static chi::u32 DsVerifyDevicePattern(const byte_t *device_buf, chi::u32 size,
-                                      chi::u32 seed) {
+static clio::run::u32 DsVerifyDevicePattern(const byte_t *device_buf, clio::run::u32 size,
+                                      clio::run::u32 seed) {
   std::vector<byte_t> host(size);
   ctp::GpuApi::Memcpy(host.data(), device_buf, size);
-  for (chi::u32 i = 0; i < size; ++i) {
+  for (clio::run::u32 i = 0; i < size; ++i) {
     byte_t want = static_cast<byte_t>((seed ^ i) & 0xFFu);
     if (host[i] != want) return i;
   }
@@ -96,7 +96,7 @@ TEST_CASE("GPU Dataset handle PutBlob+GetBlob round trip",
   REQUIRE(ipc->GetGpuIpcManager() != nullptr);
   REQUIRE(ipc->GetGpuQueueCount() >= 1u);
 
-  chi::IpcManagerGpuInfo gpu_info =
+  clio::run::IpcManagerGpuInfo gpu_info =
       ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
   REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
 
@@ -113,8 +113,8 @@ TEST_CASE("GPU Dataset handle PutBlob+GetBlob round trip",
   byte_t *data = ds.DeviceData();
 
   // ---- Fill the buffer (separate kernel) then sync so PutBlob sees it. ----
-  chi::u32 threads = 256;
-  chi::u32 blocks = (kBlobBytes + threads - 1) / threads;
+  clio::run::u32 threads = 256;
+  clio::run::u32 blocks = (kBlobBytes + threads - 1) / threads;
   DsFillKernel<<<blocks, threads>>>(data, kBlobBytes, kPatternSeed);
   ctp::GpuApi::Synchronize();
 
@@ -133,7 +133,7 @@ TEST_CASE("GPU Dataset handle PutBlob+GetBlob round trip",
   ctp::GpuApi::Synchronize();
 
   // ---- Verify the original pattern came back. ----
-  chi::u32 first_bad = DsVerifyDevicePattern(data, kBlobBytes, kPatternSeed);
+  clio::run::u32 first_bad = DsVerifyDevicePattern(data, kBlobBytes, kPatternSeed);
   if (first_bad != kBlobBytes)
     std::fprintf(stderr, "[verify] mismatch at index %u (of %u)\n", first_bad,
                  kBlobBytes);
@@ -150,7 +150,7 @@ TEST_CASE("GPU Dataset handle fused fill+write round trip",
   auto &env = kvhdf5::itest::SharedCteEnv();
   auto *ipc = CLIO_CPU_IPC;
   REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-  chi::IpcManagerGpuInfo gpu_info =
+  clio::run::IpcManagerGpuInfo gpu_info =
       ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
   REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
 
@@ -176,7 +176,7 @@ TEST_CASE("GPU Dataset handle fused fill+write round trip",
   DsReadKernel<<<1, 32>>>(h);
   ctp::GpuApi::Synchronize();
 
-  chi::u32 first_bad = DsVerifyDevicePattern(data, kBlobBytes, kPatternSeed);
+  clio::run::u32 first_bad = DsVerifyDevicePattern(data, kBlobBytes, kPatternSeed);
   if (first_bad != kBlobBytes)
     std::fprintf(stderr, "[verify] fused mismatch at index %u (of %u)\n",
                  first_bad, kBlobBytes);

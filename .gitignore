@@ -10,6 +10,7 @@ cmake-build-*/
 
 # testing run directories
 gsbench_raw_out/
+gsbench_*.dat
 
 # CMake fetched dependencies
 **/_deps/

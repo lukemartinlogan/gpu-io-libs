@@ -117,7 +117,7 @@ __device__ inline void CopyChunk(kvhdf5::GpuDatasetHandle& h, uint32_t c,
 
 // SYNC: copy each chunk then fused Write(c) = submit-AND-WAIT (GPU blocks).
 __global__ void TwSnapSyncKernel(kvhdf5::GpuDatasetHandle h, const float* src) {
-    CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+    CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
     const byte_t* s = reinterpret_cast<const byte_t*>(src);
     for (uint32_t c = 0; c < h.Count(); ++c) {
@@ -132,7 +132,7 @@ __global__ void TwSnapSyncKernel(kvhdf5::GpuDatasetHandle h, const float* src) {
 // ASYNC FIRE only: copy + fire every chunk's PutBlob, no wait. Drained later so the
 // puts run on the server WHILE the subsequent sim steps run on the GPU.
 __global__ void TwSnapFireKernel(kvhdf5::GpuDatasetHandle h, const float* src) {
-    CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+    CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
     const byte_t* s = reinterpret_cast<const byte_t*>(src);
     for (uint32_t c = 0; c < h.Count(); ++c) {
@@ -146,7 +146,7 @@ __global__ void TwSnapFireKernel(kvhdf5::GpuDatasetHandle h, const float* src) {
 
 // Drain a fired snapshot's outstanding puts.
 __global__ void TwDrainKernel(kvhdf5::GpuDatasetHandle h) {
-    CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+    CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
     for (uint32_t c = 0; c < h.Count(); ++c) { h.WriteWait(c); __syncthreads(); }
 }
@@ -321,35 +321,35 @@ struct BenchEnv {
         namespace bdev = clio::run::bdev;
         std::fprintf(stderr, "[bench] bringing up server (bdev=%s cap=%uMB)\n",
                      cfg.bdev.c_str(), cfg.cap_mb);
-        if (!chi::CHIMAERA_INIT(chi::ChimaeraMode::kServer))
-            throw std::runtime_error("CHIMAERA_INIT(kServer) failed");
+        if (!clio::run::CLIO_INIT(clio::run::RuntimeMode::kServer))
+            throw std::runtime_error("CLIO_INIT(kServer) failed");
         if (!clio::cte::core::CLIO_CTE_CLIENT_INIT())
             throw std::runtime_error("CLIO_CTE_CLIENT_INIT failed");
         auto* cte = CLIO_CTE_CLIENT;
         cte->Init(clio::cte::core::kCtePoolId);
         clio::cte::core::CreateParams params;
-        auto ct = cte->AsyncCreate(chi::PoolQuery::Dynamic(),
+        auto ct = cte->AsyncCreate(clio::run::PoolQuery::Dynamic(),
                                    clio::cte::core::kCtePoolName,
                                    clio::cte::core::kCtePoolId, params);
         ct.Wait();
         if (ct->GetReturnCode() != 0) throw std::runtime_error("CTE create failed");
         std::this_thread::sleep_for(50ms);
 
-        const chi::u64 cap = chi::u64(cfg.cap_mb) << 20;
+        const clio::run::u64 cap = clio::run::u64(cfg.cap_mb) << 20;
         const bool is_file = (cfg.bdev == "file");
         const bdev::BdevType type = is_file ? bdev::BdevType::kFile
                                             : bdev::BdevType::kRam;
         // For kFile the bdev name IS the on-disk file path (O_DIRECT). For kRam it is
         // just an identifier.
         const std::string name = is_file ? cfg.bdev_path : std::string("gsbench_ram");
-        chi::PoolId bdev_pool_id(960, 0);
+        clio::run::PoolId bdev_pool_id(960, 0);
         bdev::Client bclient(bdev_pool_id);
-        auto bc = bclient.AsyncCreate(chi::PoolQuery::Dynamic(), name, bdev_pool_id,
+        auto bc = bclient.AsyncCreate(clio::run::PoolQuery::Dynamic(), name, bdev_pool_id,
                                       type, cap);
         bc.Wait();
         if (bc->GetReturnCode() != 0) throw std::runtime_error("bdev create failed");
         std::this_thread::sleep_for(50ms);
-        auto rt = cte->AsyncRegisterTarget(name, type, cap, chi::PoolQuery::Local(),
+        auto rt = cte->AsyncRegisterTarget(name, type, cap, clio::run::PoolQuery::Local(),
                                            bdev_pool_id);
         rt.Wait();
         if (rt->GetReturnCode() != 0) throw std::runtime_error("RegisterTarget failed");
@@ -371,8 +371,8 @@ std::vector<byte_t> HostReadBlob(clio::cte::core::TagId tag, const std::string& 
     REQUIRE(!buf.IsNull());
     std::memset(buf.ptr_, 0, size);
     ctp::ipc::ShmPtr<> shm = buf.shm_.template Cast<void>();
-    auto t = CLIO_CTE_CLIENT->AsyncGetBlob(tag, name, chi::u64(0), size,
-                                           chi::u32(0), shm);
+    auto t = CLIO_CTE_CLIENT->AsyncGetBlob(tag, name, clio::run::u64(0), size,
+                                           clio::run::u32(0), shm);
     t.Wait();
     REQUIRE(t->GetReturnCode() == 0);
     std::vector<byte_t> out(size);
@@ -382,7 +382,7 @@ std::vector<byte_t> HostReadBlob(clio::cte::core::TagId tag, const std::string& 
 
 // Pre-create `snaps` snapshot datasets (distinct path => distinct tag). Kept well under
 // the ~16-large-backend ceiling by the caller (snaps <= ~12).
-void MakeSnapDatasets(chi::IpcManager* ipc, chi::IpcManagerGpuInfo gpu_info,
+void MakeSnapDatasets(clio::run::IpcManager* ipc, clio::run::IpcManagerGpuInfo gpu_info,
                       const char* prefix, const Cfg& cfg,
                       std::vector<kvhdf5::GpuCteDataset>& out,
                       std::vector<clio::cte::core::TagId>& tags) {
@@ -417,7 +417,7 @@ uint64_t ChecksumSnapshots(const std::vector<clio::cte::core::TagId>& tags,
 double RunClioArm(const Cfg& cfg, bool async, const char* prefix, uint64_t* checksum) {
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info = ipc->GetGpuIpcManager()->GetGpuInfo(0);
+    clio::run::IpcManagerGpuInfo gpu_info = ipc->GetGpuIpcManager()->GetGpuInfo(0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
 
     std::vector<kvhdf5::GpuCteDataset> ds;
@@ -477,7 +477,7 @@ double RunHostClioArm(const Cfg& cfg, const char* prefix, uint64_t* checksum) {
             ctp::ipc::ShmPtr<> shm = buf.shm_.template Cast<void>();
             shm.off_ += uint64_t(c) * chunk_bytes;   // point at chunk c within the buffer
             auto t = CLIO_CTE_CLIENT->AsyncPutBlob(tags[si], std::to_string(c),
-                                                   chi::u64(0), chunk_bytes, shm);
+                                                   clio::run::u64(0), chunk_bytes, shm);
             t.Wait();
             REQUIRE(t->GetReturnCode() == 0);
         }

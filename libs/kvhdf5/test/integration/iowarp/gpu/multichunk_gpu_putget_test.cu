@@ -72,7 +72,7 @@ constexpr byte_t Pattern(unsigned seed, unsigned i) {
  * The trailing barrier keeps the block in lockstep before the next chunk.
  */
 __global__ void McFillWriteKernel(kvhdf5::GpuDatasetHandle h, unsigned seed_base) {
-    CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+    CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
     for (uint32_t c = blockIdx.x; c < h.Count(); c += gridDim.x) {
         byte_t* dst = h.Data(c);
@@ -88,7 +88,7 @@ __global__ void McFillWriteKernel(kvhdf5::GpuDatasetHandle h, unsigned seed_base
 
 /** GetBlob every chunk back, grid-stride. */
 __global__ void McReadKernel(kvhdf5::GpuDatasetHandle h) {
-    CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+    CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
     for (uint32_t c = blockIdx.x; c < h.Count(); c += gridDim.x) {
         h.Read(c);        // thread-0 only (internal guard)
@@ -160,7 +160,7 @@ static clio::cte::core::TagId MakeTag(const char* name) {
 
 // Build a fresh 1-D dataset of `chunks` chunks under its own tag and round-trip
 // it once at launch `grid`. One dataset == one round-trip (the proven invariant).
-static void SweepConfig(chi::IpcManager* ipc, chi::IpcManagerGpuInfo gpu_info,
+static void SweepConfig(clio::run::IpcManager* ipc, clio::run::IpcManagerGpuInfo gpu_info,
                         unsigned chunks, unsigned grid, unsigned seed,
                         const char* tag_name, const char* label) {
     clio::cte::core::TagId tag = MakeTag(tag_name);
@@ -179,7 +179,7 @@ TEST_CASE("GPU multi-chunk PutBlob+GetBlob round trip via dataset handle",
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
     REQUIRE(ipc->GetGpuQueueCount() >= 1u);
 
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
 
@@ -212,7 +212,7 @@ TEST_CASE("GPU dataset built from a DatasetMeta path resolves its tag end-to-end
     (void)env;
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
 
@@ -236,7 +236,7 @@ TEST_CASE("GPU dataset built from a bare path + layout (no metadata struct)",
     (void)env;
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
 
@@ -260,7 +260,7 @@ TEST_CASE("GPU multi-chunk dataset 2-D layout names + move ctor",
     auto& env = kvhdf5::itest::SharedCteEnv();
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
 
@@ -292,7 +292,7 @@ TEST_CASE("GPU multi-chunk parallelism sweep (grid x chunk-count)",
     (void)kvhdf5::itest::SharedCteEnv();  // ensure server + CTE are up
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
 
@@ -322,8 +322,8 @@ static std::vector<byte_t> HostReadBlob(clio::cte::core::TagId tag,
     std::memset(buf.ptr_, 0, size);
     ctp::ipc::ShmPtr<> shm = buf.shm_.template Cast<void>();
     auto* cte_client = CLIO_CTE_CLIENT;
-    auto t = cte_client->AsyncGetBlob(tag, name, /*offset=*/chi::u64(0), size,
-                                      /*flags=*/chi::u32(0), shm);
+    auto t = cte_client->AsyncGetBlob(tag, name, /*offset=*/clio::run::u64(0), size,
+                                      /*flags=*/clio::run::u32(0), shm);
     t.Wait();
     REQUIRE(t->GetReturnCode() == 0);
     std::vector<byte_t> out(size);
@@ -335,8 +335,8 @@ static std::vector<byte_t> HostReadBlob(clio::cte::core::TagId tag,
 // all chunks (grid == pool), then verify each blob from the server. A buffer
 // refilled before its prior Put's server read completed would corrupt the earlier
 // blob -> a mismatch here (the Wait-gates-reuse assertion).
-static void RunPoolAndVerifyHost(chi::IpcManager* ipc,
-                                 chi::IpcManagerGpuInfo gpu_info, unsigned chunks,
+static void RunPoolAndVerifyHost(clio::run::IpcManager* ipc,
+                                 clio::run::IpcManagerGpuInfo gpu_info, unsigned chunks,
                                  unsigned pool, unsigned chunk_bytes, unsigned seed,
                                  const char* tag_name, const char* label,
                                  unsigned grid = 0) {
@@ -386,7 +386,7 @@ TEST_CASE("GPU data-buffer pool: Wait gates buffer reuse (2 chunks, 1 buffer)",
     (void)kvhdf5::itest::SharedCteEnv();
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
     // Tag = the dataset's full path, canonicalized (the path->tag scheme); the
@@ -406,7 +406,7 @@ TEST_CASE("GPU data-buffer pool: 8 chunks through 3 buffers",
     (void)kvhdf5::itest::SharedCteEnv();
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
     // Distinct dataset path -> distinct tag (avoids chunk-coord blob-name
@@ -446,7 +446,7 @@ TEST_CASE("pool large control: 2 chunks / 2 buffers (no reuse)",
     (void)kvhdf5::itest::SharedCteEnv();
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
     RunPoolAndVerifyHost(ipc, gpu_info, /*chunks=*/2, /*pool=*/2,
@@ -465,7 +465,7 @@ TEST_CASE("pool instrumented: 256 B then 4 KiB in one process",
     (void)kvhdf5::itest::SharedCteEnv();
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
     // 256 B, grid=2 (concurrent) — baseline, expected pass.
@@ -504,7 +504,7 @@ TEST_CASE("pool large reuse: 4 chunks / 2 buffers (reuse)",
     (void)kvhdf5::itest::SharedCteEnv();
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
     RunPoolAndVerifyHost(ipc, gpu_info, /*chunks=*/4, /*pool=*/2,

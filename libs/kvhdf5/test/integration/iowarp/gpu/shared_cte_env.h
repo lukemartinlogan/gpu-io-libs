@@ -37,8 +37,8 @@ struct IowarpCteEnv {
     IowarpCteEnv() {
         using namespace std::chrono_literals;
         std::fprintf(stderr, "[init] bringing up Chimaera server (once)\n");
-        if (!chi::CHIMAERA_INIT(chi::ChimaeraMode::kServer))
-            throw std::runtime_error("CHIMAERA_INIT(kServer) failed");
+        if (!clio::run::CLIO_INIT(clio::run::RuntimeMode::kServer))
+            throw std::runtime_error("CLIO_INIT(kServer) failed");
         if (!cte::CLIO_CTE_CLIENT_INIT())
             throw std::runtime_error("CLIO_CTE_CLIENT_INIT failed");
 
@@ -49,18 +49,18 @@ struct IowarpCteEnv {
 
         cte::CreateParams params;
         auto create_task = cte_client->AsyncCreate(
-            chi::PoolQuery::Dynamic(), cte::kCtePoolName, cte::kCtePoolId, params);
+            clio::run::PoolQuery::Dynamic(), cte::kCtePoolName, cte::kCtePoolId, params);
         create_task.Wait();
         if (create_task->GetReturnCode() != 0)
             throw std::runtime_error("CTE pool AsyncCreate failed");
         std::this_thread::sleep_for(50ms);
 
         // Register a kRam bdev target so PutBlob has somewhere to land.
-        const chi::u64 kRamCapacity = 64ULL << 20;  // 64 MiB
-        chi::PoolId bdev_pool_id(960, 0);
+        const clio::run::u64 kRamCapacity = 64ULL << 20;  // 64 MiB
+        clio::run::PoolId bdev_pool_id(960, 0);
         clio::run::bdev::Client bdev_client(bdev_pool_id);
         auto bdev_create = bdev_client.AsyncCreate(
-            chi::PoolQuery::Dynamic(), std::string("kvhdf5_itest_ram"),
+            clio::run::PoolQuery::Dynamic(), std::string("kvhdf5_itest_ram"),
             bdev_pool_id, clio::run::bdev::BdevType::kRam, kRamCapacity);
         bdev_create.Wait();
         if (bdev_create->GetReturnCode() != 0)
@@ -69,7 +69,7 @@ struct IowarpCteEnv {
 
         auto reg_task = cte_client->AsyncRegisterTarget(
             "kvhdf5_itest_ram", clio::run::bdev::BdevType::kRam, kRamCapacity,
-            chi::PoolQuery::Local(), bdev_pool_id);
+            clio::run::PoolQuery::Local(), bdev_pool_id);
         reg_task.Wait();
         if (reg_task->GetReturnCode() != 0)
             throw std::runtime_error("AsyncRegisterTarget failed");
