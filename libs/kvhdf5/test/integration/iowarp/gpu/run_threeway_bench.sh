@@ -91,7 +91,7 @@ run_arm() {  # $1 = catch tag, $2 = label
     reset_state
     echo ">>> arm: $2"
     timeout "${GSBENCH_TIMEOUT}" "${GSBENCH_BIN}" "$1" 2>&1 \
-        | grep -E 'GSBENCH_RESULT|\[bench\]|\[raw\]|FAILED|error' \
+        | grep -E 'GSBENCH_RESULT|GSBENCH_TRACE|\[bench\]|\[raw\]|FAILED|error' \
         | tee "${logs}/$2.log"
     echo "    (exit ${PIPESTATUS[0]})"
 }
