@@ -71,8 +71,6 @@ class GpuCteDataset {
     static constexpr uint32_t kGetSlot = sizeof(cte::PodGetBlobTask);
     static constexpr uint32_t kSlotPair = kPutSlot + kGetSlot;
 
-    using MemKind = clio::run::gpu::IpcManager::MemKind;
-
     // One chunk's blob name (NUL-terminated C-string) + raw byte count.
     struct ChunkSpec {
         const char* name;
@@ -80,14 +78,23 @@ class GpuCteDataset {
     };
 
 public:
+    // Memory placement of the blob DATA backend. kDeviceMem (default) keeps the
+    // payload in HBM and the bdev server D2H-copies it out. kPinnedHost lands the
+    // payload straight in host memory so the server needs no D2H DMA — this lets
+    // its disk writes overlap the producer's compute (the in-process server D2H
+    // does not overlap compute; see the data-backend alloc in Init). The task and
+    // descriptor backends are unaffected by this choice.
+    using MemKind = clio::run::gpu::IpcManager::MemKind;
+
     // Single chunk: `name` is a NUL-terminated chunk-blob name (<= kMaxBlobNameLen),
-    // `bytes` the chunk's raw byte count. Throws on any iowarp failure.
+    // `bytes` the chunk's raw byte count. `data_kind` places the blob data backend
+    // (default kDeviceMem). Throws on any iowarp failure.
     GpuCteDataset(clio::run::IpcManager* ipc, clio::run::IpcManagerGpuInfo info,
                   uint32_t gpu_id, cte::TagId tag, const char* name,
-                  uint64_t bytes)
+                  uint64_t bytes, MemKind data_kind = MemKind::kDeviceMem)
         : ipc_(ipc), gpu_id_(gpu_id) {
         ChunkSpec spec{name, bytes};
-        Init(info, tag, {&spec, 1});
+        Init(info, tag, {&spec, 1}, /*pool_size=*/0, data_kind);
     }
 
     // Multi-chunk: derive one chunk per layout chunk-coordinate. The blob name is
@@ -104,7 +111,7 @@ public:
     // reuse is serialized by that block's Write() = Send().Wait().
     GpuCteDataset(clio::run::IpcManager* ipc, clio::run::IpcManagerGpuInfo info,
                   uint32_t gpu_id, cte::TagId tag, const Layout& layout,
-                  uint32_t pool_size = 0)
+                  uint32_t pool_size = 0, MemKind data_kind = MemKind::kDeviceMem)
         : ipc_(ipc), gpu_id_(gpu_id) {
         if (!layout.Valid())
             throw std::runtime_error("GpuCteDataset: invalid layout");
@@ -137,7 +144,7 @@ public:
         specs.reserve(cc);
         for (const auto& n : names) specs.push_back({n.c_str(), chunk_bytes});
 
-        Init(info, tag, {specs.data(), specs.size()}, pool_size);
+        Init(info, tag, {specs.data(), specs.size()}, pool_size, data_kind);
     }
 
     // Primary path->GPU surface: the producer needs only a dataset `path` (-> tag)
@@ -149,12 +156,13 @@ public:
     static GpuCteDataset FromPath(clio::run::IpcManager* ipc,
                                   clio::run::IpcManagerGpuInfo info, uint32_t gpu_id,
                                   cte::Client* cte_client, std::string_view path,
-                                  const Layout& layout, uint32_t pool_size = 0) {
+                                  const Layout& layout, uint32_t pool_size = 0,
+                                  MemKind data_kind = MemKind::kDeviceMem) {
         std::string tag_name = tagpath::CanonicalTag(path);
         if (tag_name.empty())
             throw std::runtime_error("GpuCteDataset::FromPath: empty/invalid tag path");
         cte::TagId tag = ResolveTagId(cte_client, tag_name);
-        return GpuCteDataset(ipc, info, gpu_id, tag, layout, pool_size);
+        return GpuCteDataset(ipc, info, gpu_id, tag, layout, pool_size, data_kind);
     }
 
     // Convenience over FromPath for callers that already hold a DatasetMeta (the
@@ -163,9 +171,10 @@ public:
                                      clio::run::IpcManagerGpuInfo info, uint32_t gpu_id,
                                      cte::Client* cte_client,
                                      const DatasetMeta& meta,
-                                     uint32_t pool_size = 0) {
+                                     uint32_t pool_size = 0,
+                                     MemKind data_kind = MemKind::kDeviceMem) {
         return FromPath(ipc, info, gpu_id, cte_client, meta.path, meta.layout,
-                        pool_size);
+                        pool_size, data_kind);
     }
 
     ~GpuCteDataset() { Free(); }
@@ -195,7 +204,8 @@ public:
 
 private:
     void Init(clio::run::IpcManagerGpuInfo info, cte::TagId tag,
-              cstd::span<const ChunkSpec> specs, uint32_t pool_size = 0) {
+              cstd::span<const ChunkSpec> specs, uint32_t pool_size = 0,
+              MemKind data_kind = MemKind::kDeviceMem) {
         count_ = static_cast<uint32_t>(specs.size());
         if (count_ == 0)
             throw std::runtime_error("GpuCteDataset: zero chunks");
@@ -246,12 +256,13 @@ private:
 
         // (b) Data backend: one buffer partitioned into M distinct regions
         // (M == N when not pooling; M == pool_ < N when pooling, chunks share).
-        // Stays kDeviceMem: the blob payload is produced on-GPU and the bdev
-        // PutBlob handler D2H-copies it (matches the reference's HBM pages).
-        // The concurrency fix lives in the TASK MemKind above, not here.
+        // Placement is `data_kind` (default kDeviceMem = on-GPU, the bdev server
+        // D2H-copies it out; kPinnedHost lands the payload in host memory so the
+        // server needs no D2H — see the MemKind doc on the public ctors). The
+        // per-chunk concurrency fix lives in the TASK MemKind above, not here.
         char* data_base = nullptr;
         data_alloc_ = ipc_->AllocateAndRegisterGpuBackend(
-            gpu_id_, MemKind::kDeviceMem, data_bytes, &data_base);
+            gpu_id_, data_kind, data_bytes, &data_base);
         data_base_ = reinterpret_cast<byte_t*>(data_base);
         if (data_alloc_.IsNull() || data_base_ == nullptr) {
             ipc_->FreeGpuBackend(gpu_id_, task_alloc_);

@@ -211,6 +211,16 @@ struct Cfg {
     // synchronous (GPU idle during the write, matching host-CLIO / sync-CLIO). Use inline
     // for a storage-path comparison free of this box's GPU-concurrent-I/O throttle.
     unsigned raw_inline   = EnvU("GSBENCH_RAW_INLINE", 0);
+    // Place the CLIO snapshot DATA backend in pinned host memory (kPinnedHost)
+    // instead of on-GPU (kDeviceMem). The in-process bdev server's device->host
+    // readback does not overlap the producer's compute (its first per-run D2H
+    // stalls for the whole compute window), so with kDeviceMem the async drain
+    // serializes after compute and barely beats sync. Pinned data removes the
+    // server D2H, letting disk writes pipeline under compute: at steps_per=192,
+    // N=6400 async goes ~836 -> ~955 MB/s. Trade-off: the producer kernel writes
+    // mapped host over PCIe (slower submit) and it regresses the disk-bound /
+    // low-compute regime, so it is off by default.
+    unsigned data_pinned  = EnvU("GSBENCH_DATA_PINNED", 0);
 
     unsigned steps() const { return snaps * steps_per; }
     uint64_t cells() const { return uint64_t(N) * N; }
@@ -472,12 +482,16 @@ void MakeSnapDatasets(clio::run::IpcManager* ipc, clio::run::IpcManagerGpuInfo g
                           /*chunk_dims=*/{cfg.cells() / cfg.chunks},
                           /*elem_size=*/sizeof(float)};
     REQUIRE(layout.ChunkCount() == cfg.chunks);
+    const auto data_kind = cfg.data_pinned
+        ? kvhdf5::GpuCteDataset::MemKind::kPinnedHost
+        : kvhdf5::GpuCteDataset::MemKind::kDeviceMem;
     out.clear(); tags.clear(); out.reserve(cfg.snaps);
     for (unsigned s = 0; s < cfg.snaps; ++s) {
         char path[160];
         std::snprintf(path, sizeof(path), "%s/v/step_%04u", prefix, s);
         out.emplace_back(kvhdf5::GpuCteDataset::FromPath(
-            ipc, gpu_info, /*gpu_id=*/0, CLIO_CTE_CLIENT, path, layout));
+            ipc, gpu_info, /*gpu_id=*/0, CLIO_CTE_CLIENT, path, layout,
+            /*pool_size=*/0, data_kind));
         tags.push_back(MakeTag(kvhdf5::tagpath::CanonicalTag(path).c_str()));
     }
 }
