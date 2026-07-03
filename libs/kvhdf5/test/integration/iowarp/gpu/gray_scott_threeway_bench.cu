@@ -274,13 +274,83 @@ uint64_t Fnv1a(const void* data, size_t n, uint64_t h = 1469598103934665603ull) 
     return h;
 }
 
+// GPU-timeline phase tracer (GSBENCH_TRACE=1), used by the sync & async CLIO arms to
+// answer the advisor's question: is async's I/O actually OVERLAPPING compute, or is
+// compute so cheap there's nothing to overlap? It splits each snapshot interval on the
+// GPU's own timeline into:
+//   compute_ms  — the steps_per GsStepKernels leading up to the snapshot,
+//   submit_ms   — the snapshot's mask + PutBlob-task emplace kernel (async: fire only;
+//                 sync: fire-AND-device-wait, so sync's submit bucket carries the wait),
+//   drain_ms    — (async only) the single TAIL TwDrainKernel spin-wait at the very end.
+// So the hypothesis reads directly off the buckets: async should have near-zero submit_ms
+// and a drain_ms that is SMALL vs total compute if I/O kept up (good overlap), or LARGE if
+// the server fell behind (backlog => async collapses toward sync). sync has no drain; its
+// per-snapshot wait is inside submit_ms.
+//
+// Mechanics: everything runs on the default stream, so cudaEvents recorded at the phase
+// boundaries measure GPU-serialized work in order. We ONLY cudaEventRecord in the hot loop
+// (async, ~1us, no stall) and read every cudaEventElapsedTime AFTER the closing Synchronize
+// — a mid-loop cudaEventSynchronize would serialize the stream and destroy the overlap we
+// are measuring. NOTE: submit_ms includes the per-snapshot MaskKernel (identical work in
+// both arms, so it cancels in the sync-vs-async comparison).
+struct PhaseTrace {
+    bool on_;
+    unsigned snaps_;
+    bool has_drain_;
+    std::vector<cudaEvent_t> cs_, ce_, se_;   // compute-start, compute-end(=submit-start), submit-end
+    cudaEvent_t ds_ = nullptr, de_ = nullptr; // drain-start, drain-end (async only)
+    PhaseTrace(bool on, unsigned snaps, bool async)
+        : on_(on), snaps_(snaps), has_drain_(async) {
+        if (!on_) return;
+        cs_.resize(snaps); ce_.resize(snaps); se_.resize(snaps);
+        for (unsigned i = 0; i < snaps; ++i) {
+            cudaEventCreate(&cs_[i]); cudaEventCreate(&ce_[i]); cudaEventCreate(&se_[i]);
+        }
+        if (has_drain_) { cudaEventCreate(&ds_); cudaEventCreate(&de_); }
+    }
+    ~PhaseTrace() {
+        if (!on_) return;
+        for (auto e : cs_) cudaEventDestroy(e);
+        for (auto e : ce_) cudaEventDestroy(e);
+        for (auto e : se_) cudaEventDestroy(e);
+        if (has_drain_) { cudaEventDestroy(ds_); cudaEventDestroy(de_); }
+    }
+    void CompStart(unsigned si)  { if (on_) cudaEventRecord(cs_[si]); }
+    void CompEnd(unsigned si)    { if (on_) cudaEventRecord(ce_[si]); }
+    void SubmitEnd(unsigned si)  { if (on_) cudaEventRecord(se_[si]); }
+    void DrainStart()            { if (on_ && has_drain_) cudaEventRecord(ds_); }
+    void DrainEnd()              { if (on_ && has_drain_) cudaEventRecord(de_); }
+    // Read the deltas + print the per-snapshot series and totals. MUST be called after the
+    // caller's RunSim returns (i.e. after the closing Synchronize) so every event is done.
+    void Report(const char* arm) {
+        if (!on_) return;
+        double tot_c = 0, tot_s = 0;
+        std::fprintf(stderr, "GSBENCH_TRACE arm=%s per-snapshot (GPU-timeline ms):\n", arm);
+        for (unsigned i = 0; i < snaps_; ++i) {
+            float c = 0, s = 0;
+            cudaEventElapsedTime(&c, cs_[i], ce_[i]);
+            cudaEventElapsedTime(&s, ce_[i], se_[i]);
+            tot_c += c; tot_s += s;
+            std::fprintf(stderr, "GSBENCH_TRACE   snap=%2u compute_ms=%8.3f submit_ms=%8.3f\n",
+                         i, c, s);
+        }
+        float drain = 0;
+        if (has_drain_) cudaEventElapsedTime(&drain, ds_, de_);
+        std::fprintf(stderr,
+            "GSBENCH_TRACE arm=%s TOTALS compute_ms=%.3f submit_ms=%.3f drain_ms=%.3f "
+            "(sum=%.3f)\n",
+            arm, tot_c, tot_s, double(drain), tot_c + tot_s + double(drain));
+    }
+};
+
 // The ONE timed sim loop shared by every arm. `snap(si, v_curr)` persists snapshot si;
 // `finalize()` runs inside the timed region (async drain). No per-step Synchronize so
 // the stream can overlap; one Synchronize closes the region. Returns wall-clock ms and
 // accumulates a checksum of every snapshot's v-grid (host-read) for cross-arm equality.
+// `trace` (optional) records GPU-timeline phase events; nullptr = off.
 template <class SnapFn, class FinalizeFn>
 double RunSim(const Cfg& cfg, Grids& g, SnapFn snap, FinalizeFn finalize,
-              uint64_t* checksum_out) {
+              uint64_t* checksum_out, PhaseTrace* trace = nullptr) {
     unsigned N = cfg.N;
     uint64_t cells = cfg.cells();
     unsigned threads = 256, blocks = unsigned((cells + threads - 1) / threads);
@@ -288,15 +358,21 @@ double RunSim(const Cfg& cfg, Grids& g, SnapFn snap, FinalizeFn finalize,
     auto t0 = std::chrono::steady_clock::now();
     unsigned si = 0;
     for (unsigned step = 1; step <= cfg.steps(); ++step) {
+        // First step of a snapshot interval => mark where this snapshot's compute begins.
+        if (trace && (step - 1) % cfg.steps_per == 0) trace->CompStart(si);
         GsStepKernel<<<blocks, threads>>>(g.u_curr, g.v_curr, g.u_next, g.v_next,
                                           kGs, N);
         std::swap(g.u_curr, g.u_next);
         std::swap(g.v_curr, g.v_next);
         if (step % cfg.steps_per != 0) continue;
+        if (trace) trace->CompEnd(si);   // compute done; snap() is the submit phase
         snap(si, g.v_curr);
+        if (trace) trace->SubmitEnd(si);
         ++si;
     }
-    finalize();
+    if (trace) trace->DrainStart();
+    finalize();                          // async: tail-drain all outstanding puts
+    if (trace) trace->DrainEnd();
     ctp::GpuApi::Synchronize();
     auto t1 = std::chrono::steady_clock::now();
     (void)checksum_out;  // checksum computed by arms post-run from persisted bytes
@@ -426,6 +502,7 @@ double RunClioArm(const Cfg& cfg, bool async, const char* prefix, uint64_t* chec
 
     Masker masker(cfg.N, cfg.incompressible != 0);
     Grids g = MakeGrids(cfg.N);
+    PhaseTrace trace(EnvU("GSBENCH_TRACE", 0) != 0, cfg.snaps, async);
     auto snap = [&](unsigned si, float* v_curr) {
         float* src = masker.Apply(v_curr);   // incompressible view (or v_curr if disabled)
         if (async) TwSnapFireKernel<<<1, 256>>>(ds[si].Handle(), src);
@@ -434,8 +511,9 @@ double RunClioArm(const Cfg& cfg, bool async, const char* prefix, uint64_t* chec
     auto finalize = [&]() {
         if (async) for (auto& d : ds) TwDrainKernel<<<1, 32>>>(d.Handle());
     };
-    double ms = RunSim(cfg, g, snap, finalize, nullptr);
+    double ms = RunSim(cfg, g, snap, finalize, nullptr, &trace);
     FreeGrids(g);
+    trace.Report(async ? "async" : "sync");   // GSBENCH_TRACE=1: emit phase breakdown
     *checksum = ChecksumSnapshots(tags, cfg);
     return ms;
 }
