@@ -65,7 +65,7 @@ set(CLIO_CTE_ENABLE_HDF5_VOL      OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     iowarp_core
     GIT_REPOSITORY https://github.com/abscosmos/iowarp-core.git
-    GIT_TAG        f14416ce0e512ea98ff2f65123600ac495b54844
+    GIT_TAG        9266bd19bf0cd729e1a5cfd8427812b5442e9ff5
     GIT_SUBMODULES ""
 )
 # FetchContent_Populate(<name>) is deprecated in CMake 3.30+ (CMP0169).
@@ -86,7 +86,7 @@ if(NOT iowarp_core_POPULATED)
 
     add_subdirectory(${iowarp_core_SOURCE_DIR} ${iowarp_core_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
-message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ f14416ce)")
+message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ 9266bd19)")
 
 FetchContent_Declare(
     cccl
