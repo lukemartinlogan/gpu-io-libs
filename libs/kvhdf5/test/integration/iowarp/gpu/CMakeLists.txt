@@ -32,8 +32,8 @@ add_cuda_executable(iowarp_cte_integration_tests FALSE
         ${iowarp_core_SOURCE_DIR}/context-runtime/modules/admin/include
         ${iowarp_core_SOURCE_DIR}/context-transfer-engine/core/include
     LINK_LIBS
-        chimaera_cxx
-        chimaera_cxx_gpu
+        clio_run_cxx
+        clio_run_cxx_gpu
         clio_admin_client
         clio_bdev_client
         clio_cte_core_client

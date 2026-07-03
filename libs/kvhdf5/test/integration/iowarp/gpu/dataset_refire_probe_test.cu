@@ -68,7 +68,7 @@ constexpr byte_t RefirePattern(unsigned seed, uint64_t i) {
 // Fill chunk 0 with the seed's pattern, then fused-Write (Send().Wait()): at most
 // one put in flight. Re-launched each iteration on the SAME handle == the reuse.
 __global__ void RefireFillWriteKernel(kvhdf5::GpuDatasetHandle h, unsigned seed) {
-    CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+    CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
     byte_t* dst = h.Data(0);
     uint64_t n = h.Size(0);
@@ -97,8 +97,8 @@ std::vector<byte_t> HostReadBlob(clio::cte::core::TagId tag, const std::string& 
     REQUIRE(!buf.IsNull());
     std::memset(buf.ptr_, 0, size);
     ctp::ipc::ShmPtr<> shm = buf.shm_.template Cast<void>();
-    auto t = CLIO_CTE_CLIENT->AsyncGetBlob(tag, name, chi::u64(0), size,
-                                           chi::u32(0), shm);
+    auto t = CLIO_CTE_CLIENT->AsyncGetBlob(tag, name, clio::run::u64(0), size,
+                                           clio::run::u32(0), shm);
     t.Wait();
     REQUIRE(t->GetReturnCode() == 0);
     std::vector<byte_t> out(size);
@@ -112,7 +112,7 @@ std::vector<byte_t> HostReadBlob(clio::cte::core::TagId tag, const std::string& 
 void RunRefire(unsigned iters, uint64_t chunk_bytes, const char* prefix) {
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
     auto* cte_client = CLIO_CTE_CLIENT;

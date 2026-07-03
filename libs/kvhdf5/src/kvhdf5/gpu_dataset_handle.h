@@ -17,7 +17,7 @@
 // the grid-stride form. The no-arg Data()/Write()/... overloads target chunk 0
 // (the single-chunk specialization).
 //
-// Contract: the kernel MUST run CHIMAERA_GPU_INIT(handle.info_, nullptr) at
+// Contract: the kernel MUST run CLIO_GPU_INIT(handle.info_, nullptr) at
 // block scope before calling Write()/Read(). That macro declares a *kernel-
 // local* g_ipc_manager_ptr and does the block-wide ClientInitGpu + __syncthreads
 // — so Write()/Read() can't see it and instead re-fetch the per-block IpcManager
@@ -42,14 +42,14 @@ namespace cte = clio::cte::core;
 // once, and read by the kernel. The FullPtrs address that chunk's pre-built
 // PutBlob/GetBlob task slots; data/size address its distinct device buffer.
 struct ChunkDesc {
-    ctp::ipc::FullPtr<cte::PutBlobTask> put_fp;
-    ctp::ipc::FullPtr<cte::GetBlobTask> get_fp;
+    ctp::ipc::FullPtr<cte::PodPutBlobTask> put_fp;
+    ctp::ipc::FullPtr<cte::PodGetBlobTask> get_fp;
     byte_t* data = nullptr;     // this chunk's registered device blob buffer
     uint64_t size = 0;
 };
 
 struct GpuDatasetHandle {
-    chi::IpcManagerGpuInfo info_;
+    clio::run::IpcManagerGpuInfo info_;
     ChunkDesc* chunks_ = nullptr;   // device array, count_ entries
     uint32_t count_ = 0;
 
@@ -98,24 +98,20 @@ private:
     // to be retained across the fire/drain gap.
     template<typename TaskT>
     __device__ void SubmitAsync(const ctp::ipc::FullPtr<TaskT>& fp) const {
-        auto* ipc = chi::gpu::IpcManager::GetBlockIpcManager();
-        if (chi::gpu::IpcManager::GetGpuThreadId() != 0) return;
+        auto* ipc = clio::run::gpu::IpcManager::GetBlockIpcManager();
+        if (clio::run::gpu::IpcManager::GetGpuThreadId() != 0) return;
         (void)ipc->Send(fp);
     }
 
-    // Drain fp's task: thread-0 polls FUTURE_COMPLETE on its FutureShm. The
-    // FutureShm is co-located immediately after the POD task (ClientSend builds
-    // it at task.ptr_ + sizeof(TaskT)), so the wait is reconstructed statelessly
-    // from fp alone — no stored future. Wait() only reads the FutureShm; the
-    // task_ptr the real future also carried is irrelevant to completion.
+    // Drain fp's task: thread-0 polls task->fut_.is_complete_. The task is now
+    // self-contained (its completion record lives in the POD's embedded fut_,
+    // no co-located gpu::FutureShm), so the wait is reconstructed statelessly
+    // from fp alone — a fresh gpu::Future over the same task slot reads the same
+    // completion flag the CPU worker flips. No stored future is needed.
     template<typename TaskT>
     __device__ void SubmitWait(const ctp::ipc::FullPtr<TaskT>& fp) const {
-        if (chi::gpu::IpcManager::GetGpuThreadId() != 0) return;
-        ctp::ipc::ShmPtr<chi::gpu::FutureShm> fshm;
-        fshm.alloc_id_ = fp.shm_.alloc_id_;
-        fshm.off_ = reinterpret_cast<chi::u64>(
-            reinterpret_cast<char*>(fp.ptr_) + sizeof(TaskT));
-        chi::gpu::Future<TaskT> fut(fshm);
+        if (clio::run::gpu::IpcManager::GetGpuThreadId() != 0) return;
+        clio::run::gpu::Future<TaskT> fut(fp, sizeof(TaskT));
         fut.Wait();
     }
 #endif  // CTP_IS_GPU_COMPILER

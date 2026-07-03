@@ -62,7 +62,7 @@ constexpr byte_t LifePattern(unsigned seed, unsigned i) {
 // Sequential producer: one block fills each chunk then fused-Write(c) = Send().Wait(),
 // so at most one put is ever in flight (isolates churn from concurrency).
 __global__ void LifecycleFillWriteKernel(kvhdf5::GpuDatasetHandle h, unsigned seed) {
-    CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+    CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
     for (uint32_t c = 0; c < h.Count(); ++c) {
         byte_t* dst = h.Data(c);
@@ -94,7 +94,7 @@ __device__ void LifeCompute(byte_t* dst, uint64_t n, unsigned iters, unsigned wb
 // hits the original corruption intersection (async + size + many datasets).
 __global__ void LifecycleAsyncFillWriteKernel(kvhdf5::GpuDatasetHandle h,
                                               unsigned seed, unsigned iters) {
-    CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+    CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
     for (uint32_t c = 0; c < h.Count(); ++c) {
         byte_t* dst = h.Data(c);
@@ -130,8 +130,8 @@ std::vector<byte_t> HostReadBlob(clio::cte::core::TagId tag,
     REQUIRE(!buf.IsNull());
     std::memset(buf.ptr_, 0, size);
     ctp::ipc::ShmPtr<> shm = buf.shm_.template Cast<void>();
-    auto t = CLIO_CTE_CLIENT->AsyncGetBlob(tag, name, /*offset=*/chi::u64(0), size,
-                                           /*flags=*/chi::u32(0), shm);
+    auto t = CLIO_CTE_CLIENT->AsyncGetBlob(tag, name, /*offset=*/clio::run::u64(0), size,
+                                           /*flags=*/clio::run::u32(0), shm);
     t.Wait();
     REQUIRE(t->GetReturnCode() == 0);
     std::vector<byte_t> out(size);
@@ -146,7 +146,7 @@ void RunLifecycle(unsigned snapshots, unsigned chunks, unsigned chunk_bytes,
                   const char* prefix) {
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
     auto* cte_client = CLIO_CTE_CLIENT;
@@ -203,7 +203,7 @@ void RunLifecycleAsync(unsigned snapshots, unsigned chunks, unsigned chunk_bytes
                        unsigned iters, const char* prefix) {
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
     auto* cte_client = CLIO_CTE_CLIENT;

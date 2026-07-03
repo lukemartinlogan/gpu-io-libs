@@ -85,7 +85,7 @@ __global__ void GsStepKernel(const float *u, const float *v, float *un,
  * sees it while the kernel is still resident (Slice 2 proved the fence suffices).
  */
 __global__ void GsSnapKernel(kvhdf5::GpuDatasetHandle h, const float *src) {
-  CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+  CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
   (void)g_ipc_manager;
   const byte_t *s = reinterpret_cast<const byte_t *>(src);
   byte_t *dst = h.Data();
@@ -97,7 +97,7 @@ __global__ void GsSnapKernel(kvhdf5::GpuDatasetHandle h, const float *src) {
 
 /** Submit the pre-built GetBlob task from the kernel via the handle. */
 __global__ void GsReadKernel(kvhdf5::GpuDatasetHandle h) {
-  CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+  CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
   (void)g_ipc_manager;
   h.Read();
 }
@@ -111,7 +111,7 @@ TEST_CASE("GPU Gray-Scott end-to-end snapshots via dataset handle",
   REQUIRE(ipc->GetGpuIpcManager() != nullptr);
   REQUIRE(ipc->GetGpuQueueCount() >= 1u);
 
-  chi::IpcManagerGpuInfo gpu_info =
+  clio::run::IpcManagerGpuInfo gpu_info =
       ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
   REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
 

@@ -1,13 +1,17 @@
 cmake_minimum_required(VERSION 3.28)
 
+# Declare the project (CXX) BEFORE probing for CUDA: check_language() requires an
+# active project, otherwise it always reports NOTFOUND (CMake 4.x). Enable CUDA as
+# a second language only if a working compiler is found.
+project(gpu-io-libs LANGUAGES CXX)
+
 include(CheckLanguage)
 check_language(CUDA)
 
 if(CMAKE_CUDA_COMPILER)
-    project(gpu-io-libs LANGUAGES CXX CUDA)
+    enable_language(CUDA)
     message(STATUS "CUDA compiler found, enabling CUDA support")
 else()
-    project(gpu-io-libs LANGUAGES CXX)
     message(STATUS "CUDA compiler not found, building CPU-only version")
 endif()
 

@@ -9,7 +9,7 @@
 
 namespace kvhdf5::chunking {
 
-// iowarp keeps a device-touched blob name in chi::priv::string SSO; longer names
+// iowarp keeps a device-touched blob name in clio::run::priv::string SSO; longer names
 // spill to a device heap alloc that faults in this runtime config. Chunk-coord
 // names are tiny, so this is a guard rather than a real limit.
 inline constexpr size_t kMaxBlobNameLen = 31;

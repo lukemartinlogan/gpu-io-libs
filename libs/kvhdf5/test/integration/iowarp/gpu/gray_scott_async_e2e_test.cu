@@ -96,7 +96,7 @@ __device__ inline void CopyChunk(kvhdf5::GpuDatasetHandle& h, uint32_t c,
 // SYNC snapshot (baseline): copy each chunk then fused Write(c) = submit-AND-WAIT.
 // The GPU blocks in-kernel on each put, so the following sim steps can't overlap it.
 __global__ void GsSnapSyncKernel(kvhdf5::GpuDatasetHandle h, const float* src) {
-    CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+    CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
     const byte_t* s = reinterpret_cast<const byte_t*>(src);
     for (uint32_t c = 0; c < h.Count(); ++c) {
@@ -112,7 +112,7 @@ __global__ void GsSnapSyncKernel(kvhdf5::GpuDatasetHandle h, const float* src) {
 // by the DEFAULT correctness guard (proven-safe window). Overlaps chunk I/O with
 // chunk compute inside the snapshot.
 __global__ void GsSnapAsyncKernel(kvhdf5::GpuDatasetHandle h, const float* src) {
-    CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+    CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
     const byte_t* s = reinterpret_cast<const byte_t*>(src);
     for (uint32_t c = 0; c < h.Count(); ++c) {
@@ -129,7 +129,7 @@ __global__ void GsSnapAsyncKernel(kvhdf5::GpuDatasetHandle h, const float* src) 
 // The puts drain on the server while the SUBSEQUENT sim-step kernels run on the GPU
 // — the cross-kernel overlap the timed demo measures. Drained later by GsDrainKernel.
 __global__ void GsSnapFireKernel(kvhdf5::GpuDatasetHandle h, const float* src) {
-    CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+    CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
     const byte_t* s = reinterpret_cast<const byte_t*>(src);
     for (uint32_t c = 0; c < h.Count(); ++c) {
@@ -143,7 +143,7 @@ __global__ void GsSnapFireKernel(kvhdf5::GpuDatasetHandle h, const float* src) {
 
 // Drain a fired snapshot's outstanding puts (thread-0 polls each completion bit).
 __global__ void GsDrainKernel(kvhdf5::GpuDatasetHandle h) {
-    CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+    CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
     for (uint32_t c = 0; c < h.Count(); ++c) { h.WriteWait(c); __syncthreads(); }
 }
@@ -167,7 +167,7 @@ std::vector<byte_t> HostReadBlob(clio::cte::core::TagId tag, const std::string& 
     REQUIRE(!buf.IsNull());
     std::memset(buf.ptr_, 0, size);
     ctp::ipc::ShmPtr<> shm = buf.shm_.template Cast<void>();
-    auto t = CLIO_CTE_CLIENT->AsyncGetBlob(tag, name, chi::u64(0), size, chi::u32(0), shm);
+    auto t = CLIO_CTE_CLIENT->AsyncGetBlob(tag, name, clio::run::u64(0), size, clio::run::u32(0), shm);
     t.Wait();
     REQUIRE(t->GetReturnCode() == 0);
     std::vector<byte_t> out(size);
@@ -199,7 +199,7 @@ void FreeGrids(Grids& g) {
 
 // Pre-create one snapshot dataset per snapshot step (distinct path => distinct tag).
 // Returns the datasets and the canonical tag for each (for read-back verify).
-void MakeSnapDatasets(chi::IpcManager* ipc, chi::IpcManagerGpuInfo gpu_info,
+void MakeSnapDatasets(clio::run::IpcManager* ipc, clio::run::IpcManagerGpuInfo gpu_info,
                       const char* prefix, unsigned snaps, const kvhdf5::Layout& layout,
                       std::vector<kvhdf5::GpuCteDataset>& out,
                       std::vector<clio::cte::core::TagId>& tags) {
@@ -225,7 +225,7 @@ TEST_CASE("GPU Gray-Scott async multi-chunk snapshots round-trip",
     (void)env;
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info = ipc->GetGpuIpcManager()->GetGpuInfo(0);
+    clio::run::IpcManagerGpuInfo gpu_info = ipc->GetGpuIpcManager()->GetGpuInfo(0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
 
     const unsigned N = 32, C = 2, cells = N*N, bytes = cells*sizeof(float);
@@ -319,7 +319,7 @@ TEST_CASE("GPU Gray-Scott async-overlapped snapshots beat sync in a real sim (nt
     (void)kvhdf5::itest::SharedCteEnv();
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info = ipc->GetGpuIpcManager()->GetGpuInfo(0);
+    clio::run::IpcManagerGpuInfo gpu_info = ipc->GetGpuIpcManager()->GetGpuInfo(0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
 
     const unsigned N = 512, C = 4, cells = N*N, bytes = cells*sizeof(float);

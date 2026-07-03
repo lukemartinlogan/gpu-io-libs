@@ -83,7 +83,7 @@ __device__ void ArtificialCompute(byte_t* dst, uint64_t n, unsigned iters,
 // later ones. Grid-stride so block b owns chunks {b, b+gridDim, ...}.
 __global__ void AsyncFillWriteKernel(kvhdf5::GpuDatasetHandle h, unsigned seed_base,
                                      unsigned iters, unsigned writeback) {
-    CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+    CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
     for (uint32_t c = blockIdx.x; c < h.Count(); c += gridDim.x) {
         byte_t* dst = h.Data(c);
@@ -106,7 +106,7 @@ __global__ void AsyncFillWriteKernel(kvhdf5::GpuDatasetHandle h, unsigned seed_b
 // Send().Wait(), so chunk c+1's compute can't start until chunk c's IO finishes.
 __global__ void SyncFillWriteKernel(kvhdf5::GpuDatasetHandle h, unsigned seed_base,
                                     unsigned iters, unsigned writeback) {
-    CHIMAERA_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
+    CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
     for (uint32_t c = blockIdx.x; c < h.Count(); c += gridDim.x) {
         byte_t* dst = h.Data(c);
@@ -139,8 +139,8 @@ std::vector<byte_t> HostReadBlob(clio::cte::core::TagId tag,
     REQUIRE(!buf.IsNull());
     std::memset(buf.ptr_, 0, size);
     ctp::ipc::ShmPtr<> shm = buf.shm_.template Cast<void>();
-    auto t = CLIO_CTE_CLIENT->AsyncGetBlob(tag, name, /*offset=*/chi::u64(0), size,
-                                           /*flags=*/chi::u32(0), shm);
+    auto t = CLIO_CTE_CLIENT->AsyncGetBlob(tag, name, /*offset=*/clio::run::u64(0), size,
+                                           /*flags=*/clio::run::u32(0), shm);
     t.Wait();
     REQUIRE(t->GetReturnCode() == 0);
     std::vector<byte_t> out(size);
@@ -151,7 +151,7 @@ std::vector<byte_t> HostReadBlob(clio::cte::core::TagId tag,
 // Build a fresh chunks-chunk dataset (M==N), run AsyncFillWriteKernel, verify
 // every blob byte-identical to its pattern via host read-back. Returns the
 // wall-clock launch+Synchronize duration so callers can compare async vs sync.
-double RunAsyncAndVerify(chi::IpcManager* ipc, chi::IpcManagerGpuInfo gpu_info,
+double RunAsyncAndVerify(clio::run::IpcManager* ipc, clio::run::IpcManagerGpuInfo gpu_info,
                          unsigned chunks, unsigned chunk_bytes, unsigned grid,
                          unsigned iters, unsigned seed, const char* tag_name,
                          const char* label) {
@@ -200,7 +200,7 @@ TEST_CASE("GPU async fire-all/drain PutBlob round trip",
     (void)env;
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
 
@@ -217,7 +217,7 @@ namespace {
 // 2-stage (compute|IO) pipeline can buy is (C+I)/max(C,I) -> up to ~2x when the
 // per-chunk compute C and IO I are balanced; iters is the knob that balances them.
 struct BenchResult { double sync_ms, async_ms; };
-BenchResult BenchOne(chi::IpcManager* ipc, chi::IpcManagerGpuInfo gpu_info,
+BenchResult BenchOne(clio::run::IpcManager* ipc, clio::run::IpcManagerGpuInfo gpu_info,
                      unsigned chunks, unsigned bytes, unsigned iters, unsigned tag) {
     auto verify = [&](clio::cte::core::TagId t, unsigned seed) {
         for (unsigned c = 0; c < chunks; ++c) {
@@ -266,7 +266,7 @@ TEST_CASE("GPU async overlap beats sync at scale (nt1)",
     (void)kvhdf5::itest::SharedCteEnv();
     auto* ipc = CLIO_CPU_IPC;
     REQUIRE(ipc->GetGpuIpcManager() != nullptr);
-    chi::IpcManagerGpuInfo gpu_info =
+    clio::run::IpcManagerGpuInfo gpu_info =
         ipc->GetGpuIpcManager()->GetGpuInfo(/*gpu_id=*/0);
     REQUIRE(gpu_info.gpu2cpu_queue != nullptr);
 
