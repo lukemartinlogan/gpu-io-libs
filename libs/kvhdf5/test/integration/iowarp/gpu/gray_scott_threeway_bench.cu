@@ -107,38 +107,44 @@ __global__ void GsStepKernel(const float* u, const float* v, float* un, float* v
 
 // ---- CLIO snapshot kernels (device-facing handle) --------------------------
 
-__device__ inline void CopyChunk(kvhdf5::GpuDatasetHandle& h, uint32_t c,
-                                 const byte_t* src) {
-    byte_t* dst = h.Data(c);
+// Bulk stage a snapshot into its registered per-chunk device backends with a FULL grid
+// (gridDim.y = chunk, gridDim.x = blocks/chunk), saturating HBM. This is split OUT of the
+// submit kernels: the old design fused the copy into the single <<<1,256>>> CLIO-producer
+// block, so 156 MB moved at ~1 GB/s (~160 ms/snapshot) and dominated BOTH arms — dwarfing
+// the actual compute and masking any async advantage. `src` is the flat masked grid; chunk
+// c's bytes are src[c*size .. c*size+size). Word-wise (float-grid sizes are 4-byte
+// multiples). Being its OWN completed kernel gives kernel-boundary ordering, so the staged
+// writes are visible to the subsequent submit kernel and the server's readback — no
+// __threadfence_system needed (that fence was only for the old same-kernel copy+enqueue).
+__global__ void TwCopyKernel(kvhdf5::GpuDatasetHandle h, const byte_t* src) {
+    uint32_t c = blockIdx.y;
     uint64_t n = h.Size(c);
-    uint64_t off = static_cast<uint64_t>(c) * n;
-    for (uint64_t i = threadIdx.x; i < n; i += blockDim.x) dst[i] = src[off + i];
+    const uint32_t* s = reinterpret_cast<const uint32_t*>(src + uint64_t(c) * n);
+    uint32_t* d = reinterpret_cast<uint32_t*>(h.Data(c));
+    uint64_t words = n >> 2;
+    uint64_t gid = uint64_t(blockIdx.x) * blockDim.x + threadIdx.x;
+    uint64_t stride = uint64_t(gridDim.x) * blockDim.x;
+    for (uint64_t i = gid; i < words; i += stride) d[i] = s[i];
 }
 
-// SYNC: copy each chunk then fused Write(c) = submit-AND-WAIT (GPU blocks).
-__global__ void TwSnapSyncKernel(kvhdf5::GpuDatasetHandle h, const float* src) {
+// SYNC submit: per chunk, fused Write(c) = submit-AND-WAIT (GPU blocks). Data already
+// staged by TwCopyKernel. Single block (CLIO producer guard: thread-0 enqueues).
+__global__ void TwSnapSyncKernel(kvhdf5::GpuDatasetHandle h) {
     CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
-    const byte_t* s = reinterpret_cast<const byte_t*>(src);
     for (uint32_t c = 0; c < h.Count(); ++c) {
-        CopyChunk(h, c, s);
-        __threadfence_system();
-        __syncthreads();
         h.Write(c);
         __syncthreads();
     }
 }
 
-// ASYNC FIRE only: copy + fire every chunk's PutBlob, no wait. Drained later so the
-// puts run on the server WHILE the subsequent sim steps run on the GPU.
-__global__ void TwSnapFireKernel(kvhdf5::GpuDatasetHandle h, const float* src) {
+// ASYNC FIRE only: fire every chunk's PutBlob, no wait. Data already staged by
+// TwCopyKernel. Drained later so the puts run on the server WHILE the subsequent sim
+// steps run on the GPU.
+__global__ void TwSnapFireKernel(kvhdf5::GpuDatasetHandle h) {
     CLIO_GPU_INIT(h.info_, /*ipc_ptr=*/nullptr);
     (void)g_ipc_manager;
-    const byte_t* s = reinterpret_cast<const byte_t*>(src);
     for (uint32_t c = 0; c < h.Count(); ++c) {
-        CopyChunk(h, c, s);
-        __threadfence_system();
-        __syncthreads();
         h.WriteAsync(c);
         __syncthreads();
     }
@@ -503,10 +509,32 @@ double RunClioArm(const Cfg& cfg, bool async, const char* prefix, uint64_t* chec
     Masker masker(cfg.N, cfg.incompressible != 0);
     Grids g = MakeGrids(cfg.N);
     PhaseTrace trace(EnvU("GSBENCH_TRACE", 0) != 0, cfg.snaps, async);
+    // Grid sizing for the decoupled bulk copy: one gridDim.y per chunk, enough blocks/chunk
+    // (each thread copies one 4-byte word, grid-strided) to saturate HBM.
+    const uint64_t copy_chunk_bytes = cfg.grid_bytes() / cfg.chunks;
+    const unsigned copy_words = unsigned(copy_chunk_bytes / sizeof(uint32_t));
+    unsigned copy_bpc = (copy_words + 255) / 256;
+    if (copy_bpc < 1) copy_bpc = 1;
+    if (copy_bpc > 2048) copy_bpc = 2048;
     auto snap = [&](unsigned si, float* v_curr) {
         float* src = masker.Apply(v_curr);   // incompressible view (or v_curr if disabled)
-        if (async) TwSnapFireKernel<<<1, 256>>>(ds[si].Handle(), src);
-        else       TwSnapSyncKernel<<<1, 256>>>(ds[si].Handle(), src);
+        const byte_t* bsrc = reinterpret_cast<const byte_t*>(src);
+        TwCopyKernel<<<dim3(copy_bpc, cfg.chunks), 256>>>(ds[si].Handle(), bsrc);  // multi-block stage
+        if (async) {
+            TwSnapFireKernel<<<1, 256>>>(ds[si].Handle());
+        } else {
+            TwSnapSyncKernel<<<1, 256>>>(ds[si].Handle());
+            // Bound the CUDA pending-launch queue. The sync arm's in-kernel SubmitWait
+            // spins waiting for the IN-PROCESS server to flip the completion flag. If the
+            // host races ahead and fills the ~1024-deep launch queue (once the run's total
+            // kernels, 12*(steps_per+2), exceed it) it blocks inside cudaLaunchKernel while
+            // the GPU is stalled on that spin — and the server can't make forward progress
+            // from the same process → DEADLOCK (repros at steps_per>=96). A per-snapshot
+            // sync caps in-flight work to one interval. Free for the sync arm (it already
+            // waits on every put); the async arm must NOT do this — racing ahead IS its
+            // overlap, and it never wedges (its waits are deferred to the end drain).
+            ctp::GpuApi::Synchronize();
+        }
     };
     auto finalize = [&]() {
         if (async) for (auto& d : ds) TwDrainKernel<<<1, 32>>>(d.Handle());
