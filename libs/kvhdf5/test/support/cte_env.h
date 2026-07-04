@@ -1,10 +1,10 @@
 #pragma once
 
-// One-time Chimaera/CTE bring-up shared by every GPU integration TEST_CASE in
-// the iowarp_cte_integration_tests executable.
+// One-time CLIO/CTE bring-up shared by the GPU test binaries (clio_contract_tests
+// and kvhdf5_e2e_tests). Both add test/support to their include dirs.
 //
 // Server start-up + CTE pool create + bdev registration is expensive and the
-// Chimaera server is process-global, so it must happen exactly once. A
+// CLIO server is process-global, so it must happen exactly once. A
 // function-local static (SharedCteEnv) gives lazy, once-only construction the
 // first time any test touches it; Catch2 runs all cases in one process so they
 // share it. Bring-up failures throw, which Catch2 reports as a failed test.

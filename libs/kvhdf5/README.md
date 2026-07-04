@@ -29,9 +29,10 @@ cmake --build build -j"$(nproc)"
 
 Build targets:
 - `kvhdf5_unit_tests` — CPU-only unit tests (chunking, dataset I/O, tag paths). No CUDA or CLIO runtime.
-- `iowarp_cte_integration_tests` — GPU integration tests against the CLIO CTE producer path.
+- `clio_contract_tests` — the CLIO dependency-contract canary: exercises the raw CLIO CTE producer contract with no kvhdf5 code, so a failure here points at CLIO, not at kvhdf5.
+- `kvhdf5_e2e_tests` — GPU end-to-end tests of kvhdf5's own producer surface (`GpuCteDataset`, chunking, tag paths) running on the CLIO runtime.
 
-Binaries are written to `build/bin/`.
+Binaries are written to `build/bin/`. Test sources are organized as `test/unit` (CPU logic), `test/clio` (the contract canary), `test/e2e` (kvhdf5 GPU end-to-end), and `test/support` (shared CTE bring-up).
 
 ### Running Tests
 Unit tests:
@@ -50,9 +51,13 @@ cd build && ctest --output-on-failure
 ```
 
 ### Three-way I/O benchmark
-The Gray-Scott three-way benchmark (raw disk vs CLIO-sync vs CLIO-async) lives as hidden Catch2 cases inside `iowarp_cte_integration_tests` and is driven by a wrapper script that runs each arm in its own process. After building the integration target:
+The Gray-Scott three-way benchmark (raw disk vs CLIO-sync vs CLIO-async) lives as hidden Catch2 cases inside `kvhdf5_e2e_tests` and is driven by a wrapper script that runs each arm in its own process. Build the `threeway_bench` target to build-and-run it:
 ```bash
-bash test/integration/iowarp/gpu/run_threeway_bench.sh
+cmake --build build --target threeway_bench
+```
+Or run the script directly after building `kvhdf5_e2e_tests`:
+```bash
+bash test/e2e/run_threeway_bench.sh
 ```
 Knobs (grid size, chunking, storage backend, durability) are environment variables — see the header comment in the script and in `gray_scott_threeway_bench.cu`.
 

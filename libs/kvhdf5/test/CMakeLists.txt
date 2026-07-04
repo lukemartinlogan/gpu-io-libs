@@ -14,4 +14,8 @@ set(CMAKE_CUDA_ARCHITECTURES "89" CACHE STRING "CUDA architectures" FORCE)
 
 add_subdirectory(unit)
 
-add_subdirectory(integration/iowarp/gpu)
+# clio dependency-contract canary (raw clio, no kvhdf5 headers)
+add_subdirectory(clio)
+
+# kvhdf5 GPU end-to-end tests (our producer surface on the clio runtime)
+add_subdirectory(e2e)

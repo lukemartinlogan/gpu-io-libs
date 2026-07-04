@@ -29,7 +29,7 @@
 #if !CTP_IS_DEVICE_PASS
 #include <catch2/catch_test_macros.hpp>
 #endif
-#include "shared_cte_env.h"
+#include "cte_env.h"
 
 namespace {
 
