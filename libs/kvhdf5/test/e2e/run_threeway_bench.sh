@@ -9,7 +9,7 @@
 # cross-arm FNV checksum of the persisted bytes proves the computation was identical.
 #
 # Run this INSIDE the CUDA/iowarp dev container, after building the target:
-#     cmake --build build --target iowarp_cte_integration_tests
+#     cmake --build build --target kvhdf5_e2e_tests
 #     bash <this-script>
 #
 # Defaults = the fair, apples-to-apples comparison: ~1.9 GB/arm, both arms durably
@@ -33,16 +33,18 @@ set -u
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- locations (override via env) -------------------------------------------------------
-# Default build layout: libs/kvhdf5/build/bin, four levels up from this script's dir.
-: "${GSBENCH_BUILD_DIR:=${script_dir}/../../../../build}"
-: "${GSBENCH_BIN:=${GSBENCH_BUILD_DIR}/bin/iowarp_cte_integration_tests}"
+# Default build layout: libs/kvhdf5/build/bin, two levels up from this script's dir
+# (test/e2e/). The CMake `threeway_bench` target overrides GSBENCH_BUILD_DIR so
+# this default only matters when running the script by hand.
+: "${GSBENCH_BUILD_DIR:=${script_dir}/../../build}"
+: "${GSBENCH_BIN:=${GSBENCH_BUILD_DIR}/bin/kvhdf5_e2e_tests}"
 : "${GSBENCH_SCRATCH:=${GSBENCH_BUILD_DIR}/gsbench_scratch}"
 : "${GSBENCH_TIMEOUT:=600}"     # per-arm wall-clock guard (seconds)
 : "${GSBENCH_REPEATS:=1}"
 
 if [[ ! -x "${GSBENCH_BIN}" ]]; then
     echo "error: test binary not found/executable: ${GSBENCH_BIN}" >&2
-    echo "       build it first: cmake --build ${GSBENCH_BUILD_DIR} --target iowarp_cte_integration_tests" >&2
+    echo "       build it first: cmake --build ${GSBENCH_BUILD_DIR} --target kvhdf5_e2e_tests" >&2
     exit 1
 fi
 
@@ -85,7 +87,7 @@ cleanup() {
 trap cleanup EXIT
 
 # A stale/killed run leaves a spinning server + shm segments that make the next run hang.
-reset_state() { pkill -9 -x iowarp_cte_inte 2>/dev/null; rm -f /dev/shm/chi_*; sleep 1; }
+reset_state() { pkill -9 -x kvhdf5_e2e_test 2>/dev/null; rm -f /dev/shm/chi_*; sleep 1; }
 
 run_arm() {  # $1 = catch tag, $2 = label
     reset_state

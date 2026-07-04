@@ -1,1 +1,0 @@
-add_subdirectory(gray_scott_traditional)

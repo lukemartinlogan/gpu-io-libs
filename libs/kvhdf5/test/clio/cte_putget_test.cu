@@ -41,12 +41,12 @@
 // Catch2 macros (REQUIRE) are used by host-only code below (the shared
 // environment + the TEST_CASE). Only pull them in on the host compilation
 // pass; the nvcc device pass never sees REQUIRE. SharedCteEnv (the one-time
-// Chimaera bring-up) lives in a shared header so other GPU integration cases
+// CLIO bring-up) lives in a shared header so other GPU integration cases
 // reuse the expensive server start; it self-guards out of the device pass.
 #if !CTP_IS_DEVICE_PASS
 #include <catch2/catch_test_macros.hpp>
 #endif
-#include "shared_cte_env.h"
+#include "cte_env.h"
 
 using namespace std::chrono_literals;
 

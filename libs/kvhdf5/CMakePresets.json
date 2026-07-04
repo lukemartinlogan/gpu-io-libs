@@ -30,12 +30,12 @@
     {
       "name": "dev",
       "configurePreset": "dev",
-      "targets": ["kvhdf5_unit_tests", "iowarp_cte_integration_tests"]
+      "targets": ["kvhdf5_unit_tests", "clio_contract_tests", "kvhdf5_e2e_tests"]
     },
     {
       "name": "release",
       "configurePreset": "release",
-      "targets": ["kvhdf5_unit_tests", "iowarp_cte_integration_tests"]
+      "targets": ["kvhdf5_unit_tests", "clio_contract_tests", "kvhdf5_e2e_tests"]
     }
   ]
 }

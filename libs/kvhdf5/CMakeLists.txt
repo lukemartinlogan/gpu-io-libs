@@ -27,7 +27,7 @@ set(CLIO_CORE_ENABLE_TESTS      OFF CACHE BOOL "" FORCE)
 set(CLIO_CORE_ENABLE_BENCHMARKS OFF CACHE BOOL "" FORCE)
 
 # Matches debug preset
-set(CLIO_CORE_ENABLE_ZMQ        ON  CACHE BOOL "" FORCE)  # Required for Chimaera networking
+set(CLIO_CORE_ENABLE_ZMQ        ON  CACHE BOOL "" FORCE)  # Required for CLIO networking
 set(CLIO_CORE_ENABLE_CEREAL     ON  CACHE BOOL "" FORCE)
 set(CLIO_CORE_ENABLE_IO_URING   OFF CACHE BOOL "" FORCE)
 set(CLIO_CORE_ENABLE_RPATH      ON  CACHE BOOL "" FORCE)
@@ -97,9 +97,3 @@ FetchContent_MakeAvailable(cccl)
 
 enable_testing()
 add_subdirectory(test)
-
-# Benchmarks
-# add_subdirectory(bench)
-
-# Examples
-# add_subdirectory(examples)
