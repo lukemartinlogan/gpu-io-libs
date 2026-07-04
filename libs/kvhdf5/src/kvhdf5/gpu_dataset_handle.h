@@ -117,7 +117,7 @@ private:
 #endif  // CTP_IS_GPU_COMPILER
 };
 
-// No is_trivially_copyable / serde::IsPOD static_assert here on purpose: iowarp's
+// No is_trivially_copyable static_assert here on purpose: iowarp's
 // FullPtr<T> declares user-provided copy/move ctors, so neither trait holds — yet
 // the reference passes FullPtr and IpcManagerGpuInfo BY VALUE straight into a
 // __global__ kernel and it works. ChunkDesc bundles those same proven types and
