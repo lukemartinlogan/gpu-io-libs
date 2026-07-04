@@ -31,12 +31,12 @@ namespace kvhdf5::itest {
 
 namespace cte = clio::cte::core;
 
-struct IowarpCteEnv {
+struct ClioCteEnv {
     cte::TagId tag_id;
 
-    IowarpCteEnv() {
+    ClioCteEnv() {
         using namespace std::chrono_literals;
-        std::fprintf(stderr, "[init] bringing up Chimaera server (once)\n");
+        std::fprintf(stderr, "[init] bringing up CLIO server (once)\n");
         if (!clio::run::CLIO_INIT(clio::run::RuntimeMode::kServer))
             throw std::runtime_error("CLIO_INIT(kServer) failed");
         if (!cte::CLIO_CTE_CLIENT_INIT())
@@ -86,9 +86,9 @@ struct IowarpCteEnv {
     }
 };
 
-/** Lazily construct (once) and return the shared Chimaera/CTE environment. */
-inline IowarpCteEnv& SharedCteEnv() {
-    static IowarpCteEnv env;
+/** Lazily construct (once) and return the shared CLIO/CTE environment. */
+inline ClioCteEnv& SharedCteEnv() {
+    static ClioCteEnv env;
     return env;
 }
 
