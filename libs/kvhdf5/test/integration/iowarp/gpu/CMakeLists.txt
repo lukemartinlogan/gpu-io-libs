@@ -60,3 +60,25 @@ catch_discover_tests(iowarp_cte_integration_tests
     PROPERTIES
         ENVIRONMENT "CLIO_BIND_ADDR=127.0.0.1;CHI_REPO_PATH=${CMAKE_BINARY_DIR}/bin;LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/bin"
 )
+
+# Convenience target for the three-way Gray-Scott I/O benchmark. The gsbench
+# arms are hidden ([.]) Catch2 cases inside the binary above; each must run in
+# its OWN process (iowarp's per-process GPU-backend ceiling), so a wrapper
+# script orchestrates them. It is NOT wired into ctest on purpose: the script
+# does a process-global `pkill` + shm wipe between arms, which would disrupt a
+# normal `ctest` run.
+#
+#   cmake --build <dir> --target threeway_bench
+#
+# GSBENCH_BUILD_DIR is injected here so the script finds the binary regardless
+# of which preset built it (build/ vs build-release/); the script's own default
+# assumes build/. All other knobs remain env-overridable (see the script header
+# and gray_scott_threeway_bench.cu).
+add_custom_target(threeway_bench
+    COMMAND ${CMAKE_COMMAND} -E env GSBENCH_BUILD_DIR=${CMAKE_BINARY_DIR}
+            bash ${CMAKE_CURRENT_SOURCE_DIR}/run_threeway_bench.sh
+    DEPENDS iowarp_cte_integration_tests
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    USES_TERMINAL
+    COMMENT "Running three-way Gray-Scott I/O benchmark (raw / sync / async)"
+)
