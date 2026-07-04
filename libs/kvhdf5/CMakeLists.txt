@@ -19,46 +19,53 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(FetchContent)
 
 # Modules we need
-set(WRP_CORE_ENABLE_RUNTIME    ON  CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_CTE        ON  CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_CAE        OFF CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_CEE        OFF CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_TESTS      OFF CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_RUNTIME    ON  CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_CTE        ON  CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_CAE        OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_CEE        OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_TESTS      OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_BENCHMARKS OFF CACHE BOOL "" FORCE)
 
 # Matches debug preset
-set(WRP_CORE_ENABLE_ZMQ        ON  CACHE BOOL "" FORCE)  # Required for Chimaera networking
-set(WRP_CORE_ENABLE_CEREAL     ON  CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_IO_URING   ON  CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_RPATH      ON  CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_ASAN       OFF CACHE BOOL "" FORCE)
-set(HSHM_LOG_LEVEL             "3" CACHE STRING "" FORCE)
+set(CLIO_CORE_ENABLE_ZMQ        ON  CACHE BOOL "" FORCE)  # Required for Chimaera networking
+set(CLIO_CORE_ENABLE_CEREAL     ON  CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_IO_URING   OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_RPATH      ON  CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_ASAN       OFF CACHE BOOL "" FORCE)
+set(HSHM_LOG_LEVEL              "3" CACHE STRING "" FORCE)
 
 # Enable CUDA in iowarp-core when CUDA compiler is available
 if(KVHDF5_HAS_CUDA)
-    set(WRP_CORE_ENABLE_CUDA   ON  CACHE BOOL "" FORCE)
+    set(CLIO_CORE_ENABLE_CUDA   ON  CACHE BOOL "" FORCE)
+    # Producer-only GPU model: the CDP-based GPU runtime is gone; kernels submit
+    # to the CPU via the gpu2cpu_queue. Keep GPU_RUNTIME OFF.
+    set(CLIO_CORE_ENABLE_GPU_RUNTIME OFF CACHE BOOL "" FORCE)
     # Set architecture before iowarp-core configures (RTX 4090 = sm_89)
     set(CMAKE_CUDA_ARCHITECTURES "89" CACHE STRING "CUDA architectures" FORCE)
 else()
-    set(WRP_CORE_ENABLE_CUDA   OFF CACHE BOOL "" FORCE)
+    set(CLIO_CORE_ENABLE_CUDA   OFF CACHE BOOL "" FORCE)
 endif()
-set(WRP_CORE_ENABLE_ELF        OFF CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_LIBFABRIC  OFF CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_MPI        OFF CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_COMPRESS   OFF CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_ENCRYPT    OFF CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_PYTHON     OFF CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_DOXYGEN    OFF CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_HDF5       OFF CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_GRAY_SCOTT OFF CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_CONDA      OFF CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_COVERAGE   OFF CACHE BOOL "" FORCE)
-set(WRP_CORE_ENABLE_DOCKER_CI  OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_ELF        OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_LIBFABRIC  OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_MPI        OFF CACHE BOOL "" FORCE)
+set(CLIO_CTE_ENABLE_COMPRESS    OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_ENCRYPT    OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_PYTHON     OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_DOXYGEN    OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_GRAY_SCOTT OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_CONDA      OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_COVERAGE   OFF CACHE BOOL "" FORCE)
+set(CLIO_CORE_ENABLE_DOCKER_CI  OFF CACHE BOOL "" FORCE)
+set(CLIO_CTE_ENABLE_POSIX_ADAPTER OFF CACHE BOOL "" FORCE)
+set(CLIO_CTE_ENABLE_VFD           OFF CACHE BOOL "" FORCE)
+set(CLIO_CTE_ENABLE_HDF5_VOL      OFF CACHE BOOL "" FORCE)
 
+# During local dev can point FetchContent at a working tree to skip re-cloning:
+#   -DFETCHCONTENT_SOURCE_DIR_IOWARP_CORE=/path/to/iowarp-core
 FetchContent_Declare(
     iowarp_core
     GIT_REPOSITORY https://github.com/abscosmos/iowarp-core.git
-    GIT_TAG        40705023cbce769bdd6c9df9ac1120739d33b4da
+    GIT_TAG        9266bd19bf0cd729e1a5cfd8427812b5442e9ff5
     GIT_SUBMODULES ""
 )
 # FetchContent_Populate(<name>) is deprecated in CMake 3.30+ (CMP0169).
@@ -72,14 +79,14 @@ if(NOT iowarp_core_POPULATED)
     list(APPEND CMAKE_MODULE_PATH "${iowarp_core_SOURCE_DIR}/cmake")
     file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/cmake")
     file(COPY
-        "${iowarp_core_SOURCE_DIR}/cmake/IowarpCoreConfig.cmake.in"
-        "${iowarp_core_SOURCE_DIR}/cmake/IowarpCoreCommon.cmake"
+        "${iowarp_core_SOURCE_DIR}/cmake/ClioCoreConfig.cmake.in"
+        "${iowarp_core_SOURCE_DIR}/cmake/ClioCoreCommon.cmake"
         DESTINATION "${CMAKE_SOURCE_DIR}/cmake/"
     )
 
     add_subdirectory(${iowarp_core_SOURCE_DIR} ${iowarp_core_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
-message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ 40705023)")
+message(STATUS "iowarp-core loaded from FetchContent (abscosmos/iowarp-core @ 9266bd19)")
 
 FetchContent_Declare(
     cccl
@@ -88,43 +95,11 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(cccl)
 
-add_library(kvhdf5 STATIC
-    src/kvhdf5/cpu_cte_blob_store.cpp
-)
-
-target_include_directories(kvhdf5 PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-
-if(KVHDF5_HAS_CUDA)
-    target_compile_definitions(kvhdf5 PUBLIC HSHM_ENABLE_CUDA=1)
-    target_link_libraries(kvhdf5 PUBLIC
-        CUDA::cudart
-        CCCL::CCCL
-        hshm::cxx
-        hshm::serialize
-        hshm::lightbeam
-        wrp_cte_core_runtime
-        chimaera_cxx
-    )
-else()
-    target_link_libraries(kvhdf5 PUBLIC
-        CCCL::CCCL
-        hshm::cxx
-        hshm::serialize
-        hshm::lightbeam
-        wrp_cte_core_runtime
-        chimaera_cxx
-    )
-endif()
-
-set(KVHDF5_CHIMAERA_CONF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/config/chimaera_ram.yaml")
-
-# Tests
+enable_testing()
 add_subdirectory(test)
 
 # Benchmarks
-add_subdirectory(bench)
+# add_subdirectory(bench)
 
 # Examples
-add_subdirectory(examples)
+# add_subdirectory(examples)

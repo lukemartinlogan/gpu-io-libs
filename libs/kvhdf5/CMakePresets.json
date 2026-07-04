@@ -30,22 +30,12 @@
     {
       "name": "dev",
       "configurePreset": "dev",
-      "targets": ["kvhdf5", "kvhdf5_tests", "kvhdf5_gpu_cte_tests"]
-    },
-    {
-      "name": "dev-bench",
-      "configurePreset": "dev",
-      "targets": ["kvhdf5_benchmarks"]
+      "targets": ["kvhdf5_unit_tests", "iowarp_cte_integration_tests"]
     },
     {
       "name": "release",
       "configurePreset": "release",
-      "targets": ["kvhdf5", "kvhdf5_tests", "kvhdf5_gpu_cte_tests"]
-    },
-    {
-      "name": "release-bench",
-      "configurePreset": "release",
-      "targets": ["kvhdf5_benchmarks"]
+      "targets": ["kvhdf5_unit_tests", "iowarp_cte_integration_tests"]
     }
   ]
 }
